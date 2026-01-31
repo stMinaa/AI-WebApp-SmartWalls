@@ -8,11 +8,8 @@
     "skipLibCheck": true,
     "noEmit": true
   },
+  "include": [],
   "exclude": [
-    "node_modules",
-    "**/*.spec.ts",
-    "**/*.test.ts",
-    "*.js",
-    "**/*.js"
+    "**/*"
   ]
 }

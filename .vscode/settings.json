@@ -18,6 +18,7 @@
   "typescript.tsserver.watchOptions": {
     "excludeDirectories": ["**/node_modules"]
   },
+  "codescene.enableCodeHealthMonitor": false,
   "files.eol": "\n",
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true
