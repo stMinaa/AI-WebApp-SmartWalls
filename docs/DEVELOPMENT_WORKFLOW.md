@@ -13,12 +13,26 @@ This is your process for adding features safely. Follow this EVERY time.
 3. ✅ Backend boots successfully
 4. ✅ MongoDB Atlas connection confirmed
 5. ✅ Frontend can reach backend
-6. ✅ Commit represents exactly ONE TDD step:
+6. ✅ CodeScene score ≥ 8.0 (production code only)
+7. ✅ Hotspots reviewed and acceptable
+8. ✅ Commit represents exactly ONE TDD step:
    - **RED** → tests only
    - **GREEN** → minimal implementation
    - **BLUE** → refactor only
 
 **If ANY condition is unmet:** DO NOT commit. Stop and ask for guidance.
+
+**CodeScene Check (Required Before Commit):**
+```bash
+# Analyze current codebase
+npx code-health --analysis-path=backend/ --exclude=node_modules
+
+# Review output:
+# - Overall score must be ≥ 8.0
+# - Review hotspots (frequently changed files)
+# - Address any red flags in production code
+# - Test duplication warnings are acceptable
+```
 
 ---
 
@@ -98,6 +112,10 @@ This is your process for adding features safely. Follow this EVERY time.
 - Connectivity status:
   - Backend ↔ MongoDB: [✅ CONNECTED / ❌ FAILED]
   - Frontend ↔ Backend: [✅ CONNECTED / ❌ FAILED]
+- CodeScene status:
+  - Overall score: [X.X/10]
+  - Hotspots: [list files with high churn/complexity]
+  - Action: [addressed/acceptable/to-fix]
 - Decision: [what TDD step: RED/GREEN/BLUE]
 - Change applied: [describe changes]
 - Expected outcome: [what should happen]
@@ -350,9 +368,14 @@ Then verify:
 
 **BLUE PHASE COMMIT (If refactoring was done):**
 ```
+# Run CodeScene check first
+npx code-health --analysis-path=backend/ --exclude=node_modules
+
+# If score ≥ 8.0, commit
 git add backend/
 git commit -m "[BLUE] Refactor user validation into helper function
 - Tests: All tests still passing
+- CodeScene: 8.5/10 (no hotspots)
 - No behavior change
 - Improved: Code readability and reusability"
 ```
@@ -361,6 +384,24 @@ git commit -m "[BLUE] Refactor user validation into helper function
 
 ## Code Quality Checks (Before Every Commit)
 
+**Step 1: Run Tests**
+```bash
+npm test
+# Must see: All tests passing
+```
+
+**Step 2: Run CodeScene Analysis**
+```bash
+npx code-health --analysis-path=backend/ --exclude=node_modules
+
+# Check output:
+# - Overall score ≥ 8.0
+# - Review hotspots (files changed frequently with high complexity)
+# - Red flags in production code must be fixed
+# - Test file warnings are acceptable
+```
+
+**Step 3: Manual Checklist**
 ```
 Backend:
 ✅ No console.log() (except errors)
@@ -369,7 +410,6 @@ Backend:
 ✅ Response format consistent
 ✅ Functions under 50 lines
 ✅ Variable names clear
-✅ CodeScene score ≥ 8.0
 
 Frontend:
 ✅ No console errors
