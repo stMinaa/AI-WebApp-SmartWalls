@@ -10,7 +10,6 @@ package-lock.json
 .env.production.local
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
