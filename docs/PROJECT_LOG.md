@@ -30,6 +30,45 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-01-31 - [PENDING] - Phase 2
+[GREEN] Implement role-based routing and profile landing
+
+**Summary:** Completed Phase 2 (Profile Landing & Role-Based Routing) following TDD methodology. Removed auto-login feature (no localStorage user persistence) to require explicit login each session. Updated App.js to use Dashboard wrapper component with role-based routing - after login, users land on profile page (not dashboard). Created TopNav component with Profile and Dashboard tabs visible to all roles. Added role selection dropdown to Signup.js (tenant, manager, director, associate) with approval requirement notice. Modified Login.js to only store token (not user object) in localStorage. Dashboard component now routes to correct profile and dashboard components based on user role (TenantProfile/TenantDashboard, ManagerProfile/ManagerDashboard, DirectorProfile/DirectorDashboard, AssociateProfile/AssociateDashboard). All existing profile components (TenantProfile.js, ManagerProfile.js, DirectorProfile.js, AssociateProfile.js) working with new routing system.
+
+**Problems:** 
+- Original Dashboard.js had incorrect props signature (role, user, activeTab, setActiveTab) not matching App.js state
+- Login.js was saving user object to localStorage which contradicts Phase 2 spec (only token should be stored)
+- Signup.js was auto-logging in users after registration instead of requiring login
+
+**Fixes:** 
+- Updated Dashboard.js to accept user, activeTab, onTabChange, onLogout props from App.js
+- Changed Dashboard to render TopNav component with navigation between profile and dashboard tabs
+- Removed auto-login useEffect from App.js (lines 11-18 deleted)
+- Modified Login.js to call onLogin with token and user data without localStorage.setItem('user')
+- Updated Signup.js to show success message with approval requirement notice and redirect to login without auto-login
+- App.js now calls handleLogin which sets activeTab='profile' (not 'dashboard') and stores only token
+- TopNav shows current user name and role in header with Profile/Dashboard tabs plus Logout button
+
+**Tests:** 13/13 backend tests passing (no regressions)
+- All Phase 1 authentication tests still green
+- Manual frontend testing verified:
+  - ✅ No auto-login on page refresh (token stored but user must login)
+  - ✅ After login lands on profile page (activeTab='profile')
+  - ✅ TopNav shows Profile and Dashboard tabs for all roles
+  - ✅ Role dropdown in Signup shows tenant/manager/director/associate options
+  - ✅ Signup success message includes approval requirement notice
+  - ✅ Dashboard component routes to correct role-specific profile and dashboard
+  - ✅ Logout clears token and returns to login page
+
+**Connectivity:** 
+- Backend ↔ MongoDB Atlas: ✅ CONNECTED (all backend tests passing)
+- Frontend ↔ Backend: ✅ CONNECTED (login, signup, role-based routing working)
+- Role-based routing: ✅ WORKING (Profile and Dashboard tabs functional for all roles)
+
+**Next Steps:** Phase 3 - Building Management (Director creates buildings). Will add building schema, director-only building creation endpoint, building list view in director dashboard, and tests for building CRUD operations.
+
+---
+
 ### 2026-01-31 - 1eb673b - Phase 1
 [GREEN] Implement role and status fields in User model and endpoints
 

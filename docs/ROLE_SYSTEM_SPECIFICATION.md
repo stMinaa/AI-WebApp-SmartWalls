@@ -31,8 +31,8 @@ This specification matches the full requirements for the Tenant Management Syste
 | Phase | Feature | Status |
 |-------|---------|--------|
 | 0 | Basic Auth (login/signup) | ✅ DONE |
-| 1 | Role Field & Status System | ⏳ NEXT |
-| 2 | Profile Landing & Role-Based Routing | ⬜ After Phase 1 |
+| 1 | Role Field & Status System | ✅ DONE |
+| 2 | Profile Landing & Role-Based Routing | ✅ DONE |
 | 3 | Building Management (Director) | ⬜ After Phase 2 |
 | 4 | Apartment Management (Bulk & Single) | ⬜ After Phase 3 |
 | 5 | Manager Assignment | ⬜ After Phase 4 |
