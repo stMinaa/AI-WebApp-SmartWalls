@@ -5,11 +5,14 @@
     "lib": ["ES2020"],
     "allowJs": true,
     "checkJs": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true
   },
   "exclude": [
     "node_modules",
     "**/*.spec.ts",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "*.js",
+    "**/*.js"
   ]
 }
