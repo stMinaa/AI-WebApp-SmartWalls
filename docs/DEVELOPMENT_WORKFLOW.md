@@ -383,6 +383,12 @@ Tests:
 ✅ All tests passing (npm test)
 ✅ Code coverage maintained or improved
 ✅ No skipped or disabled tests
+
+VS Code Problems Panel:
+✅ Zero errors in YOUR code (backend/, frontend/, test/)
+✅ Ignore node_modules errors (dependencies managed by .vscode/settings.json)
+✅ Ignore tsconfig.json warnings in node_modules
+⚠️ If Problems panel shows node_modules errors: Reload VS Code window (Ctrl+Shift+P → "Reload Window")
 ```
 
 ---

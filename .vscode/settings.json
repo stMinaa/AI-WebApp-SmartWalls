@@ -1,5 +1,4 @@
 {
-  "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.validate.enable": false,
   "javascript.validate.enable": true,
   "files.exclude": {
@@ -8,7 +7,6 @@
     "**/.hg": true,
     "**/CVS": true,
     "**/.DS_Store": true,
-    "**/node_modules": true
     "**/Thumbs.db": true,
     "**/node_modules": false
   },
@@ -18,15 +16,7 @@
     "**/*.code-search": true
   },
   "typescript.tsserver.watchOptions": {
-    "excludeDirectories": [
-      "**/node_modules"
-    ]
-  },
-  "javascript.preferences.importModuleSpecifierEnding": "minimal",
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": false,
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "never"
+    "excludeDirectories": ["**/node_modules"]
   },
   "files.eol": "\n",
   "files.insertFinalNewline": true,
