@@ -4,6 +4,60 @@ Design guidelines for the Tenant Management System to ensure consistent, accessi
 
 ---
 
+## 🏠 Landing Page & Authentication
+
+### Landing Page (Public - Home)
+**Layout:**
+- Full-screen background: Looping video of buildings (overlay with semi-transparent dark gradient)
+- Centered content with white text
+- Top navigation bar (dark, transparent background)
+
+**Elements:**
+- **Logo/Title:** "Smartwalls" (large, bold, white sans-serif font)
+- **Tagline:** "Tennet's assembly and building management" (smaller, white, below title)
+- **Navigation:** Top-left corner
+  - Home (current page)
+  - Login (link to login page)
+  - Style: White text, dark background (#2C3E50 or darker with transparency)
+
+**Background Video:**
+- Looping video of modern buildings/apartments
+- Semi-transparent overlay to ensure text readability
+- Subtle fade-in animation on page load
+
+---
+
+### Login Page
+**Layout:**
+- Same full-screen video background as landing page
+- Centered modal/card with login form
+- Semi-transparent white card (backdrop blur effect)
+
+**Form Elements:**
+- **Card:** White/light background with slight transparency, centered
+- **Username Field:**
+  - Label: "Username" (white text, above input)
+  - Input: White background, rounded corners, placeholder: "anja@smartwalls"
+- **Password Field:**
+  - Label: "Password" (white text, above input)
+  - Input: White background, rounded corners, password dots shown
+- **Submit Button:**
+  - Text: "Log In"
+  - Color: Green (#10b981 or similar)
+  - Style: Rounded, full-width within card
+  - Hover: Darker green
+
+**Navigation:**
+- Same top navigation as landing page (Home, Login)
+
+**Signup Page:**
+- Similar layout to Login
+- Additional fields: firstName, lastName, email, role dropdown
+- Submit button: "Sign Up" (same green styling)
+- Message below: "Your account requires approval" (small text)
+
+---
+
 ## 📸 How to Add Images to This File
 
 ```markdown
