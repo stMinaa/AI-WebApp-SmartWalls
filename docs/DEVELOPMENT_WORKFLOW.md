@@ -308,11 +308,16 @@ If tests fail:
 3. Test a flow manually:
    ✅ Frontend → Backend → MongoDB → Response
    ✅ No errors in browser or terminal
+
+4. Check VS Code Problems panel:
+   ✅ No errors from project code
+   ✅ Node_modules errors can be ignored (excluded in jsconfig.json)
+   ✅ No TypeScript config errors in project files
 ```
 
 **GREEN PHASE COMMIT (Required):**
 ```
-git add backend/ test/
+git add backend/ test/ docs/ .gitignore jsconfig.json
 git commit -m "[GREEN] Implement role and status in User signup
 - Tests: test/auth.test.js (all passing)
 - Backend: User schema + signup endpoint updated
