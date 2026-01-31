@@ -30,7 +30,7 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
-### 2026-01-31 - [PENDING] - Phase 2
+### 2026-01-31 - 2c931cd - Phase 2
 [GREEN] Implement role-based routing and profile landing
 
 **Summary:** Completed Phase 2 (Profile Landing & Role-Based Routing) following TDD methodology. Removed auto-login feature (no localStorage user persistence) to require explicit login each session. Updated App.js to use Dashboard wrapper component with role-based routing - after login, users land on profile page (not dashboard). Created TopNav component with Profile and Dashboard tabs visible to all roles. Added role selection dropdown to Signup.js (tenant, manager, director, associate) with approval requirement notice. Modified Login.js to only store token (not user object) in localStorage. Dashboard component now routes to correct profile and dashboard components based on user role (TenantProfile/TenantDashboard, ManagerProfile/ManagerDashboard, DirectorProfile/DirectorDashboard, AssociateProfile/AssociateDashboard). All existing profile components (TenantProfile.js, ManagerProfile.js, DirectorProfile.js, AssociateProfile.js) working with new routing system.
