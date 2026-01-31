@@ -30,6 +30,45 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-01-31 - 1eb673b - Phase 1
+[GREEN] Implement role and status fields in User model and endpoints
+
+**Summary:** Completed Phase 1 (Role Field & Status System) following strict TDD methodology. Added role and status fields to User schema with enum validation (roles: tenant/manager/director/associate, statuses: pending/active/rejected). Updated signup endpoint to accept optional role parameter (defaults to 'tenant'), validate against allowed values, and set all new users to 'pending' status requiring manager/director approval. Modified login and /api/auth/me endpoints to return role and status in responses. Established complete test infrastructure with Jest, supertest, and mongodb-memory-server for isolated testing. All 13 Phase 1 tests passing, covering user creation with different roles, role validation, status defaults, and API response formats. Backend configured to skip MongoDB connection in test environment to allow in-memory database usage during testing.
+
+**Problems:** 
+- Backend index.js was connecting to MongoDB Atlas on import, conflicting with test suite's in-memory MongoDB
+- Frontend React test failing due to JSX syntax not supported by Jest without Babel configuration
+- Git attempted to stage entire node_modules directory (warnings about CRLF line endings)
+- Initial test run failed because app wasn't exported from index.js for testing
+
+**Fixes:** 
+- Wrapped MongoDB connection in `if (process.env.NODE_ENV !== 'test')` conditional to skip in test environment
+- Added `module.exports = app` to backend/index.js for test imports
+- Wrapped `app.listen()` in same conditional to prevent port binding during tests
+- Configured Jest to ignore frontend tests with `testPathIgnorePatterns: ['/node_modules/', '/frontend/']`
+- Created jest.config.js with proper Node environment settings
+- Updated package.json test script to use Jest instead of placeholder
+- Used selective git add to stage only relevant files, not node_modules
+
+**Tests:** 13/13 passing
+- ✅ Default role 'tenant' when no role provided
+- ✅ Accepts and validates role parameter (manager, director, associate)
+- ✅ Rejects invalid role values with 400 error
+- ✅ Sets status='pending' for all new users
+- ✅ Login returns role and status in response
+- ✅ /api/auth/me includes role and status
+- ✅ User model enforces enum validation
+- ✅ Schema defaults work correctly (role='tenant', status='pending')
+
+**Connectivity:** 
+- Backend ↔ MongoDB Atlas: ✅ CONNECTED (verified with startup logs)
+- Frontend ↔ Backend: ✅ REACHABLE (tested /api/test endpoint successfully)
+- Test environment uses in-memory MongoDB (no Atlas dependency during tests)
+
+**Next Steps:** Phase 2 - Profile Landing & Role-Based Routing. Will add dashboard routing based on user role, redirect users to appropriate dashboards after login, and create profile landing pages for each role type.
+
+---
+
 ### [Pre-TDD] - Initial State - Setup
 Project structure established
 
