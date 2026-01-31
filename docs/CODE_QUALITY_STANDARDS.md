@@ -4,6 +4,27 @@ All code must adhere to these standards. Every feature addition must pass this c
 
 ---
 
+## 📊 CodeScene Quality (Target: ≥8.0)
+
+**CodeScene analyzes:**
+- Code complexity and maintainability
+- Code duplication
+- Function length and nesting
+- File hotspots (frequently changed areas)
+
+**What to fix:**
+- ❌ Duplication in production code (backend/, frontend/src/)
+- ❌ Complex functions (high cognitive complexity)
+- ❌ Large functions (>50 lines)
+
+**What to ignore:**
+- ✅ Test file duplication (tests naturally have repetitive setup/assertions)
+- ✅ Model schemas (repetitive field definitions are clear)
+
+**Action:** If CodeScene score <8.0, refactor before committing.
+
+---
+
 ## ✅ JavaScript/Node.js Standards
 
 ### 1. **Naming Conventions**

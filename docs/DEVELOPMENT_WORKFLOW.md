@@ -388,7 +388,8 @@ VS Code Problems Panel:
 ✅ Zero errors in YOUR code (backend/, frontend/, test/)
 ✅ Ignore node_modules errors (dependencies managed by .vscode/settings.json)
 ✅ Ignore tsconfig.json warnings in node_modules
-✅ Ignore CodeScene duplication warnings in test files (test repetition is acceptable)
+✅ CodeScene warnings in test/ are acceptable (test setup naturally has repetition)
+✅ CodeScene warnings in backend/ MUST be addressed (production code quality)
 ⚠️ If Problems panel shows node_modules errors: Reload VS Code window (Ctrl+Shift+P → "Reload Window")
 ```
 
