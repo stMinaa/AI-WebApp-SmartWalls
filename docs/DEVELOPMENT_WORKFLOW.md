@@ -209,7 +209,7 @@ describe('User Signup with Role', () => {
     const response = await request(app)
       .post('/api/auth/signup')
       .send({ username: 'test', email: 'test@test.com', password: 'pass123', role: 'tenant' });
-    
+
     expect(response.status).toBe(201);
     expect(response.body.user.role).toBe('tenant');
     expect(response.body.user.status).toBe('pending');
@@ -277,17 +277,17 @@ Example:
 app.post('/api/auth/signup', async (req, res) => {
   const { username, email, password, firstName, lastName, role } = req.body;
   // ... existing validation ...
-  
+
   const user = new User({
     username,
-    email, 
+    email,
     password: hashedPassword,
     firstName,
     lastName,
     role: role || 'tenant',  // NEW: accept role
     status: 'pending'        // NEW: set pending status
   });
-  
+
   // ... rest of existing code ...
 });
 
@@ -463,7 +463,7 @@ VS Code Problems Panel:
 1. Update ROLE_SYSTEM_SPECIFICATION.md:
    - Mark phase as ✅ DONE
    - Update "Current Progress" table
-   
+
 2. Update TESTING_REQUIREMENTS.md:
    - Mark tests as ✅ PASSING
 
@@ -501,7 +501,7 @@ Now safe to move to next feature!
 - [ ] Timestamps present
 - [ ] Test schema compiles
    - Mark tests as ✅ PASSING
-   
+
 3. Update docs/PROJECT_LOG.md (Progress Summary):
    - Add 1 paragraph summary of completed work
    - Include problems encountered and fixes applied

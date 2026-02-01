@@ -67,14 +67,14 @@ return data.json();
 async function handleUserSignup(username, email, password) {
   // 1. Validate inputs
   if (!username?.trim()) throw new Error('Username required');
-  
+
   // 2. Check conditions
   const exists = await User.findOne({ username });
   if (exists) throw new Error('Username taken');
-  
+
   // 3. Execute action
   const user = await User.create({ username, email, password });
-  
+
   // 4. Return result
   return user;
 }
@@ -106,15 +106,15 @@ function UserProfile({ userId }) {
   // 1. State
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
-  
+
   // 2. Effects
   useEffect(() => {
     fetchUser(userId);
   }, [userId]);
-  
+
   // 3. Handlers
   const handleLogout = () => { ... };
-  
+
   // 4. Render
   return (
     <div className="profile">

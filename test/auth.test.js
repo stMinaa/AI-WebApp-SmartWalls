@@ -11,9 +11,9 @@ beforeAll(async () => {
   // Start in-memory MongoDB for tests
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();
-  
+
   await mongoose.connect(mongoUri);
-  
+
   // Import app after DB connection
   app = require('../backend/index');
 });
@@ -31,9 +31,9 @@ afterEach(async () => {
 });
 
 describe('Phase 1: Role Field & Status System', () => {
-  
+
   describe('POST /api/auth/signup', () => {
-    
+
     it('should create user with default role "tenant" when no role provided', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -44,13 +44,13 @@ describe('Phase 1: Role Field & Status System', () => {
           firstName: 'Test',
           lastName: 'User'
         });
-      
+
       expect(response.status).toBe(201);
       expect(response.body.user).toBeDefined();
       expect(response.body.user.role).toBe('tenant');
       expect(response.body.user.status).toBe('pending');
     });
-    
+
     it('should create user with specified role (manager)', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -62,12 +62,12 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User',
           role: 'manager'
         });
-      
+
       expect(response.status).toBe(201);
       expect(response.body.user.role).toBe('manager');
       expect(response.body.user.status).toBe('pending');
     });
-    
+
     it('should create user with role "director"', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -79,12 +79,12 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User',
           role: 'director'
         });
-      
+
       expect(response.status).toBe(201);
       expect(response.body.user.role).toBe('director');
       expect(response.body.user.status).toBe('pending');
     });
-    
+
     it('should create user with role "associate"', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -96,12 +96,12 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User',
           role: 'associate'
         });
-      
+
       expect(response.status).toBe(201);
       expect(response.body.user.role).toBe('associate');
       expect(response.body.user.status).toBe('pending');
     });
-    
+
     it('should reject invalid role', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -113,11 +113,11 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User',
           role: 'superadmin'
         });
-      
+
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
     });
-    
+
     it('should set status to "pending" for all new users', async () => {
       const response = await request(app)
         .post('/api/auth/signup')
@@ -129,18 +129,18 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User',
           role: 'tenant'
         });
-      
+
       expect(response.status).toBe(201);
       expect(response.body.user.status).toBe('pending');
-      
+
       // Verify in database
       const user = await User.findOne({ username: 'newuser' });
       expect(user.status).toBe('pending');
     });
   });
-  
+
   describe('POST /api/auth/login', () => {
-    
+
     it('should return user with role and status fields', async () => {
       // Create a user first
       await request(app)
@@ -153,7 +153,7 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'Test',
           role: 'manager'
         });
-      
+
       // Now login
       const response = await request(app)
         .post('/api/auth/login')
@@ -161,7 +161,7 @@ describe('Phase 1: Role Field & Status System', () => {
           username: 'logintest',
           password: 'password123'
         });
-      
+
       expect(response.status).toBe(200);
       expect(response.body.user).toBeDefined();
       expect(response.body.user.role).toBe('manager');
@@ -169,9 +169,9 @@ describe('Phase 1: Role Field & Status System', () => {
       expect(response.body.token).toBeDefined();
     });
   });
-  
+
   describe('GET /api/auth/me', () => {
-    
+
     it('should return current user with role and status', async () => {
       // Signup
       const signupResponse = await request(app)
@@ -184,23 +184,23 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'Test',
           role: 'director'
         });
-      
+
       const token = signupResponse.body.token;
-      
+
       // Get current user
       const response = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${token}`);
-      
+
       expect(response.status).toBe(200);
       expect(response.body.role).toBe('director');
       expect(response.body.status).toBe('pending');
       expect(response.body.username).toBe('metest');
     });
   });
-  
+
   describe('User Model Validation', () => {
-    
+
     it('should have role field with valid enum values', async () => {
       const user = new User({
         username: 'validationtest',
@@ -209,11 +209,11 @@ describe('Phase 1: Role Field & Status System', () => {
         role: 'tenant',
         status: 'pending'
       });
-      
+
       await expect(user.save()).resolves.toBeDefined();
       expect(user.role).toBe('tenant');
     });
-    
+
     it('should reject invalid role value in model', async () => {
       const user = new User({
         username: 'invalidrole',
@@ -222,10 +222,10 @@ describe('Phase 1: Role Field & Status System', () => {
         role: 'invalidrole',
         status: 'pending'
       });
-      
+
       await expect(user.save()).rejects.toThrow();
     });
-    
+
     it('should have status field with valid enum values', async () => {
       const user = new User({
         username: 'statustest',
@@ -234,11 +234,11 @@ describe('Phase 1: Role Field & Status System', () => {
         role: 'manager',
         status: 'active'
       });
-      
+
       await expect(user.save()).resolves.toBeDefined();
       expect(user.status).toBe('active');
     });
-    
+
     it('should default role to "tenant" if not provided', async () => {
       const user = new User({
         username: 'defaultrole',
@@ -246,11 +246,11 @@ describe('Phase 1: Role Field & Status System', () => {
         password: 'hashedpassword',
         status: 'pending'
       });
-      
+
       await user.save();
       expect(user.role).toBe('tenant');
     });
-    
+
     it('should default status to "pending" if not provided', async () => {
       const user = new User({
         username: 'defaultstatus',
@@ -258,7 +258,7 @@ describe('Phase 1: Role Field & Status System', () => {
         password: 'hashedpassword',
         role: 'tenant'
       });
-      
+
       await user.save();
       expect(user.status).toBe('pending');
     });

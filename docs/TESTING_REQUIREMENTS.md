@@ -2,6 +2,41 @@
 
 Run these tests after EVERY feature addition. Feature is NOT complete until all tests pass.
 
+## CRITICAL: Always Check Terminals for Errors/Warnings
+
+**BEFORE committing ANY code:**
+1. Check frontend terminal for compilation errors/warnings
+2. Check backend terminal for runtime errors
+3. Run `npm test` in both frontend and backend
+4. Verify no ESLint errors in VS Code Problems panel
+
+**Never commit if:**
+- ❌ Terminal shows compilation errors
+- ❌ Terminal shows webpack errors
+- ❌ Any tests are failing
+- ❌ ESLint shows errors
+
+## CRITICAL: Test API Calls Immediately After Changes
+
+**AFTER making ANY code change (don't wait for commits):**
+1. **Identify affected endpoints** - Which API routes does your change touch?
+2. **Test those endpoints immediately:**
+   - Use browser (for GET requests - check Network tab)
+   - Use console.log to verify request/response data
+   - Check backend terminal logs for incoming requests
+   - Verify database changes if applicable
+3. **Check both frontend AND backend terminals** for errors
+4. **Verify the full request/response cycle works** before moving on
+
+**Example: After modifying DirectorDashboard buildings UI:**
+- ✅ Refresh browser and click "Zgrade" tab
+- ✅ Check browser console for GET /api/buildings response
+- ✅ Check backend terminal shows "GET /api/buildings - User: direktor"
+- ✅ Try creating a building and verify POST /api/buildings works
+- ✅ Confirm new building appears in the list
+
+**Don't just write code - VERIFY it works immediately!**
+
 ---
 
 ## Phase 1: Role Field Tests
@@ -275,6 +310,88 @@ Expected Response (200):
 Verify:
 - Manager role user is assigned
 - Manager can now access building
+```
+
+**Status: ⏳ Not Started**
+
+---
+
+## Phase 1.5-1.6: Issue Management Tests
+
+### Test: Filter Issues by Priority
+```
+1. Login as director
+2. Navigate to "Kvarovi" tab
+3. Select "Visok" from priority filter dropdown
+4. Verify table shows only high priority issues
+5. Select "Srednji" - verify only medium priority issues shown
+6. Select "Svi prioriteti" - verify all issues shown
+```
+
+### Test: Filter Issues by Status
+```
+1. Login as director
+2. Navigate to "Kvarovi" tab
+3. Select "Otvoren" from status filter dropdown
+4. Verify table shows only open issues
+5. Select "Dodeljen" - verify only assigned issues shown
+6. Select "Svi statusi" - verify all issues shown
+```
+
+### Test: Combined Filters
+```
+1. Login as director
+2. Navigate to "Kvarovi" tab
+3. Select "Visok" priority and "Otvoren" status
+4. Verify table shows only high priority open issues
+5. Change priority to "Svi prioriteti"
+6. Verify table shows all open issues (status filter still active)
+```
+
+### Test: Assign Issue via Dropdown
+```
+POST login as director to get token
+
+GET /api/issues
+- Verify returns all issues with populated fields
+
+Click "Dodeli" button on an issue
+- Verify modal opens
+- Verify dropdown shows all active associates
+- Verify format: "FirstName LastName (email@example.com)"
+
+Select an associate from dropdown
+Expected:
+- PATCH /api/issues/:id/assign with correct associateId
+- Issue status changes to "assigned" (if was "open")
+- Issue assignedTo field updates
+- Table immediately reflects changes
+- Modal closes
+```
+
+### Test: Remove Issue Assignment
+```
+1. Login as director
+2. Find an already-assigned issue in "Kvarovi" tab
+3. Click "Dodeli" button
+4. Select "-- Bez dodele --" option from dropdown
+5. Verify:
+   - PATCH /api/issues/:id/assign with null
+   - Issue status changes to "open"
+   - Issue assignedTo field clears
+   - Table shows "Nedodeljen" in Dodeljen column
+```
+
+### Test: Inline Priority Change
+```
+1. Login as director
+2. Navigate to "Kvarovi" tab
+3. Click priority dropdown in table row
+4. Select different priority
+5. Verify:
+   - PATCH /api/issues/:id/triage called
+   - Priority updates immediately (no page refresh)
+   - No errors in console
 ```
 
 **Status: ⏳ Not Started**

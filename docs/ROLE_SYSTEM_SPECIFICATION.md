@@ -26,25 +26,126 @@ This specification matches the full requirements for the Tenant Management Syste
 
 ---
 
-## 📋 Phase Breakdown (14 Phases)
+## 📋 Phase Breakdown (By Role)
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 0 | Basic Auth (login/signup) | ✅ DONE |
-| 1 | Role Field & Status System | ✅ DONE |
-| 2 | Profile Landing & Role-Based Routing | ✅ DONE |
-| 3 | Building Management (Director) | ⬜ After Phase 2 |
-| 4 | Apartment Management (Bulk & Single) | ⬜ After Phase 3 |
-| 5 | Manager Assignment | ⬜ After Phase 4 |
-| 6 | Tenant Management & Assignment | ⬜ After Phase 5 |
-| 7 | Issue Reporting (Tenant) | ⬜ After Phase 6 |
-| 8 | Issue Triage (Manager) | ⬜ After Phase 7 |
-| 9 | Issue Assignment (Director) | ⬜ After Phase 8 |
-| 10 | Job Management (Associate) | ⬜ After Phase 9 |
-| 11 | Staff Approvals (Director) | ⬜ After Phase 10 |
-| 12 | Notices & Bulletin Board | ⬜ After Phase 11 |
-| 13 | Polls System | ⬜ After Phase 12 |
-| 14 | ETA & Advanced Features | ⬜ After Phase 13 |
+### Foundation (Complete)
+- ✅ Phase 0: Authentication & User Management
+- ✅ Phase 0.1: Role field & status system
+- ✅ Phase 0.2: Profile pages & role-based routing
+
+### Phase 1: Director Role (Building the Foundation)
+| Sub-Phase | Feature | Status | Dependencies |
+|-----------|---------|--------|--------------|
+| 1.1 | Create & view buildings | ✅ DONE | None |
+| 1.2 | Assign managers to buildings | ✅ DONE | 1.1 |
+| 1.3 | View & approve pending managers | ✅ DONE | 1.2 |
+| 1.4 | View & approve pending associates | ✅ DONE | 1.3 |
+| 1.5 | View all issues (with priority/status filters) | ✅ DONE | Manager 2.5 |
+| 1.6 | Assign issues to associates (dropdown) | ✅ DONE | 1.4, 1.5 |
+
+**Phase 1.5-1.6 Details:**
+- Directors see only forwarded issues (status: 'forwarded')
+- Issues can be filtered by priority (low/medium/high) and status
+- Dropdown select for assigning associates (shows name + email)
+- Director can reject issues or assign to associates
+
+### Phase 2: Manager Role (Day-to-Day Operations)
+| Sub-Phase | Feature | Status | Dependencies |
+|-----------|---------|--------|--------------|
+| 2.1 | View assigned buildings | ⬜ TODO | Director 1.2 |
+| 2.2 | Create apartments (bulk & single) | ⬜ TODO | 2.1 |
+| 2.3 | View & manage tenants | ⬜ TODO | 2.2 |
+| 2.4 | Assign tenants to apartments | ⬜ TODO | 2.3 |
+| 2.5 | View tenant-reported issues | ⬜ TODO | Tenant 3.2 |
+| 2.6 | Triage issues (handle or forward to director) | ⬜ TODO | 2.5 |
+| 2.7 | Create notices (bulletin board) | ⬜ TODO | 2.1 |
+| 2.8 | Create polls | ⬜ TODO | 2.1 |
+
+### Phase 3: Tenant Role (Resident Experience)
+| Sub-Phase | Feature | Status | Dependencies |
+|-----------|---------|--------|--------------|
+| 3.1 | View apartment & building info | ⬜ TODO | Manager 2.4 |
+| 3.2 | Report issues | ⬜ TODO | 3.1 |
+| 3.3 | View bulletin board (notices) | ⬜ TODO | Manager 2.7 |
+| 3.4 | Vote on polls | ⬜ TODO | Manager 2.8 |
+
+### Phase 4: Associate Role (Issue Resolution)
+| Sub-Phase | Feature | Status | Dependencies |
+|-----------|---------|--------|--------------|
+| 4.1 | View assigned jobs | ⬜ TODO | Director 1.6 |
+| 4.2 | Accept job with cost estimate | ⬜ TODO | 4.1 |
+| 4.3 | Mark job as complete | ⬜ TODO | 4.2 |
+
+---
+
+## 🔄 Data Flow Diagrams
+
+### Issue Lifecycle (Complete Flow)
+```
+1. TENANT creates issue
+   ↓ (status: 'reported')
+   
+2. MANAGER sees issue in their building
+   ↓ Decides one of three actions:
+   
+   2a. Forward to director (status: 'forwarded')
+       ↓
+       3. DIRECTOR sees forwarded issue
+          ↓ Decides:
+          - Assign to associate (status: 'assigned')
+          - Reject (status: 'rejected')
+   
+   2b. Assign to associate directly (status: 'assigned')
+       ↓
+       4. ASSOCIATE sees assigned job
+          ↓
+          5. Associate accepts job (status: 'in-progress')
+          ↓
+          6. Associate completes job (status: 'resolved')
+   
+   2c. Reject (status: 'rejected')
+       → Issue closed
+```
+
+**Status Values:**
+- `reported` - Tenant reported, waiting for manager
+- `forwarded` - Manager forwarded to director
+- `assigned` - Assigned to associate (by manager or director)
+- `in-progress` - Associate accepted and working on it
+- `resolved` - Associate completed the job
+- `rejected` - Manager or director rejected
+
+### User Approval Flow
+```
+1. User signs up → status: 'pending'
+   ↓
+   
+2. If TENANT: Auto-approve → status: 'active'
+
+3. If MANAGER/ASSOCIATE:
+   ↓ Requires director approval
+   
+   DIRECTOR reviews → 
+   - Approve: status: 'active'
+   - Reject: status: 'rejected'
+```
+
+### Building → Apartment → Tenant Flow
+```
+1. DIRECTOR creates building
+   ↓
+   
+2. DIRECTOR assigns MANAGER to building
+   ↓
+   
+3. MANAGER creates apartments in building
+   ↓
+   
+4. MANAGER assigns TENANT to apartment
+   ↓
+   
+5. TENANT can now report issues for that apartment
+```
 
 ---
 
@@ -165,6 +266,43 @@ Plus: Profile button (top right), Logout button
 
 ---
 
+## 📊 Authorization Matrix
+
+| Action | Tenant | Manager | Director | Associate |
+|--------|--------|---------|----------|-----------|
+| Report issues | ✅ | ❌ | ❌ | ❌ |
+| Triage issues | ❌ | ✅ | ❌ | ❌ |
+| Assign to associate | ❌ | ✅ | ✅ | ❌ |
+| Accept job | ❌ | ❌ | ❌ | ✅ |
+| Create building | ❌ | ❌ | ✅ | ❌ |
+| Bulk apartments | ❌ | ✅ | ✅ | ❌ |
+| Assign manager | ❌ | ❌ | ✅ | ❌ |
+| Manage tenants | ❌ | ✅ | ❌ | ❌ |
+| Approve staff | ❌ | ❌ | ✅ | ❌ |
+| Post notice | ❌ | ✅ | ❌ | ❌ |
+| Create poll | ❌ | ✅ | ❌ | ❌ |
+| Vote on poll | ✅ | ❌ | ❌ | ❌ |
+
+---
+
+## 📋 Development Rules
+
+1. **One Phase at a Time** - Complete current sub-phase before next
+2. **Test Immediately** - Test API calls after every change (see TESTING_REQUIREMENTS.md)
+3. **All Tests Pass** - Run full test suite before moving on
+4. **Code Quality** - Follow CODE_QUALITY_STANDARDS.md
+5. **UI/UX Standards** - Follow UI_UX_STANDARDS.md (minimal, elegant design)
+6. **No Breaking Changes** - Previous phases must continue working
+7. **Update Progress** - Mark sub-phases ✅ DONE when complete
+
+---
+
+## 📚 ARCHIVE: Old Phase Details (For Reference Only)
+
+_The detailed specs below are archived for reference. Focus on the role-based phases above._
+
+---
+
 ## Phase 3: Building Management (Director)
 
 ### Backend Changes
@@ -200,7 +338,55 @@ GET /api/buildings/managed (manager only)
 
 ---
 
-## Phase 4: Apartment Management
+## Phase 4: Manager Assignment (Director)
+
+**Why this comes before apartments:** Buildings need managers before apartments can be created. Managers will create/manage apartments in their assigned buildings.
+
+### Backend Changes
+
+#### Update Endpoints
+```javascript
+PATCH /api/buildings/:id/assign-manager (director only)
+- Body: { managerId: "..." }
+- Updates building.manager field
+- Returns updated building with manager populated
+
+GET /api/users?role=manager (director only)
+- Returns all managers with status 'active'
+- Include: buildings count (load), firstName, lastName, email
+
+GET /api/buildings/managed (manager only) [already exists]
+- Returns buildings where manager._id matches logged-in manager
+```
+
+### Frontend Changes
+
+#### DirectorDashboard - Upravnici Tab
+- Display list of all managers (active + pending)
+- Show: name, email, status, # of assigned buildings
+- Action buttons:
+  - "Odobri" for pending managers (changes status to active)
+  - "Obriši" to delete manager
+
+#### DirectorDashboard - Zgrade Tab (Update)
+- Add "Dodeli upravnika" button on each building card
+- Opens modal/dropdown with list of active managers
+- Shows current manager if assigned
+- Can change/remove manager
+
+### Success Criteria
+- ✅ Director sees list of all managers
+- ✅ Director can approve pending managers
+- ✅ Director can assign manager to building
+- ✅ Director can change/remove manager from building
+- ✅ Manager sees only their assigned buildings in GET /api/buildings/managed
+- ✅ Manager count updates when buildings are assigned/removed
+
+---
+
+## Phase 5: Apartment Management
+
+**Prerequisites:** Buildings must have managers assigned (Phase 4 complete)
 
 ### Backend Changes
 
@@ -237,26 +423,7 @@ GET /api/buildings/:id/apartments (manager/director)
 
 ---
 
-## Phase 5: Manager Assignment
-
-### Backend Changes
-```javascript
-PATCH /api/buildings/:id/assign-manager (director only)
-GET /api/managers (director only) - with load (# buildings)
-```
-
-### Frontend Changes
-- Director can assign manager to building
-- Manager list shows load
-
-### Success Criteria
-- ✅ Director assigns manager
-- ✅ Manager sees managed buildings
-- ✅ Manager list sorted by load
-
----
-
-## Phase 6: Tenant Management
+## Phase 6: Tenant Assignment
 
 ### Backend Changes
 ```javascript

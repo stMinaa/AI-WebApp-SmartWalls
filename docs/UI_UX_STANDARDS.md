@@ -4,6 +4,30 @@ Design guidelines for the Tenant Management System to ensure consistent, accessi
 
 ---
 
+## 🎯 Core Design Principles
+
+### UX Principles
+- **Intuitive:** Users should understand functionality immediately without explanation
+- **Easy:** Minimize clicks and steps to complete tasks
+- **Clear:** Use descriptive labels and obvious action buttons
+- **Consistent:** Same patterns across all pages and roles
+
+### UI Principles  
+- **Elegant & Minimal:** Clean, simple designs over bold statements
+- **Subtle:** Use understated colors and spacing
+- **Professional:** Business-appropriate styling
+- **Refined:** Attention to typography, alignment, whitespace
+
+### Design Restrictions
+- ❌ **NO gradient colors** (e.g., linear-gradient)
+- ❌ **NO bright/vibrant colors** (e.g., #FF0000, #00FF00)
+- ❌ **NO colorful emojis** (e.g., 🏢 🎉 ✨)
+- ✅ **YES to black/white icons** (e.g., ▪ ○ ✓ ✕ ▸)
+- ✅ **YES to subtle grays** (#f8f9fa, #e9ecef, #6c757d)
+- ✅ **YES to muted accent colors** (#3498db, #27ae60, #95a5a6)
+
+---
+
 ## 🏠 Landing Page & Authentication
 
 ### Landing Page (Public - Home)
@@ -72,32 +96,33 @@ Store design assets in: `docs/images/` folder
 
 ## 🎨 Color Palette
 
-### Primary Colors
+### Neutral Colors (Primary)
 ```
-Primary Blue:    #2563eb  (General buttons, links)
-Dark Blue:       #1e40af  (Hover states)
-Light Blue:      #dbeafe  (Backgrounds, highlights)
-```
-
-### Background Colors
-```
-Page Background:     #f5f5f5 or #e8e8e8  (Light gray for profile main area)
-Sidebar Background:  [Role-specific - see Role Colors]
-Card Background:     #ffffff  (White cards)
+Text Primary:        #2c3e50  (Headings, important text)
+Text Secondary:      #7f8c8d  (Descriptions, labels)
+Text Muted:          #95a5a6  (Hints, placeholders)
+Background Light:    #f8f9fa  (Page backgrounds)
+Background Medium:   #e9ecef  (Cards, panels)
+Border:              #dee2e6  (Dividers, card borders)
+White:               #ffffff  (Containers, inputs)
 ```
 
-### Status Colors
+### Accent Colors (Subtle)
 ```
-Success Green:   #10b981  (✅ Completed, approved)
-Warning Yellow:  #f59e0b  (⚠️ Pending, urgent)
-Error Red:       #ef4444  (❌ Rejected, errors)
-Info Gray:       #6b7280  (ℹ️ Neutral information)
+Primary Blue:        #3498db  (Links, primary actions)
+Primary Blue Dark:   #2980b9  (Hover states)
+Success Green:       #27ae60  (Approvals, success messages)
+Warning Orange:      #e67e22  (Warnings, pending status)
+Error Red:           #c0392b  (Errors, rejections)
+Info Gray:           #95a5a6  (Neutral information)
 ```
 
-### Role Colors (Sidebar Backgrounds)
+### Role Colors (Sidebar - Muted Tones)
 ```
-Tenant:          #26D07C  (Green/Teal)
-Manager:         #B8A3D4  (Purple/Lavender)
+Tenant:              #27ae60  (Muted green)
+Manager:             #9b59b6  (Muted purple)
+Director:            #34495e  (Dark gray-blue)
+Associate:           #16a085  (Muted teal)
 Director:        #8A8A8A  (Gray)
 Associate:       #6BA3D4  (Light Blue)
 Admin:           #64748b  (Slate)
@@ -118,7 +143,7 @@ Text Secondary:  #6b7280  (Labels, captions)
 
 ### Font Family
 ```css
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
              'Helvetica Neue', Arial, sans-serif;
 ```
 
@@ -606,6 +631,32 @@ Escape key to close
 Arrow keys to navigate options
 Enter to select
 ```
+
+**Styling:**
+- Padding: 10-12px
+- Border: 1px solid #dee2e6
+- Border radius: 6px
+- Font size: 14px
+- Background: white
+- Cursor: pointer
+- Full width for form fields
+
+**Usage Patterns:**
+1. **Inline Dropdowns** (quick changes)
+   - Example: Priority selector in issues table
+   - Auto-saves on change
+   - No additional buttons needed
+   
+2. **Modal Dropdowns** (complex selections)
+   - Example: Assign issue to associate
+   - Shows meaningful text (Name + Email)
+   - First option: "-- Bez dodele --" or "-- Izaberite --"
+   - Pre-selects current value if exists
+   
+3. **Filter Dropdowns** (data filtering)
+   - Example: Filter issues by priority/status
+   - First option: "Svi..." (show all)
+   - Updates results immediately on change
 
 ### Modals
 ```

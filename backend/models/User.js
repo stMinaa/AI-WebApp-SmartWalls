@@ -6,15 +6,15 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   firstName: { type: String },
   lastName: { type: String },
-  role: { 
-    type: String, 
-    enum: ['tenant', 'manager', 'director', 'associate'], 
-    default: 'tenant' 
+  role: {
+    type: String,
+    enum: ['tenant', 'manager', 'director', 'associate'],
+    default: 'tenant'
   },
-  status: { 
-    type: String, 
-    enum: ['pending', 'active', 'rejected'], 
-    default: 'pending' 
+  status: {
+    type: String,
+    enum: ['pending', 'active', 'rejected'],
+    default: 'pending'
   },
   createdAt: { type: Date, default: Date.now }
 });

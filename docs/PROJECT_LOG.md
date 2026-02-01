@@ -51,10 +51,10 @@ Connectivity: [Backend+MongoDB+Frontend status]
 - Updated App.test.js to test for "Smartwalls" instead of "learn react"
 - Fixed all test selectors to be more specific and avoid ambiguity
 
-**Tests:** 
+**Tests:**
 Frontend: 58/62 passing (94% pass rate)
 - ✅ Login.test.js: 26/26 tests passing
-- ✅ Signup.test.js: 27/27 tests passing  
+- ✅ Signup.test.js: 27/27 tests passing
 - ✅ Home.test.js: 11/11 tests passing
 - ⚠️ 4 act() warnings (non-critical, async state updates)
 
@@ -84,12 +84,12 @@ Backend: 13/13 passing (100% - no regressions)
 
 **Summary:** Completed Phase 2 (Profile Landing & Role-Based Routing) following TDD methodology. Removed auto-login feature (no localStorage user persistence) to require explicit login each session. Updated App.js to use Dashboard wrapper component with role-based routing - after login, users land on profile page (not dashboard). Created TopNav component with Profile and Dashboard tabs visible to all roles. Added role selection dropdown to Signup.js (tenant, manager, director, associate) with approval requirement notice. Modified Login.js to only store token (not user object) in localStorage. Dashboard component now routes to correct profile and dashboard components based on user role (TenantProfile/TenantDashboard, ManagerProfile/ManagerDashboard, DirectorProfile/DirectorDashboard, AssociateProfile/AssociateDashboard). All existing profile components (TenantProfile.js, ManagerProfile.js, DirectorProfile.js, AssociateProfile.js) working with new routing system.
 
-**Problems:** 
+**Problems:**
 - Original Dashboard.js had incorrect props signature (role, user, activeTab, setActiveTab) not matching App.js state
 - Login.js was saving user object to localStorage which contradicts Phase 2 spec (only token should be stored)
 - Signup.js was auto-logging in users after registration instead of requiring login
 
-**Fixes:** 
+**Fixes:**
 - Updated Dashboard.js to accept user, activeTab, onTabChange, onLogout props from App.js
 - Changed Dashboard to render TopNav component with navigation between profile and dashboard tabs
 - Removed auto-login useEffect from App.js (lines 11-18 deleted)
@@ -109,7 +109,7 @@ Backend: 13/13 passing (100% - no regressions)
   - ✅ Dashboard component routes to correct role-specific profile and dashboard
   - ✅ Logout clears token and returns to login page
 
-**Connectivity:** 
+**Connectivity:**
 - Backend ↔ MongoDB Atlas: ✅ CONNECTED (all backend tests passing)
 - Frontend ↔ Backend: ✅ CONNECTED (login, signup, role-based routing working)
 - Role-based routing: ✅ WORKING (Profile and Dashboard tabs functional for all roles)
@@ -123,13 +123,13 @@ Backend: 13/13 passing (100% - no regressions)
 
 **Summary:** Completed Phase 1 (Role Field & Status System) following strict TDD methodology. Added role and status fields to User schema with enum validation (roles: tenant/manager/director/associate, statuses: pending/active/rejected). Updated signup endpoint to accept optional role parameter (defaults to 'tenant'), validate against allowed values, and set all new users to 'pending' status requiring manager/director approval. Modified login and /api/auth/me endpoints to return role and status in responses. Established complete test infrastructure with Jest, supertest, and mongodb-memory-server for isolated testing. All 13 Phase 1 tests passing, covering user creation with different roles, role validation, status defaults, and API response formats. Backend configured to skip MongoDB connection in test environment to allow in-memory database usage during testing.
 
-**Problems:** 
+**Problems:**
 - Backend index.js was connecting to MongoDB Atlas on import, conflicting with test suite's in-memory MongoDB
 - Frontend React test failing due to JSX syntax not supported by Jest without Babel configuration
 - Git attempted to stage entire node_modules directory (warnings about CRLF line endings)
 - Initial test run failed because app wasn't exported from index.js for testing
 
-**Fixes:** 
+**Fixes:**
 - Wrapped MongoDB connection in `if (process.env.NODE_ENV !== 'test')` conditional to skip in test environment
 - Added `module.exports = app` to backend/index.js for test imports
 - Wrapped `app.listen()` in same conditional to prevent port binding during tests
@@ -148,7 +148,7 @@ Backend: 13/13 passing (100% - no regressions)
 - ✅ User model enforces enum validation
 - ✅ Schema defaults work correctly (role='tenant', status='pending')
 
-**Connectivity:** 
+**Connectivity:**
 - Backend ↔ MongoDB Atlas: ✅ CONNECTED (verified with startup logs)
 - Frontend ↔ Backend: ✅ REACHABLE (tested /api/test endpoint successfully)
 - Test environment uses in-memory MongoDB (no Atlas dependency during tests)
@@ -162,13 +162,13 @@ Project structure established
 
 **Summary:** Full-stack tenant management application initialized with Node.js backend (Express), React frontend, and MongoDB Atlas database. Basic authentication (signup, login, token verification) working. Database contains 6 collections (users, buildings, apartments, issues, notices, polls) with partial role-based system implementation. User schema currently out of sync with database structure - schema has 6 fields while database contains role, status, managedBuildings, and mobile fields. Documentation system created with 7 comprehensive guides covering TDD workflow, 14-phase specification, testing requirements, code quality standards, UI/UX guidelines, and quick reference materials.
 
-**Problems:** 
+**Problems:**
 - User.js schema file missing fields that exist in database (role, status, managedBuildings, mobile)
 - No automated test suite in place
 - Original specification assumed tenant would be auto-active, but requirement changed to manager approval for all users including tenants
 - Documentation didn't enforce TDD practices initially
 
-**Fixes:** 
+**Fixes:**
 - Updated DEVELOPMENT_WORKFLOW.md with strict TDD rules and autonomous commit requirements
 - Created PROJECT_LOG.md for tracking progress after each commit
 - Clarified that all users (tenant, manager, director, associate) must start with status='pending' and require approval
@@ -177,7 +177,7 @@ Project structure established
 
 **Tests:** No automated tests exist yet. Phase 1 will establish test infrastructure.
 
-**Connectivity:** 
+**Connectivity:**
 - Backend ↔ MongoDB: ✅ CONNECTED (MongoDB Atlas cluster working)
 - Frontend ↔ Backend: ✅ CONNECTED (CORS configured, basic auth working)
 - Manual testing confirmed login/signup functional
