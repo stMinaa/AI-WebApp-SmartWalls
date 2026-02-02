@@ -30,6 +30,76 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2024-12-03 - Phase 4.1 Backend
+[GREEN] Associate views assigned jobs
+
+**Summary:** Implemented Phase 4.1 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/associate-jobs.test.js) with 10 tests covering associate viewing their assigned jobs: isolation (only jobs assigned to authenticated associate), populated details (apartment, building, tenant), status/priority filters, sorting (newest first), empty array for associates with no jobs, 401/403 auth. Added new GET /api/associates/me/jobs endpoint that filters issues by assignedTo = authenticated associate's ObjectId, populates apartment with nested building and createdBy (tenant), and returns flattened building structure. All 97 tests passing (87 existing + 10 new Phase 4.1).
+
+**Problems:**
+- Initial test run: All 10 tests failing with 404 (expected RED phase - endpoint didn't exist)
+- Test creation issues: Used wrong signup endpoint (`/api/signup` instead of `/api/auth/signup`), causing all user objects to be null
+- After fixing signup: ValidationError - `assignedTo` field type mismatch (tried to assign username string to ObjectId field)
+- Issue model schema: `assignedTo` is `ObjectId` reference to User, not string
+- Status enum error: Used `'in progress'` (space) instead of `'in-progress'` (hyphen) in test
+
+**Fixes:**
+- Created new GET /api/associates/me/jobs endpoint (backend/index.js):
+  - Line 1167-1170: Authenticate with authenticateToken middleware
+  - Line 1175: Fetch user, check role === 'associate' (403 if not)
+  - Line 1181: Filter by `assignedTo: user._id` (ObjectId, not username)
+  - Line 1186-1197: Populate apartment, nested building, createdBy, assignedTo
+  - Line 1199-1206: Flatten building from apartment.building to top level
+  - Line 1209: Return jobs array sorted by createdAt desc
+- Fixed test signup endpoints: Changed all `/api/signup` to `/api/auth/signup`
+- Fixed test assignedTo assignment: Changed `associate1.username` to `associate1._id` (lines 120, 124)
+- Fixed test status enum: Changed `'in progress'` to `'in-progress'` (line 170)
+- Updated test expectations to check `assignedTo._id` instead of `assignedTo` string
+
+**Tests:**
+- All 97 tests passing (100%)
+  - 87 existing tests (no regressions)
+  - 10 associate-jobs tests (NEW)
+- GET /api/associates/me/jobs tests (associate-only):
+  - Returns only jobs assigned to authenticated associate (verified with 2 associates)
+  - Populates apartment (unitNumber, address) and building (name, address) details
+  - Populates createdBy (tenant firstName, lastName, email - no password)
+  - Populates assignedTo (associate details)
+  - Filters jobs by status (query param: assigned, in-progress, resolved)
+  - Filters jobs by priority (query param: low, medium, high)
+  - Sorts jobs by newest first (createdAt descending)
+  - Returns empty array if associate has no assigned jobs
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not an associate (director/manager/tenant cannot access)
+  - Includes all job fields (_id, title, description, priority, status, assignedTo, createdAt)
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests
+- ✅ All 10 test suites passing
+- ✅ Frontend: Updated AssociateDashboard.js to use new endpoint
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Proper role-based access control (associate-only)
+- Used ObjectId references consistently (assignedTo field)
+- Nested population for complete data (apartment.building, createdBy, assignedTo)
+- Flattened structure for frontend convenience
+- No sensitive data exposure (password excluded from createdBy/assignedTo)
+- Handles edge cases (no jobs assigned)
+
+**Test Data:**
+- Created seed-test-data.js script with:
+  - 1 director, 1 manager, 2 associates, 2 tenants
+  - 1 building (Sunset Apartments) with 2 apartments
+  - 3 assigned issues (newly assigned, not started)
+  - 2 in-progress issues (associate accepted, working on)
+  - 3 resolved issues (completed with costs and notes)
+  - 2 notices and 1 poll with votes
+  - Run with: `node seed-test-data.js`
+  - Login credentials: `[role]_test / password123`
+
+---
+
 ### 2026-02-02 - fc08d05 - Phase 3.3 Backend
 [GREEN] Tenant views their own reported issues
 

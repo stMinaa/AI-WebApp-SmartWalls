@@ -1164,6 +1164,56 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== PHASE 4.1: ASSOCIATE VIEWS ASSIGNED JOBS =====
+// GET /api/associates/me/jobs - Associate views their assigned jobs
+app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
+  try {
+    console.log(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+    
+    // Check if user is an associate
+    if (!user || user.role !== 'associate') {
+      return res.status(403).json({ error: 'Only associates can view their jobs' });
+    }
+    
+    const { status, priority } = req.query;
+    const filter = { assignedTo: user._id };
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+    
+    const jobs = await Issue.find(filter)
+      .populate('apartment', 'unitNumber address')
+      .populate({
+        path: 'apartment',
+        populate: {
+          path: 'building',
+          select: 'name address'
+        }
+      })
+      .populate('createdBy', 'firstName lastName email')
+      .populate('assignedTo', 'username firstName lastName email company')
+      .sort({ createdAt: -1 });
+    
+    // Flatten building from apartment.building to building for easier access
+    const jobsWithBuilding = jobs.map(job => {
+      const jobObj = job.toObject();
+      if (jobObj.apartment && jobObj.apartment.building) {
+        jobObj.building = jobObj.apartment.building;
+      }
+      return jobObj;
+    });
+    
+    console.log(`Associate jobs retrieved: ${jobsWithBuilding.length}`);
+    res.json(jobsWithBuilding);
+  } catch (error) {
+    console.error('Error retrieving associate jobs:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
