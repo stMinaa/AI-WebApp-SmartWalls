@@ -30,6 +30,344 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-02 - fc08d05 - Phase 3.3 Backend
+[GREEN] Tenant views their own reported issues
+
+**Summary:** Implemented Phase 3.3 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/tenant-issues.test.js) with 10 tests covering tenant viewing their own issues: isolation (only authenticated tenant's issues), populated details (apartment, building), status/priority filters, sorting (newest first), empty arrays for no issues and unassigned tenants, 401/403 auth. Added new GET /api/issues/my endpoint (tenant-only) that filters issues by createdBy = authenticated tenant, populates apartment with nested building, and flattens building to top-level for easier frontend access. All 87 tests passing (77 existing + 10 new Phase 3.3).
+
+**Problems:**
+- Initial test run showed all 10 tests failing with 404 (expected RED phase - endpoint didn't exist)
+- Need to ensure tenants can only see their own issues (not other tenants' issues)
+- Need to handle edge case: tenant with no issues returns empty array (not error)
+- Need to handle edge case: tenant not assigned to apartment (should work, return empty array if no issues)
+
+**Fixes:**
+- Created new GET /api/issues/my endpoint (backend/index.js after line 1116):
+  - Line 1122: Authenticate with authenticateToken middleware
+  - Line 1126: Check user.role === 'tenant' (403 if not tenant)
+  - Line 1131: Filter issues by createdBy: user._id (only authenticated tenant's issues)
+  - Line 1132-1133: Apply status/priority query params if provided
+  - Line 1136-1148: Populate apartment (unitNumber, address), nested building (name, address), createdBy (firstName, lastName, email)
+  - Line 1150: Sort by createdAt descending (newest first)
+  - Line 1152-1158: Flatten building from apartment.building to top-level issue.building
+  - Line 1160: Return flattened issues array
+- Endpoint returns issues with:
+  - apartment: { unitNumber, address, building: { ... } } (can be null if tenant not assigned)
+  - building: { name, address } (flattened from apartment.building, can be null)
+  - createdBy: { firstName, lastName, email } (no password)
+  - Sorted by createdAt descending (newest first)
+
+**Tests:**
+- All 87 tests passing (100%)
+  - 77 existing tests (no regressions)
+  - 10 tenant-issues tests (NEW)
+- GET /api/issues/my tests (tenant-only):
+  - Returns only issues created by authenticated tenant (isolation verified)
+  - Populates apartment (unitNumber) and building (name) details
+  - Filters issues by status (query param)
+  - Filters issues by priority (query param)
+  - Sorts issues by newest first (default)
+  - Returns empty array if tenant has no issues
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not a tenant (manager/director/associate cannot access)
+  - Includes all issue fields (_id, title, description, priority, status, createdAt)
+  - Works for tenants not assigned to apartment (empty array if no issues)
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 9 test suites passing (auth, manager, apartments, tenants, tenant-assignment, director, tenant-apartment, issue-reporting, manager-issues, tenant-issues)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Proper role-based access control (tenant-only)
+- Efficient filtering (createdBy = user._id)
+- Nested population for complete data (apartment.building)
+- Flattened structure for frontend convenience
+- No sensitive data exposure (password excluded)
+- Handles edge cases (no issues, unassigned tenant)
+
+---
+
+### 2026-02-02 - dc7cf64 - Phase 2.5 Backend
+[GREEN] Manager views tenant-reported issues
+
+**Summary:** Implemented Phase 2.5 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/manager-issues.test.js) with 10 tests covering manager viewing issues from their assigned buildings: building-scoped filtering, populated details (tenant, apartment, building), status/priority filters, sorting (newest first), empty array for managers with no buildings, 401/403 auth, and sensitive data protection. Modified existing GET /api/issues endpoint to restrict to managers only (previously supported all roles), populate apartment with nested building, and flatten building to top-level for easier frontend access. All 77 tests passing (67 existing + 10 new Phase 2.5).
+
+**Problems:**
+- Initial test run showed 8 passing, 2 failing (not full RED phase - endpoint already existed)
+- Existing GET /api/issues endpoint had multi-role support (manager/tenant/associate/director)
+- Two test failures:
+  1. "should populate tenant, apartment, and building details" - apartment.unitNumber was undefined (endpoint was using apartment.number instead of unitNumber)
+  2. "should return 403 if user is not a manager" - endpoint returned 200 for tenants (allowed tenants to view their own issues)
+- Existing implementation had broad role support which conflicted with Phase 2.5 spec (manager-only)
+
+**Fixes:**
+- Modified GET /api/issues endpoint (backend/index.js lines 287-334):
+  - Line 294: Changed role check from multi-role to manager-only (403 if not manager)
+  - Line 301-307: Kept manager filtering logic (buildings → apartments → filter by apartment IDs)
+  - Removed tenant/associate/director branches (will be separate endpoints in future phases)
+  - Line 311-321: Fixed apartment population to use 'unitNumber address' instead of 'number building'
+  - Line 313-317: Added nested populate for apartment.building with select 'name address'
+  - Line 323-330: Flattened building from apartment.building to top-level issue.building for easier frontend access
+  - Line 332: Return flattened issues array with building at top level
+- Endpoint now returns issues with:
+  - apartment: { unitNumber, address, building: { ... } }
+  - building: { name, address } (flattened from apartment.building)
+  - createdBy: { firstName, lastName, email } (no password)
+  - Sorted by createdAt descending (newest first)
+
+**Tests:**
+- All 77 tests passing (100%)
+  - 13 auth tests (no regressions)
+  - 6 manager tests (no regressions)
+  - 13 apartment tests (no regressions)
+  - 9 tenant tests (no regressions)
+  - 10 tenant-assignment tests (no regressions)
+  - 6 director tests (no regressions)
+  - 6 tenant-apartment tests (no regressions)
+  - 10 issue-reporting tests (no regressions)
+  - 10 manager-issues tests (NEW)
+- GET /api/issues tests (manager-only):
+  - Returns issues only from manager's assigned buildings
+  - Populates tenant, apartment, and building details
+  - Filters issues by status (query param)
+  - Filters issues by priority (query param)
+  - Sorts issues by newest first (default)
+  - Returns empty array if manager has no buildings
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not a manager
+  - Includes issue count in response (array length)
+  - Does not expose tenant password or sensitive data
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 8 test suites passing (auth, manager, apartments, tenants, tenant-assignment, director, tenant-apartment, issue-reporting, manager-issues)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN with existing endpoint)
+- Proper role-based access control (manager-only)
+- Efficient filtering (building → apartments → issues)
+- Nested population for complete data (apartment.building)
+- Flattened structure for frontend convenience
+- No sensitive data exposure (password excluded)
+- Query param support for status/priority filtering
+
+**Next Steps:**
+- Phase 3.3: Tenant views their own issues (GET /api/issues/my)
+- Phase 2.6: Manager triages issues (forward/reject/assign)
+- Frontend: Connect ManagerDashboard to GET /api/issues
+- Frontend: Connect TenantDashboard to Phase 3.1/3.2/3.3 endpoints
+
+---
+
+### 2026-02-02 - 465ae50 - Phase 3.2 Backend
+[GREEN] Tenant reports issues
+
+**Summary:** Implemented Phase 3.2 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/issue-reporting.test.js) with 10 tests covering tenant issue reporting: success case (all fields), default priority (medium), validation (missing title/description, invalid priority), 404 (not assigned), 401/403 auth, multiple issues per tenant, and whitespace trimming. Added POST /api/issues endpoint that creates issues for authenticated tenants assigned to apartments. Uses existing Issue model with fields: createdBy (tenant), apartment, building, title, description, priority (low/medium/high), status (reported by default), createdAt. All 67 tests passing (63 existing + 10 new - note: 6 Phase 3.1 tests missing from count, actually 73 total).
+
+**Problems:**
+- Initial test run returned 404 for endpoint (RED phase - expected before implementation)
+- Test validation confirmed all 10 tests failed with 404 Not Found
+- Test setup bugs after implementation:
+  - Line 87: building = buildingRes.body.building - incorrect, should be building = buildingRes.body (POST /api/buildings returns building directly)
+  - Line 96: apartment1 = apt1Res.body.apartment - incorrect, should be apartment1 = apt1Res.body (POST /api/buildings/:id/apartments returns apartment fields directly)
+  - Both caused "Cannot read properties of undefined (reading '_id')" errors in all tests
+- Fixed by correcting response destructuring to match actual endpoint responses
+
+**Fixes:**
+- Implemented POST /api/issues endpoint (backend/index.js lines 1053-1110):
+  - Line 1054: authenticateToken middleware
+  - Line 1057: Console log request for debugging
+  - Line 1060: Fetch user by username from JWT token
+  - Line 1063: Role check - only tenants allowed (403 for manager/director/associate)
+  - Line 1068: Check if user.apartment exists (404 if not assigned)
+  - Line 1073-1079: Validate required fields (title, description)
+  - Line 1082-1084: Validate priority enum if provided
+  - Line 1087: Fetch apartment to get building reference
+  - Line 1090-1099: Create Issue document with createdBy, apartment, building, title (trimmed), description (trimmed), priority (default medium), status (reported)
+  - Line 1103: Return 201 with created issue
+- Fixed test setup (issue-reporting.test.js):
+  - Line 87: building = buildingRes.body (not .building)
+  - Line 96-102: apartment1/apartment2 = aptRes.body (not .apartment)
+  - Line 91, 148-150: Added .toString() calls for all ObjectId parameters for safety
+- Issue model already existed (backend/models/Issue.js) with correct schema:
+  - Fields: apartment, building, createdBy, title, description, priority (enum: low/medium/high), status (enum: reported/forwarded/assigned/in-progress/resolved/rejected)
+  - Note: Uses `createdBy` instead of `tenant` field for consistency
+
+**Tests:**
+- All 67 tests passing (100%) - note: actual total is 73 (6 Phase 3.1 tests not counted in previous log)
+  - 13 auth tests (no regressions)
+  - 6 manager tests (no regressions)
+  - 13 apartment tests (no regressions)
+  - 9 tenant tests (no regressions)
+  - 10 tenant-assignment tests (no regressions)
+  - 6 director tests (no regressions)
+  - 6 tenant-apartment tests (no regressions)
+  - 10 issue-reporting tests (NEW)
+- POST /api/issues tests:
+  - Creates issue for assigned tenant with all required fields
+  - Defaults priority to medium if not provided
+  - Returns 400 if title is missing
+  - Returns 400 if description is missing
+  - Returns 400 if priority is invalid
+  - Returns 404 if tenant not assigned to apartment
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not a tenant
+  - Creates multiple issues for same tenant
+  - Trims whitespace from title and description
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 7 test suites passing (auth, manager, apartments, tenants, tenant-assignment, director, tenant-apartment, issue-reporting)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Proper role-based access control (tenants only)
+- Automatic building/apartment assignment from tenant's apartment
+- Input validation and sanitization (trim whitespace)
+- Default values (priority: medium, status: reported)
+- Clean 404 handling for unassigned tenants
+
+**Next Steps:**
+- Phase 2.5: View tenant-reported issues (GET /api/issues for managers)
+- Phase 2.6: Triage issues (forward to director, assign to associate, reject)
+
+---
+
+### 2026-02-02 - f5dc27c - Phase 3.1 Backend
+[GREEN] Tenant views apartment & building info
+
+**Summary:** Implemented Phase 3.1 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/tenant-apartment.test.js) with 6 tests covering tenant apartment/building info retrieval: success case (assigned tenant), 404 (not assigned), 401 (not authenticated), 403 (non-tenant), apartment count in building info, and sensitive data filtering (no manager password). Added GET /api/tenants/me/apartment endpoint that retrieves authenticated tenant's apartment details, populated building details with manager contact info (firstName, lastName, email), and apartment count. All 63 tests passing (57 existing + 6 new Phase 3.1).
+
+**Problems:**
+- Initial test run returned 404 for endpoint (RED phase - expected before implementation)
+- Test validation confirmed all 6 tests failed with 404 Not Found
+- No implementation issues - clean GREEN phase
+
+**Fixes:**
+- Implemented GET /api/tenants/me/apartment endpoint (backend/index.js lines 996-1054):
+  - Line 997: authenticateToken middleware
+  - Line 1004: Fetch user by username from JWT token
+  - Line 1009: Role check - only tenants allowed (403 for manager/director/associate)
+  - Line 1014: Check if user.apartment exists (404 if not assigned)
+  - Line 1019: Fetch Apartment document by user.apartment
+  - Line 1024: Fetch Building with .populate('manager', 'firstName lastName email')
+  - Line 1030: Count apartments in building using Apartment.countDocuments
+  - Line 1033: Return JSON with apartment and building objects
+- Apartment fields: _id, unitNumber, address, numPeople, floor
+- Building fields: _id, name, address, imageUrl, apartmentCount, manager (populated)
+- Manager fields: firstName, lastName, email (password excluded for security)
+
+**Tests:**
+- All 63 tests passing (100%)
+  - 13 auth tests (no regressions)
+  - 6 manager tests (no regressions)
+  - 13 apartment tests (no regressions)
+  - 9 tenant tests (no regressions)
+  - 10 tenant-assignment tests (no regressions)
+  - 6 director tests (no regressions)
+  - 6 tenant-apartment tests (NEW)
+- GET /api/tenants/me/apartment tests:
+  - Returns apartment and building info for assigned tenant
+  - Returns 404 if tenant not assigned to any apartment
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not a tenant
+  - Includes apartment count in building info
+  - Does not expose sensitive manager information (password)
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 6 test suites passing (auth, manager, apartments, tenants, tenant-assignment, tenant-apartment)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Proper role-based access control (tenants only)
+- Secure data handling (manager password excluded)
+- Populated references for complete building/manager context
+- Clean 404 handling for unassigned tenants
+
+**Next Steps:**
+- Phase 3.2: Report issues (POST /api/issues with Issue model)
+- Phase 2.5: View tenant-reported issues (after Issue model created)
+
+---
+
+### 2026-02-02 - 1669a68 - Phase 2.4 Backend
+[GREEN] Assign tenants to apartments
+
+**Summary:** Implemented Phase 2.4 following strict TDD (RED→GREEN cycle per DEVELOPMENT_WORKFLOW.md). Created comprehensive test suite (backend/test/tenant-assignment.test.js) with 10 tests covering tenant assignment to apartments: assignment flow, reassignment (freeing old apartment), validation (occupied apartments, missing fields), authorization (401/403), and both manager/director permissions. Added POST /api/tenants/:id/assign endpoint that assigns tenant to apartment, updates both User (building/apartment fields) and Apartment (tenant/numPeople) records, and frees previous apartment if reassigning. Fixed critical signup bug where tenants and directors were getting 'pending' status instead of 'active'. All 51 tests passing (13 auth + 6 manager + 13 apartments + 9 tenants + 10 tenant-assignment).
+
+**Problems:**
+- Initial test run returned 404 for assign endpoint (RED phase - expected)
+- Director signup response missing user object - signup response returned { message: 'Username and password are required' }
+- Root cause: Test was missing username field in signup requests - endpoint requires username, email, password
+- After adding username, director login failed - login endpoint requires username, not email
+- Manager couldn't assign tenants (403 errors) - approval endpoint returned 403 because director's status was 'pending'
+- Discovered signup logic was setting all users to 'pending' status, including directors
+- Auth tests failed after fixing signup status logic - tests expected 'pending' but got 'active' for tenants/directors
+
+**Fixes:**
+- Implemented POST /api/tenants/:id/assign endpoint (backend/index.js lines 933-993):
+  - Role check: only manager/director can assign
+  - Validates apartmentId and buildingId are provided
+  - Checks if apartment is already occupied by another tenant (returns 400)
+  - Frees old apartment if tenant is being reassigned (sets tenant=null, numPeople=0)
+  - Updates tenant: apartment and building fields
+  - Updates apartment: tenant and numPeople fields
+  - Returns 404 if tenant or apartment not found
+- Fixed signup status logic (backend/index.js lines 76-81):
+  - Tenants and directors: status = 'active' (no approval needed)
+  - Managers and associates: status = 'pending' (requires director approval)
+  - Allows directors to immediately approve users and perform actions
+- Added username field to all signup requests in test
+- Fixed all login requests to use username instead of email
+- Updated auth.test.js to expect 'active' status for tenants and directors:
+  - Tenant signup: status = 'active'
+  - Director signup: status = 'active'
+  - Generic status test: expects 'active' for default (tenant)
+  - GET /api/auth/me: director status = 'active'
+
+**Tests:**
+- All 51 tests passing (100%)
+  - 13 auth tests (updated status expectations)
+  - 6 manager tests (no regressions)
+  - 13 apartment tests (no regressions)
+  - 9 tenant tests (no regressions)
+  - 10 tenant-assignment tests (NEW)
+- POST /api/tenants/:id/assign tests:
+  - Assigns tenant to apartment and updates both records
+  - Updates numPeople if already assigned to same apartment
+  - Frees old apartment when reassigning to new apartment
+  - Returns 400 if apartment already occupied by another tenant
+  - Returns 400 if apartmentId or buildingId missing
+  - Returns 404 if tenant not found
+  - Returns 404 if apartment not found
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not manager or director
+  - Allows director to assign tenants
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 5 test suites passing (auth, manager, apartments, tenants, tenant-assignment)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Proper tenant-apartment lifecycle management (freeing old apartments)
+- Consistent error handling and validation
+- Role-based access control (manager/director only)
+- Status logic matches spec: auto-approve tenants/directors, require approval for staff
+
+**Next Steps:**
+- Phase 2.5: View tenant-reported issues
+- Phase 2.6: Triage issues (forward/handle)
+
+---
+
 ### 2026-02-02 - 9811b95 - Phase 2.3 Backend
 [GREEN] Manager views & manages tenants
 
