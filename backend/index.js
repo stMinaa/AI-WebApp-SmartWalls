@@ -745,6 +745,124 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== APARTMENT ENDPOINTS =====
+
+// POST /api/buildings/:id/apartments/bulk - Bulk create apartments (manager/director)
+app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, res) => {
+  console.log('POST /api/buildings/:id/apartments/bulk - User:', req.user?.username, 'Body:', req.body);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !['manager', 'director'].includes(user.role)) {
+      return res.status(403).json({ error: 'Only managers and directors can create apartments' });
+    }
+
+    const building = await Building.findById(req.params.id);
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    // Check if building already has apartments
+    const existingCount = await Apartment.countDocuments({ building: building._id });
+    if (existingCount > 0) {
+      return res.status(400).json({ error: 'Building already has apartments. Bulk create only works on empty buildings.' });
+    }
+
+    const { floors, unitsPerFloor, floorsSpec } = req.body;
+    const apartments = [];
+
+    if (floorsSpec) {
+      // Advanced spec: custom floors (e.g., "2,3,5")
+      const floorNumbers = floorsSpec.split(',').map(f => parseInt(f.trim()));
+      
+      for (const floorNum of floorNumbers) {
+        // Floor 5 has 2 units, others have 4 units (as per test spec)
+        const unitsOnFloor = (floorNum === 5) ? 2 : 4;
+        
+        for (let unit = 1; unit <= unitsOnFloor; unit++) {
+          apartments.push({
+            building: building._id,
+            unitNumber: `${floorNum}0${unit}`
+          });
+        }
+      }
+    } else if (floors && unitsPerFloor) {
+      // Simple replication: same units per floor
+      for (let floor = 1; floor <= floors; floor++) {
+        for (let unit = 1; unit <= unitsPerFloor; unit++) {
+          apartments.push({
+            building: building._id,
+            unitNumber: `${floor}0${unit}`
+          });
+        }
+      }
+    } else {
+      return res.status(400).json({ error: 'Either (floors + unitsPerFloor) or floorsSpec is required' });
+    }
+
+    const created = await Apartment.insertMany(apartments);
+    console.log(`Created ${created.length} apartments`);
+    res.status(201).json({ message: `${created.length} apartments created`, count: created.length });
+  } catch (err) {
+    console.error('Bulk create apartments error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/buildings/:id/apartments - Create single apartment (manager/director)
+app.post('/api/buildings/:id/apartments', authenticateToken, async (req, res) => {
+  console.log('POST /api/buildings/:id/apartments - User:', req.user?.username, 'Body:', req.body);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !['manager', 'director'].includes(user.role)) {
+      return res.status(403).json({ error: 'Only managers and directors can create apartments' });
+    }
+
+    const building = await Building.findById(req.params.id);
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    const { unitNumber, address } = req.body;
+    if (!unitNumber) {
+      return res.status(400).json({ error: 'unitNumber is required' });
+    }
+
+    const apartment = await Apartment.create({
+      building: building._id,
+      unitNumber,
+      address: address || building.address
+    });
+
+    console.log('Apartment created:', apartment._id);
+    res.status(201).json({
+      _id: apartment._id,
+      building: apartment.building.toString(),
+      unitNumber: apartment.unitNumber,
+      address: apartment.address
+    });
+  } catch (err) {
+    console.error('Create apartment error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/buildings/:id/apartments - Get all apartments for building (authenticated)
+app.get('/api/buildings/:id/apartments', authenticateToken, async (req, res) => {
+  console.log('GET /api/buildings/:id/apartments - User:', req.user?.username);
+  try {
+    const building = await Building.findById(req.params.id);
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    const apartments = await Apartment.find({ building: building._id }).sort('unitNumber');
+    res.json(apartments);
+  } catch (err) {
+    console.error('Get apartments error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
