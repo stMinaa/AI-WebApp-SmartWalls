@@ -30,6 +30,88 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-02 - a3232b4 - Phase 2.1 Backend
+[GREEN] Manager views assigned buildings
+
+**Summary:** Implemented Phase 2.1 backend following strict TDD (RED→GREEN cycle per DEVELOPMENT_WORKFLOW.md). Created comprehensive test suite (test/manager.test.js) with 6 tests covering manager building access: viewing assigned buildings, empty arrays for unassigned managers, 401/403 authorization, manager field population, and apartment count. Fixed critical bug where signup endpoint didn't return user `_id`, breaking all relationship assignments. Enhanced GET /api/buildings/managed to populate manager field with firstName/lastName/email. GET /api/buildings/managed endpoint already existed from Phase 1 but lacked proper population and testing. All 19 tests passing (13 existing auth tests + 6 new manager tests).
+
+**Problems:**
+- Signup response missing `_id` field - response.body.user._id was undefined, preventing manager assignment in tests
+- GET /api/buildings/managed didn't populate manager field - tests expected populated manager data for frontend display
+- Test setup initially used `beforeAll` instead of `beforeEach` - caused stale data across tests
+- MongoMemoryServer connection not properly configured initially - tests timed out waiting for DB
+
+**Fixes:**
+- Added `_id: user._id` to signup JSON response (backend/index.js line 99)
+- Added `.populate('manager', 'firstName lastName email')` to building query (backend/index.js line 256)  
+- Changed test lifecycle from `beforeAll` to `beforeEach` with proper MongoMemoryServer setup
+- Ensured `managerId` properly passed as ObjectId to assign-manager endpoint
+
+**Tests:**
+Backend: 19/19 passing (100%)
+- test/manager.test.js: 6/6 passing
+  - ✅ Manager sees only assigned buildings (2 buildings returned)
+  - ✅ Unassigned manager sees empty array
+  - ✅ Unauthenticated request returns 401
+  - ✅ Non-manager (director) returns 403
+  - ✅ Manager field populated with firstName, lastName, email
+  - ✅ apartmentCount included (0 for buildings without apartments)
+- test/auth.test.js: 13/13 passing (no regressions)
+
+**Connectivity:**
+- Backend ↔ MongoDB Atlas: ✅ CONNECTED (logs show successful connection)
+- Backend HTTP: ✅ RUNNING on port 5000
+- Tests use MongoMemoryServer: ✅ ISOLATED (no Atlas pollution during tests)
+
+**Code Quality (per CODE_QUALITY_STANDARDS.md):**
+- Test structure: Clear describe/it blocks with meaningful names
+- One responsibility per test: Each test validates single behavior
+- Proper setup/teardown: beforeEach creates fresh state, afterAll cleanup
+- No magic numbers: All test data clearly defined
+- Following TDD Rule 3: Only implemented what tests required
+
+**Next Steps:** Phase 2.1 frontend - Add buildings tab UI to ManagerDashboard to display assigned buildings list.
+
+---
+
+### 2026-02-02 - a3232b4 - Phase 2.1 Backend
+[GREEN] Manager views assigned buildings (backend)
+
+**Summary:** Implemented Phase 2.1 backend functionality allowing managers to view their assigned buildings. Created comprehensive test suite with 6 tests covering all scenarios: authenticated managers seeing their buildings, empty arrays for managers without buildings, 401/403 authorization checks, manager field population, and apartment count inclusion. Fixed signup endpoint to return user `_id` in response (was missing, causing test failures). Enhanced GET /api/buildings/managed endpoint to populate manager field for frontend use. All tests passing (19/19 total: 13 auth + 6 manager).
+
+**Problems:**
+- Signup endpoint didn't return user `_id` in response body, causing `managerId` to be undefined in tests
+- GET /api/buildings/managed endpoint didn't populate manager field, failing test expectations
+- Initial test setup used `beforeAll` which caused database state issues across tests
+
+**Fixes:**
+- Added `_id: user._id` to signup response in backend/index.js line 99
+- Added `.populate('manager', 'firstName lastName email')` to GET /api/buildings/managed query
+- Changed test setup from `beforeAll` to `beforeEach` with proper cleanup using MongoMemoryServer
+- Fixed test to properly pass `managerId` to assign-manager endpoint
+
+**Tests:**
+Backend: 19/19 passing (100%)
+- ✅ test/auth.test.js: 13/13 passing (existing - no regressions)
+- ✅ test/manager.test.js: 6/6 passing (new)
+  - Manager sees only their assigned buildings
+  - Manager with no buildings gets empty array
+  - 401 if not authenticated
+  - 403 if non-manager tries to access
+  - Response populates manager field
+  - Response includes apartmentCount (0 for now)
+
+Frontend: Not tested yet (Phase 2.1 UI pending)
+
+**Connectivity:**
+- Backend ↔ MongoDB Atlas: ✅ CONNECTED
+- Backend API: ✅ RUNNING on port 5000
+- Tests use MongoMemoryServer: ✅ WORKING
+
+**Next Steps:** Implement Phase 2.1 frontend - add "Zgrade" (Buildings) tab to ManagerDashboard.js displaying list of assigned buildings with apartment counts.
+
+---
+
 ### 2026-01-31 - 4b961c1 - Phase 2 UI Fixes
 [FIX][TESTS] Fix Login.js syntax error and add comprehensive frontend tests
 
