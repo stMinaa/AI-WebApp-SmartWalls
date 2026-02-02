@@ -30,6 +30,69 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2024-12-03 - Phase 4.2 Backend
+[GREEN] Associate accepts job with cost estimate
+
+**Summary:** Implemented Phase 4.2 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/associate-accept-job.test.js) with 10 tests covering associate accepting assigned jobs with cost estimates: successful acceptance updates status to in-progress and sets cost, populated response fields, validation (estimatedCost required/numeric/positive), authorization (only assigned associate can accept), status validation (must be 'assigned'), authentication (401/403), and 404 for non-existent issues. Added new POST /api/issues/:id/accept endpoint that validates associate ownership and status, updates issue to in-progress with cost, and returns populated issue data. All 107 tests passing (97 existing + 10 new Phase 4.2).
+
+**Problems:**
+- Initial test run: All 10 tests failing with 404 (expected RED phase - endpoint didn't exist)
+- Need to validate estimatedCost is present, numeric, and positive
+- Need to ensure only the assigned associate can accept (not other associates)
+- Need to verify issue is in 'assigned' status (can't accept if already in-progress or resolved)
+- Need to handle edge cases: non-existent issues, wrong associate, wrong status
+
+**Fixes:**
+- Created new POST /api/issues/:id/accept endpoint (backend/index.js):
+  - Line 1218-1222: Authenticate with authenticateToken middleware
+  - Line 1225: Fetch user, check role === 'associate' (403 if not)
+  - Line 1230-1240: Validate estimatedCost (required, numeric, positive)
+  - Line 1243-1246: Find issue, return 404 if not found
+  - Line 1249-1251: Check issue.assignedTo === user._id (403 if not assigned to this associate)
+  - Line 1254-1256: Check issue.status === 'assigned' (400 if already accepted/completed)
+  - Line 1259-1261: Update status to 'in-progress', set cost, save
+  - Line 1264-1276: Populate apartment, nested building, createdBy, assignedTo
+  - Line 1279-1282: Flatten building structure
+  - Line 1285: Return updated issue with all populated fields
+- All validations enforce business rules:
+  - estimatedCost required and must be positive number
+  - Only assigned associate can accept (not other associates)
+  - Issue must be in 'assigned' status (prevents double-acceptance)
+  - Returns populated data for frontend display
+
+**Tests:**
+- All 107 tests passing (100%)
+  - 97 existing tests (no regressions)
+  - 10 associate-accept-job tests (NEW)
+- POST /api/issues/:id/accept tests (associate-only):
+  - Accepts job and updates status to in-progress with cost (verified in DB)
+  - Returns populated fields (apartment, building, tenant, no passwords)
+  - Rejects if estimatedCost missing (400)
+  - Rejects if estimatedCost not a number (400)
+  - Rejects if estimatedCost negative (400)
+  - Rejects if issue not assigned to requesting associate (403)
+  - Rejects if issue not in assigned status (400)
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not an associate (tenant/manager/director)
+  - Returns 404 if issue doesn't exist
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests
+- ✅ All 11 test suites passing
+- ✅ 107 total tests passing
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Comprehensive validation (cost, authorization, status)
+- Proper role-based access control (associate-only)
+- Ownership verification (assignedTo === user._id)
+- Status workflow enforcement (assigned → in-progress)
+- No sensitive data exposure (passwords excluded)
+- Proper error messages for all failure cases
+
+---
+
 ### 2024-12-03 - Phase 4.1 Backend
 [GREEN] Associate views assigned jobs
 

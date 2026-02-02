@@ -1214,6 +1214,80 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== PHASE 4.2: ASSOCIATE ACCEPTS JOB WITH COST =====
+// POST /api/issues/:id/accept - Associate accepts assigned job with cost estimate
+app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/accept - User: ${req.user.username}`);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Check if user is an associate
+    if (!user || user.role !== 'associate') {
+      return res.status(403).json({ error: 'Only associates can accept jobs' });
+    }
+    
+    // Validate estimatedCost
+    const { estimatedCost } = req.body;
+    if (estimatedCost === undefined || estimatedCost === null) {
+      return res.status(400).json({ error: 'estimatedCost is required' });
+    }
+    if (typeof estimatedCost !== 'number' || isNaN(estimatedCost)) {
+      return res.status(400).json({ error: 'estimatedCost must be a valid number' });
+    }
+    if (estimatedCost < 0) {
+      return res.status(400).json({ error: 'estimatedCost must be a positive number' });
+    }
+    
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+    
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(403).json({ error: 'This issue is not assigned to you' });
+    }
+    
+    // Check if issue is in assigned status
+    if (issue.status !== 'assigned') {
+      return res.status(400).json({ error: 'Issue must be in assigned status to accept' });
+    }
+    
+    // Update issue
+    issue.status = 'in-progress';
+    issue.cost = estimatedCost;
+    await issue.save();
+    
+    // Populate and return
+    const updated = await Issue.findById(issue._id)
+      .populate('apartment', 'unitNumber address')
+      .populate({
+        path: 'apartment',
+        populate: {
+          path: 'building',
+          select: 'name address'
+        }
+      })
+      .populate('createdBy', 'firstName lastName email')
+      .populate('assignedTo', 'username firstName lastName email company');
+    
+    // Flatten building
+    const issueObj = updated.toObject();
+    if (issueObj.apartment && issueObj.apartment.building) {
+      issueObj.building = issueObj.apartment.building;
+    }
+    
+    console.log(`Issue ${issue._id} accepted with cost $${estimatedCost}`);
+    res.json(issueObj);
+  } catch (error) {
+    console.error('Error accepting job:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });

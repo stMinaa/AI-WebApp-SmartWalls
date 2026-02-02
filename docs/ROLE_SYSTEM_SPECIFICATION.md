@@ -93,7 +93,7 @@ Each building displays as a card with:
 | Sub-Phase | Feature | Status | Dependencies |
 |-----------|---------|--------|--------------|
 | 4.1 | View assigned jobs | ✅ DONE | Director 1.6 |
-| 4.2 | Accept job with cost estimate | ⬜ TODO | 4.1 |
+| 4.2 | Accept job with cost estimate | ✅ DONE | 4.1 |
 | 4.3 | Mark job as complete | ⬜ TODO | 4.2 |
 
 ---
