@@ -100,6 +100,7 @@ app.post('/api/auth/signup', async (req, res) => {
       message: 'User registered successfully',
       token,
       user: {
+        _id: user._id,
         username: user.username,
         email: user.email,
         firstName: user.firstName,
@@ -254,6 +255,7 @@ app.get('/api/buildings/managed', authenticateToken, async (req, res) => {
     }
 
     const buildings = await Building.find({ manager: user._id })
+      .populate('manager', 'firstName lastName email')
       .populate('director', 'firstName lastName email')
       .sort({ createdAt: -1 });
 
