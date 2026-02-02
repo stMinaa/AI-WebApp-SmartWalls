@@ -48,7 +48,7 @@ describe('Phase 1: Role Field & Status System', () => {
       expect(response.status).toBe(201);
       expect(response.body.user).toBeDefined();
       expect(response.body.user.role).toBe('tenant');
-      expect(response.body.user.status).toBe('pending');
+      expect(response.body.user.status).toBe('active');
     });
 
     it('should create user with specified role (manager)', async () => {
@@ -82,7 +82,7 @@ describe('Phase 1: Role Field & Status System', () => {
 
       expect(response.status).toBe(201);
       expect(response.body.user.role).toBe('director');
-      expect(response.body.user.status).toBe('pending');
+      expect(response.body.user.status).toBe('active');
     });
 
     it('should create user with role "associate"', async () => {
@@ -131,11 +131,11 @@ describe('Phase 1: Role Field & Status System', () => {
         });
 
       expect(response.status).toBe(201);
-      expect(response.body.user.status).toBe('pending');
+      expect(response.body.user.status).toBe('active');
 
       // Verify in database
       const user = await User.findOne({ username: 'newuser' });
-      expect(user.status).toBe('pending');
+      expect(user.status).toBe('active');
     });
   });
 
@@ -194,7 +194,7 @@ describe('Phase 1: Role Field & Status System', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.role).toBe('director');
-      expect(response.body.status).toBe('pending');
+      expect(response.body.status).toBe('active');
       expect(response.body.username).toBe('metest');
     });
   });

@@ -30,6 +30,68 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-02 - 9811b95 - Phase 2.3 Backend
+[GREEN] Manager views & manages tenants
+
+**Summary:** Implemented Phase 2.3 following strict TDD (RED→GREEN cycle per DEVELOPMENT_WORKFLOW.md). Created comprehensive test suite (backend/test/tenants.test.js) with 9 tests covering tenant viewing and management: listing tenants for buildings, deleting tenants (freeing apartments), authorization (401/403), and proper field population. Added 2 new endpoints: GET /api/buildings/:id/tenants (lists all tenants for building with populated apartment/building fields) and DELETE /api/tenants/:id (deletes tenant and frees apartment by setting tenant field to null). Enhanced User model with building and apartment ObjectId references (critical for tenant-building relationships). All 41 tests passing (13 auth + 6 manager + 13 apartments + 9 tenants).
+
+**Problems:**
+- Initial test run returned 404 for both endpoints (RED phase - expected)
+- After implementing endpoints, query returned 0 tenants instead of 2 - root cause: User schema missing building/apartment fields
+- User.findByIdAndUpdate silently failed to save building field because field didn't exist in schema
+- Test setup used `building: buildingId` instead of proper ObjectId conversion - needed `new mongoose.Types.ObjectId(buildingId)`
+- Test assertion expected `tenant2.building.toString()` but backend .populate() returns object { _id, name, address }, not ObjectId
+
+**Fixes:**
+- Implemented GET /api/buildings/:id/tenants with role checks (manager/director only)
+  - Populates apartment with unitNumber
+  - Populates building with name and address
+  - Returns array of tenant objects with populated fields
+- Implemented DELETE /api/tenants/:id with apartment freeing
+  - Sets apartment.tenant to null before deleting user
+  - 404 if tenant not found
+- Enhanced User schema (backend/models/User.js lines 17-19):
+  - Added `building: { type: mongoose.Schema.Types.ObjectId, ref: 'Building' }`
+  - Added `apartment: { type: mongoose.Schema.Types.ObjectId, ref: 'Apartment' }`
+- Fixed test setup to use proper ObjectId conversion: `new mongoose.Types.ObjectId(buildingId)`
+- Fixed test assertion to access populated object's _id: `tenant2.building._id` instead of `.toString()`
+
+**Tests:**
+- All 41 tests passing (100%)
+  - 13 auth tests (no regressions)
+  - 6 manager tests (no regressions)
+  - 13 apartment tests (no regressions)
+  - 9 tenant tests (5 GET + 4 DELETE)
+- GET /api/buildings/:id/tenants tests:
+  - Returns all tenants for building (assigned + unassigned to apartments)
+  - Returns empty array if no tenants
+  - 401 if not authenticated
+  - 403 if not manager/director
+  - 404 if building not found
+- DELETE /api/tenants/:id tests:
+  - Deletes tenant and frees apartment
+  - 404 if tenant not found
+  - 401 if not authenticated
+  - 403 if not manager/director
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ All 4 test suites passing (auth, manager, apartments, tenants)
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- User schema enhancement enables tenant-building relationships
+- Proper ObjectId handling in tests and endpoints
+- Populated fields for frontend display (apartment unitNumber, building name/address)
+- Role-based access control (manager/director only)
+
+**Next Steps:**
+- Phase 2.4: Assign tenants to apartments (POST /api/tenants/:id/assign)
+- Phase 2.5: View tenant-reported issues
+
+---
+
 ### 2026-02-02 - 83acbf6 - Phase 2.2 Backend
 [GREEN] Manager creates apartments (bulk & single)
 

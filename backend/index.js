@@ -76,6 +76,12 @@ app.post('/api/auth/signup', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Determine status based on role
+    let status = 'pending';
+    if (!role || role === 'tenant' || role === 'director') {
+      status = 'active';
+    }
+
     // Create user
     const user = new User({
       username,
@@ -84,7 +90,7 @@ app.post('/api/auth/signup', async (req, res) => {
       firstName: firstName || '',
       lastName: lastName || '',
       role: role || 'tenant',
-      status: 'pending'
+      status: status
     });
 
     await user.save();
@@ -920,6 +926,70 @@ app.delete('/api/tenants/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'Tenant deleted successfully' });
   } catch (err) {
     console.error('Delete tenant error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/tenants/:id/assign - Assign tenant to apartment
+app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
+  console.log(`POST /api/tenants/:id/assign - User: ${req.user.username} Body:`, req.body);
+
+  try {
+    // Check if user is manager or director
+    const user = await User.findOne({ username: req.user.username });
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+
+    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+      return res.status(403).json({ error: 'Only managers and directors can assign tenants' });
+    }
+
+    const { apartmentId, buildingId, numPeople } = req.body;
+
+    // Validate required fields
+    if (!apartmentId || !buildingId) {
+      return res.status(400).json({ error: 'apartmentId and buildingId are required' });
+    }
+
+    // Find tenant
+    const tenant = await User.findById(req.params.id);
+    if (!tenant || tenant.role !== 'tenant') {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Find apartment
+    const apartment = await Apartment.findById(apartmentId);
+    if (!apartment) {
+      return res.status(404).json({ error: 'Apartment not found' });
+    }
+
+    // Check if apartment is already occupied by another tenant
+    if (apartment.tenant && apartment.tenant.toString() !== tenant._id.toString()) {
+      return res.status(400).json({ error: 'Apartment is already occupied by another tenant' });
+    }
+
+    // If tenant is being reassigned to a different apartment, free the old one
+    if (tenant.apartment && tenant.apartment.toString() !== apartmentId) {
+      await Apartment.findByIdAndUpdate(tenant.apartment, {
+        tenant: null,
+        numPeople: 0
+      });
+      console.log('Freed old apartment:', tenant.apartment);
+    }
+
+    // Update tenant
+    tenant.apartment = apartmentId;
+    tenant.building = buildingId;
+    await tenant.save();
+
+    // Update apartment
+    apartment.tenant = tenant._id;
+    apartment.numPeople = numPeople || 1;
+    await apartment.save();
+
+    console.log('Tenant assigned successfully:', tenant._id, 'to apartment:', apartmentId);
+    res.json({ message: 'Tenant assigned successfully' });
+  } catch (err) {
+    console.error('Assign tenant error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -50,11 +50,21 @@ This specification matches the full requirements for the Tenant Management Syste
 - Director can reject issues or assign to associates
 
 ### Phase 2: Manager Role (Day-to-Day Operations)
+
+**Manager Menu Structure:**
+- **Profile Tab** - Personal information and settings
+- **Buildings Tab** - Main workspace with building cards, each card opens detailed view:
+  - **Tenants** - List of tenants (apartment number, # of people, debt), add/remove tenants
+  - **Details** - Building info and apartment list
+  - **Issues** - Triage tenant-reported issues (forward to director or reject)
+  - **Bulletin Board** - Create and manage notices
+  - **Polls** - Create and manage polls
+
 | Sub-Phase | Feature | Status | Dependencies |
 |-----------|---------|--------|--------------|
-| 2.1 | View assigned buildings | ⬜ TODO | Director 1.2 |
-| 2.2 | Create apartments (bulk & single) | ⬜ TODO | 2.1 |
-| 2.3 | View & manage tenants | ⬜ TODO | 2.2 |
+| 2.1 | View assigned buildings | ✅ DONE | Director 1.2 |
+| 2.2 | Create apartments (bulk & single) | ✅ DONE | 2.1 |
+| 2.3 | View & manage tenants | ✅ DONE | 2.2 |
 | 2.4 | Assign tenants to apartments | ⬜ TODO | 2.3 |
 | 2.5 | View tenant-reported issues | ⬜ TODO | Tenant 3.2 |
 | 2.6 | Triage issues (handle or forward to director) | ⬜ TODO | 2.5 |
@@ -241,12 +251,12 @@ Otherwise → render role-specific dashboard
 ```javascript
 Tabs based on role:
 - TENANT: Home, Issues, Bulletin Board
-- MANAGER: Home, Buildings
+- MANAGER: Profile, Buildings
 - DIRECTOR: Home, Buildings, Managers, Associates, Approvals, Issues
 - ASSOCIATE: Home, Jobs
 - ADMIN: Home
 
-Plus: Profile button (top right), Logout button
+Plus: Logout button
 ```
 
 #### Create Placeholder Dashboards
@@ -576,6 +586,51 @@ POST /api/notices/:id/read (tenant only)
 - ✅ Manager posts notice
 - ✅ Tenant views notices
 - ✅ Manager notices have outline styling
+
+---
+
+## 🎨 UI SPECIFICATIONS
+
+### Manager Buildings Tab - Detailed View
+
+When a manager clicks on a building card, the detailed view opens with the following sections (similar to the image provided):
+
+**Main Building Card Display:**
+- Building image
+- Location (Lokacija): Building name/address
+- Number of floors (Broj stanova): Auto-calculated from apartments
+
+**Action Buttons:**
+1. **Tenants (Detalji o zgradi)** - Opens tenant management view
+   - Lists all tenants with:
+     - Apartment number
+     - Number of people living
+     - Debt amount
+   - Actions: Add tenant, Remove tenant, Assign to apartment
+
+2. **Details (Kvarovi)** - Building and apartment details
+   - Building information (name, address, manager)
+   - List of all apartments with unit numbers
+
+3. **Issues (Oglasna tabla)** - Tenant-reported issues triage
+   - View issues reported by tenants in this building
+   - Filter by: urgency (urgent/not urgent), status
+   - Actions for each issue:
+     - Forward to director
+     - Reject
+     - View details/history
+
+4. **Bulletin Board (Ankete)** - Notices management
+   - Create new notice/announcement
+   - View existing notices
+   - Edit/delete notices
+
+5. **Polls (Naplati)** - Polls management
+   - Create new poll with question and options
+   - View active polls
+   - Close polls and view results
+
+**Note:** This UI design follows the building card pattern shown in the reference image with consistent styling.
 
 ---
 
