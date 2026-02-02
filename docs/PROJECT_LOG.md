@@ -30,6 +30,79 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2024-12-03 - Phase 4.3 Backend
+[GREEN] Associate marks job as complete
+
+**Summary:** Implemented Phase 4.3 following strict TDD (RED→GREEN cycle). Created comprehensive test suite (backend/test/associate-complete-job.test.js) with 10 tests covering associate marking in-progress jobs as complete: successful completion updates status to resolved and sets completionDate, optional completionNotes, populated response fields, authorization (only assigned associate can complete), status validation (must be 'in-progress'), authentication (401/403), and 404 for non-existent issues. Added new POST /api/issues/:id/complete endpoint that validates associate ownership and status, updates issue to resolved with completionDate and optional notes, and returns populated issue data. All 117 tests passing (107 existing + 10 new Phase 4.3). **Phase 4 (Associate role) now complete!**
+
+**Problems:**
+- Initial test run: All 10 tests failing with 404 (expected RED phase - endpoint didn't exist)
+- Need to ensure completionNotes is optional (associate may complete without notes)
+- Need to validate issue is in 'in-progress' status (can't complete if not started or already resolved)
+- Need to set completionDate automatically (not rely on client)
+- Need to ensure only the assigned associate can complete (not other associates)
+
+**Fixes:**
+- Created new POST /api/issues/:id/complete endpoint (backend/index.js):
+  - Line 1294-1298: Authenticate with authenticateToken middleware
+  - Line 1301: Fetch user, check role === 'associate' (403 if not)
+  - Line 1307-1310: Find issue, return 404 if not found
+  - Line 1313-1315: Check issue.assignedTo === user._id (403 if not assigned to this associate)
+  - Line 1318-1320: Check issue.status === 'in-progress' (400 if not started or already resolved)
+  - Line 1323-1328: Update status to 'resolved', set completionDate to now, optionally set completionNotes
+  - Line 1331-1343: Populate apartment, nested building, createdBy, assignedTo
+  - Line 1346-1349: Flatten building structure
+  - Line 1352: Return updated issue with all populated fields
+- All validations enforce business rules:
+  - completionNotes is optional (can be omitted)
+  - Only assigned associate can complete (not other associates)
+  - Issue must be in 'in-progress' status (prevents completing unstarted work)
+  - completionDate set automatically by server (trusted timestamp)
+  - Returns populated data for frontend display
+
+**Tests:**
+- All 117 tests passing (100%)
+  - 107 existing tests (no regressions)
+  - 10 associate-complete-job tests (NEW)
+- POST /api/issues/:id/complete tests (associate-only):
+  - Marks job as complete and updates status to resolved (verified in DB)
+  - Sets completionDate automatically
+  - Saves completionNotes if provided
+  - Returns populated fields (apartment, building, tenant, no passwords)
+  - Allows completing without notes (notes optional)
+  - Rejects if issue not assigned to requesting associate (403)
+  - Rejects if issue not in in-progress status (400)
+  - Rejects if issue already resolved (400)
+  - Returns 401 if not authenticated
+  - Returns 403 if user is not an associate (tenant/manager/director)
+  - Returns 404 if issue doesn't exist
+  - Preserves cost field when marking complete
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests
+- ✅ All 12 test suites passing
+- ✅ 117 total tests passing
+
+**Code Quality:**
+- Followed TDD strictly (RED → GREEN)
+- Comprehensive validation (authorization, status)
+- Proper role-based access control (associate-only)
+- Ownership verification (assignedTo === user._id)
+- Status workflow enforcement (in-progress → resolved)
+- Automatic timestamp (completionDate set by server)
+- Optional notes (business flexibility)
+- No sensitive data exposure (passwords excluded)
+- Proper error messages for all failure cases
+
+**Phase 4 Complete:**
+- ✅ 4.1: View assigned jobs (GET /api/associates/me/jobs)
+- ✅ 4.2: Accept job with cost (POST /api/issues/:id/accept)
+- ✅ 4.3: Mark job complete (POST /api/issues/:id/complete)
+- All associate workflow implemented and tested!
+
+---
+
 ### 2024-12-03 - Phase 4.2 Backend
 [GREEN] Associate accepts job with cost estimate
 

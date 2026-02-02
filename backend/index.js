@@ -1288,6 +1288,71 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== PHASE 4.3: ASSOCIATE MARKS JOB AS COMPLETE =====
+// POST /api/issues/:id/complete - Associate marks in-progress job as complete
+app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/complete - User: ${req.user.username}`);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Check if user is an associate
+    if (!user || user.role !== 'associate') {
+      return res.status(403).json({ error: 'Only associates can complete jobs' });
+    }
+    
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+    
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(403).json({ error: 'This issue is not assigned to you' });
+    }
+    
+    // Check if issue is in in-progress status
+    if (issue.status !== 'in-progress') {
+      return res.status(400).json({ error: 'Issue must be in in-progress status to complete' });
+    }
+    
+    // Update issue
+    issue.status = 'resolved';
+    issue.completionDate = new Date();
+    if (req.body.completionNotes) {
+      issue.completionNotes = req.body.completionNotes;
+    }
+    await issue.save();
+    
+    // Populate and return
+    const updated = await Issue.findById(issue._id)
+      .populate('apartment', 'unitNumber address')
+      .populate({
+        path: 'apartment',
+        populate: {
+          path: 'building',
+          select: 'name address'
+        }
+      })
+      .populate('createdBy', 'firstName lastName email')
+      .populate('assignedTo', 'username firstName lastName email company');
+    
+    // Flatten building
+    const issueObj = updated.toObject();
+    if (issueObj.apartment && issueObj.apartment.building) {
+      issueObj.building = issueObj.apartment.building;
+    }
+    
+    console.log(`Issue ${issue._id} marked as complete`);
+    res.json(issueObj);
+  } catch (error) {
+    console.error('Error completing job:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });

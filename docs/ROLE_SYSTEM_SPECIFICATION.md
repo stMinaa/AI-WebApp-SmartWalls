@@ -94,7 +94,7 @@ Each building displays as a card with:
 |-----------|---------|--------|--------------|
 | 4.1 | View assigned jobs | ✅ DONE | Director 1.6 |
 | 4.2 | Accept job with cost estimate | ✅ DONE | 4.1 |
-| 4.3 | Mark job as complete | ⬜ TODO | 4.2 |
+| 4.3 | Mark job as complete | ✅ DONE | 4.2 |
 
 ---
 
