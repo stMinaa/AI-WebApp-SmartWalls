@@ -1115,6 +1115,55 @@ app.post('/api/issues', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== PHASE 3.3: TENANT VIEWS THEIR OWN ISSUES =====
+// GET /api/issues/my - Tenant views their reported issues
+app.get('/api/issues/my', authenticateToken, async (req, res) => {
+  try {
+    console.log(`GET /api/issues/my - User: ${req.user.username} Query:`, req.query);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+    
+    // Check if user is a tenant
+    if (!user || user.role !== 'tenant') {
+      return res.status(403).json({ error: 'Only tenants can view their issues' });
+    }
+    
+    const { status, priority } = req.query;
+    const filter = { createdBy: user._id };
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+    
+    const issues = await Issue.find(filter)
+      .populate('apartment', 'unitNumber address')
+      .populate({
+        path: 'apartment',
+        populate: {
+          path: 'building',
+          select: 'name address'
+        }
+      })
+      .populate('createdBy', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+    
+    // Flatten building from apartment.building to building for easier access
+    const issuesWithBuilding = issues.map(issue => {
+      const issueObj = issue.toObject();
+      if (issueObj.apartment && issueObj.apartment.building) {
+        issueObj.building = issueObj.apartment.building;
+      }
+      return issueObj;
+    });
+    
+    console.log(`Tenant issues retrieved: ${issuesWithBuilding.length}`);
+    res.json(issuesWithBuilding);
+  } catch (error) {
+    console.error('Error retrieving tenant issues:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
