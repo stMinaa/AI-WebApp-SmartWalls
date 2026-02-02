@@ -51,33 +51,43 @@ This specification matches the full requirements for the Tenant Management Syste
 
 ### Phase 2: Manager Role (Day-to-Day Operations)
 
-**Manager Menu Structure:**
+**Manager Menu Structure (TopNav):**
 - **Profile Tab** - Personal information and settings
-- **Buildings Tab** - Main workspace with building cards, each card opens detailed view:
-  - **Tenants** - List of tenants (apartment number, # of people, debt), add/remove tenants
-  - **Details** - Building info and apartment list
-  - **Issues** - Triage tenant-reported issues (forward to director or reject)
-  - **Bulletin Board** - Create and manage notices
-  - **Polls** - Create and manage polls
+- **Buildings Tab** - Main workspace showing all assigned buildings as cards
+
+**Buildings Tab UI (see managerBuildingPage.png reference):**
+Each building displays as a card with:
+- Building image
+- Location (Lokacija): Building name/address  
+- Number of apartments (Broj stanova): Auto-calculated count
+- 5 action buttons that open specific views for that building:
+  1. **Detalji o zgradi** (Building Details) - List of tenants with apartment number, # of people living, debt
+  2. **Kvarovi** (Issues) - View and triage tenant-reported issues (forward to director or reject)
+  3. **Oglasna tabla** (Bulletin Board) - Create and view notices/announcements
+  4. **Ankete** (Polls) - Create polls and view results
+  5. **Naplati** (Billing) - Payment and debt management
+
+**IMPORTANT:** Manager has ONLY 2 top-level tabs: Profile and Buildings. All building-specific actions are accessed via buttons on building cards, NOT as separate top-level tabs.
 
 | Sub-Phase | Feature | Status | Dependencies |
 |-----------|---------|--------|--------------|
 | 2.1 | View assigned buildings | ✅ DONE | Director 1.2 |
 | 2.2 | Create apartments (bulk & single) | ✅ DONE | 2.1 |
 | 2.3 | View & manage tenants | ✅ DONE | 2.2 |
-| 2.4 | Assign tenants to apartments | ⬜ TODO | 2.3 |
-| 2.5 | View tenant-reported issues | ⬜ TODO | Tenant 3.2 |
-| 2.6 | Triage issues (handle or forward to director) | ⬜ TODO | 2.5 |
-| 2.7 | Create notices (bulletin board) | ⬜ TODO | 2.1 |
-| 2.8 | Create polls | ⬜ TODO | 2.1 |
+| 2.4 | Assign tenants to apartments | ✅ DONE | 2.3 |
+| 2.5 | View tenant-reported issues | ✅ DONE | Tenant 3.2 |
+| 2.6 | Triage issues (assign/forward/reject) | ✅ DONE | 2.5 |
+| 2.7 | Create notices (bulletin board) | ✅ DONE | 2.1 |
+| 2.8 | Create polls | ✅ DONE | 2.1 |
 
 ### Phase 3: Tenant Role (Resident Experience)
 | Sub-Phase | Feature | Status | Dependencies |
 |-----------|---------|--------|--------------|
-| 3.1 | View apartment & building info | ⬜ TODO | Manager 2.4 |
-| 3.2 | Report issues | ⬜ TODO | 3.1 |
-| 3.3 | View bulletin board (notices) | ⬜ TODO | Manager 2.7 |
-| 3.4 | Vote on polls | ⬜ TODO | Manager 2.8 |
+| 3.1 | View apartment & building info | ✅ DONE | Manager 2.4 |
+| 3.2 | Report issues | ✅ DONE | 3.1 |
+| 3.3 | View their reported issues | ✅ DONE | 3.2 |
+| 3.4 | View bulletin board (notices) | ✅ DONE | Manager 2.7 |
+| 3.5 | Vote on polls | ✅ DONE | Manager 2.8 |
 
 ### Phase 4: Associate Role (Issue Resolution)
 | Sub-Phase | Feature | Status | Dependencies |
@@ -249,14 +259,19 @@ Otherwise → render role-specific dashboard
 
 #### Create TopNav.js
 ```javascript
-Tabs based on role:
+Tabs based on role (top navigation bar):
 - TENANT: Home, Issues, Bulletin Board
-- MANAGER: Profile, Buildings
+- MANAGER: Profile, Buildings (ONLY 2 TABS - all actions via building card buttons)
 - DIRECTOR: Home, Buildings, Managers, Associates, Approvals, Issues
 - ASSOCIATE: Home, Jobs
 - ADMIN: Home
 
 Plus: Logout button
+
+CRITICAL FOR MANAGER ROLE:
+- DO NOT create separate tabs for Apartments, Tenants, Issues, Bulletin Board, or Polls
+- These features are accessed via 5 buttons on each building card in the Buildings tab
+- Manager navigation is intentionally minimal: just Profile + Buildings
 ```
 
 #### Create Placeholder Dashboards
@@ -591,46 +606,63 @@ POST /api/notices/:id/read (tenant only)
 
 ## 🎨 UI SPECIFICATIONS
 
-### Manager Buildings Tab - Detailed View
+### Manager Buildings Tab - Building Cards
 
-When a manager clicks on a building card, the detailed view opens with the following sections (similar to the image provided):
+**Reference Image:** managerBuildingPage.png
 
-**Main Building Card Display:**
-- Building image
-- Location (Lokacija): Building name/address
-- Number of floors (Broj stanova): Auto-calculated from apartments
+**Building Card Display:**
+Each building shows as a card with:
+- Building image (top)
+- **Lokacija** (Location): Building name/address
+- **Broj stanova** (Number of apartments): Auto-calculated from apartments count
 
-**Action Buttons:**
-1. **Tenants (Detalji o zgradi)** - Opens tenant management view
-   - Lists all tenants with:
+**Action Buttons (5 buttons per building card):**
+
+1. **Detalji o zgradi** (Building Details)
+   - Opens tenant list view for this building
+   - Shows table with columns:
+     - Tenant name
      - Apartment number
      - Number of people living
      - Debt amount
-   - Actions: Add tenant, Remove tenant, Assign to apartment
+   - Actions: Add new tenant, Remove tenant, Edit tenant info
 
-2. **Details (Kvarovi)** - Building and apartment details
-   - Building information (name, address, manager)
-   - List of all apartments with unit numbers
-
-3. **Issues (Oglasna tabla)** - Tenant-reported issues triage
-   - View issues reported by tenants in this building
+2. **Kvarovi** (Issues/Repairs)
+   - Opens issues triage view for this building
+   - Shows all tenant-reported issues for this building
    - Filter by: urgency (urgent/not urgent), status
    - Actions for each issue:
-     - Forward to director
-     - Reject
-     - View details/history
+     - Forward to director (status → 'forwarded')
+     - Reject (status → 'rejected')
+     - View issue details and history
 
-4. **Bulletin Board (Ankete)** - Notices management
-   - Create new notice/announcement
-   - View existing notices
-   - Edit/delete notices
+3. **Oglasna tabla** (Bulletin Board)
+   - Opens notices management view
+   - Shows all notices for this building
+   - Actions:
+     - Create new notice/announcement
+     - Edit existing notice
+     - Delete notice
 
-5. **Polls (Naplati)** - Polls management
-   - Create new poll with question and options
-   - View active polls
-   - Close polls and view results
+4. **Ankete** (Polls)
+   - Opens polls management view
+   - Shows active and closed polls for this building
+   - Actions:
+     - Create new poll (question + multiple choice options)
+     - Close active poll
+     - View poll results
 
-**Note:** This UI design follows the building card pattern shown in the reference image with consistent styling.
+5. **Naplati** (Billing/Payment)
+   - Opens billing management view
+   - Shows tenant debts and payment tracking
+   - Actions:
+     - Record payments
+     - Add charges
+     - Generate payment reports
+
+**Layout:** Building cards displayed in a grid (responsive: 3 columns on desktop, 2 on tablet, 1 on mobile).
+
+**Navigation:** Manager has only 2 top-level tabs (Profile, Buildings). All building-specific views are accessed via the 5 action buttons on each building card.
 
 ---
 
