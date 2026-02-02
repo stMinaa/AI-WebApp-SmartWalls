@@ -16,6 +16,8 @@ const User = require('./models/User');
 const Building = require('./models/Building');
 const Apartment = require('./models/Apartment');
 const Issue = require('./models/Issue');
+const Notice = require('./models/Notice');
+const Poll = require('./models/Poll');
 
 // Middleware
 app.use(cors());
@@ -934,6 +936,36 @@ app.delete('/api/tenants/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/tenants/:id/approve - Approve pending tenant (manager only)
+app.post('/api/tenants/:id/approve', authenticateToken, async (req, res) => {
+  console.log(`POST /api/tenants/:id/approve - User: ${req.user.username}`);
+
+  try {
+    // Check if user is manager
+    const user = await User.findOne({ username: req.user.username });
+    
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can approve tenants' });
+    }
+
+    // Find tenant
+    const tenant = await User.findById(req.params.id);
+    if (!tenant || tenant.role !== 'tenant') {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Update tenant status to active
+    tenant.status = 'active';
+    await tenant.save();
+
+    console.log('Tenant approved:', tenant.username);
+    res.json({ message: 'Tenant approved successfully', tenant });
+  } catch (err) {
+    console.error('Approve tenant error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/tenants/:id/assign - Assign tenant to apartment
 app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
   console.log(`POST /api/tenants/:id/assign - User: ${req.user.username} Body:`, req.body);
@@ -1288,6 +1320,43 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/issues/:id/reject - Associate rejects assigned job
+app.post('/api/issues/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/reject - User: ${req.user.username}`);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Check if user is an associate
+    if (!user || user.role !== 'associate') {
+      return res.status(403).json({ error: 'Only associates can reject jobs' });
+    }
+    
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+    
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(403).json({ error: 'This issue is not assigned to you' });
+    }
+    
+    // Update issue - return to director for reassignment
+    issue.status = 'forwarded';
+    issue.assignedTo = null;
+    await issue.save();
+    
+    console.log(`Issue ${issue._id} rejected by associate`);
+    res.json({ message: 'Job rejected successfully' });
+  } catch (error) {
+    console.error('Error rejecting job:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== PHASE 4.3: ASSOCIATE MARKS JOB AS COMPLETE =====
 // POST /api/issues/:id/complete - Associate marks in-progress job as complete
 app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
@@ -1349,6 +1418,214 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
     res.json(issueObj);
   } catch (error) {
     console.error('Error completing job:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ===== GET ALL ASSOCIATES (for manager/director dropdowns) =====
+app.get('/api/associates', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Only managers and directors can view associates list
+    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Get all approved associates
+    const associates = await User.find({ 
+      role: 'associate', 
+      approved: true 
+    }).select('_id username firstName lastName email company');
+    
+    res.json(associates);
+  } catch (error) {
+    console.error('Error fetching associates:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ===== POLLS ENDPOINTS =====
+// GET /api/buildings/:buildingId/polls - Get all polls for a building
+app.get('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) => {
+  try {
+    const polls = await Poll.find({ building: req.params.buildingId })
+      .populate('createdBy', 'username firstName lastName')
+      .sort({ createdAt: -1 });
+    
+    res.json(polls);
+  } catch (error) {
+    console.error('Error fetching polls:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/buildings/:buildingId/polls - Create a poll
+app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Only managers can create polls
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can create polls' });
+    }
+    
+    const { question, options } = req.body;
+    
+    if (!question || !options || options.length < 2) {
+      return res.status(400).json({ error: 'Question and at least 2 options required' });
+    }
+    
+    const poll = await Poll.create({
+      building: req.params.buildingId,
+      question,
+      options,
+      votes: [],
+      createdBy: user._id
+    });
+    
+    const populated = await Poll.findById(poll._id)
+      .populate('createdBy', 'username firstName lastName');
+    
+    res.status(201).json(populated);
+  } catch (error) {
+    console.error('Error creating poll:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/polls/:pollId/vote - Vote on a poll
+app.post('/api/polls/:pollId/vote', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    const { option } = req.body;
+    
+    if (!option) {
+      return res.status(400).json({ error: 'Option is required' });
+    }
+    
+    const poll = await Poll.findById(req.params.pollId);
+    if (!poll) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+    
+    // Check if already voted
+    const existingVote = poll.votes.find(v => v.voter.toString() === user._id.toString());
+    if (existingVote) {
+      return res.status(400).json({ error: 'You have already voted on this poll' });
+    }
+    
+    // Add vote
+    poll.votes.push({ option, voter: user._id });
+    await poll.save();
+    
+    const updated = await Poll.findById(poll._id)
+      .populate('createdBy', 'username firstName lastName');
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Error voting on poll:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/polls/:pollId/close - Close a poll
+app.post('/api/polls/:pollId/close', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Only managers can close polls
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can close polls' });
+    }
+    
+    const poll = await Poll.findById(req.params.pollId);
+    if (!poll) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+    
+    poll.closedAt = new Date();
+    await poll.save();
+    
+    const updated = await Poll.findById(poll._id)
+      .populate('createdBy', 'username firstName lastName');
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Error closing poll:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ===== NOTICES ENDPOINTS =====
+// GET /api/buildings/:buildingId/notices - Get all notices for a building
+app.get('/api/buildings/:buildingId/notices', authenticateToken, async (req, res) => {
+  try {
+    const notices = await Notice.find({ building: req.params.buildingId })
+      .populate('author', 'username firstName lastName')
+      .sort({ createdAt: -1 });
+    
+    res.json(notices);
+  } catch (error) {
+    console.error('Error fetching notices:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/buildings/:buildingId/notices - Create a notice
+app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Only managers can create notices
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can create notices' });
+    }
+    
+    const { content } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+    
+    const notice = await Notice.create({
+      building: req.params.buildingId,
+      author: user._id,
+      authorName: user.username,
+      authorRole: user.role,
+      content
+    });
+    
+    const populated = await Notice.findById(notice._id)
+      .populate('author', 'username firstName lastName');
+    
+    res.status(201).json(populated);
+  } catch (error) {
+    console.error('Error creating notice:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/notices/:noticeId - Delete a notice
+app.delete('/api/notices/:noticeId', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    
+    // Only managers can delete notices
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can delete notices' });
+    }
+    
+    const notice = await Notice.findById(req.params.noticeId);
+    if (!notice) {
+      return res.status(404).json({ error: 'Notice not found' });
+    }
+    
+    await Notice.findByIdAndDelete(req.params.noticeId);
+    
+    res.json({ message: 'Notice deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting notice:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

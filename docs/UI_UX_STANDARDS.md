@@ -6,6 +6,11 @@ Design guidelines for the Tenant Management System to ensure consistent, accessi
 
 ## 🎯 Core Design Principles
 
+### Language Requirement
+- ✅ **ALL UI text MUST be in Serbian language**
+- This includes: labels, buttons, messages, placeholders, navigation, headings, descriptions
+- Use Serbian Cyrillic or Latin script (Latin preferred for web readability)
+
 ### UX Principles
 - **Intuitive:** Users should understand functionality immediately without explanation
 - **Easy:** Minimize clicks and steps to complete tasks
@@ -22,6 +27,7 @@ Design guidelines for the Tenant Management System to ensure consistent, accessi
 - ❌ **NO gradient colors** (e.g., linear-gradient)
 - ❌ **NO bright/vibrant colors** (e.g., #FF0000, #00FF00)
 - ❌ **NO colorful emojis** (e.g., 🏢 🎉 ✨)
+- ❌ **NO English text in UI** (code/comments can be English, but user-facing text must be Serbian)
 - ✅ **YES to black/white icons** (e.g., ▪ ○ ✓ ✕ ▸)
 - ✅ **YES to subtle grays** (#f8f9fa, #e9ecef, #6c757d)
 - ✅ **YES to muted accent colors** (#3498db, #27ae60, #95a5a6)
@@ -604,9 +610,25 @@ margin-top: 48px
 - **Bulletin Board Tab**: Notices (outlined if manager-posted) + Polls
 
 ### Manager Dashboard
-- **Home Tab**: Statistics overview
-- **Buildings Tab**: Building cards grid with "Manage" button
-- **Building Detail**: Tabs for Apartments, Tenants, Issues, Bulletin Board
+
+**CRITICAL: Manager has ONLY 2 top-level tabs:**
+1. **Profile Tab** - Personal information and settings
+2. **Buildings Tab** - All assigned buildings displayed as cards
+
+**Buildings Tab Layout (Reference: managerBuildingPage.png):**
+- Grid of building cards (3 columns desktop, 2 tablet, 1 mobile)
+- Each card shows:
+  - Building image (top)
+  - **Lokacija** (Location): Building name/address
+  - **Broj stanova** (Number of apartments): Count
+  - 5 action buttons (each opens a specific view for that building):
+    1. **Detalji o zgradi** (Building Details) - Tenant list with apartment #, # people, debt
+    2. **Kvarovi** (Issues) - Triage tenant issues (forward/reject)
+    3. **Oglasna tabla** (Bulletin Board) - Create/view notices
+    4. **Ankete** (Polls) - Create polls, view results
+    5. **Naplati** (Billing) - Payment and debt management
+
+**NO separate Apartments, Tenants, Issues, or Bulletin Board tabs** - Everything is accessed via building cards.
 
 ### Director Dashboard
 - **Buildings Tab**: All buildings with assign manager option
