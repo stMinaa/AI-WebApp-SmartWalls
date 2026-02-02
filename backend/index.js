@@ -994,6 +994,63 @@ app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/tenants/me/apartment - Tenant views their apartment and building info
+app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
+  console.log(`GET /api/tenants/me/apartment - User: ${req.user.username}`);
+
+  try {
+    // Check if user is tenant
+    const user = await User.findOne({ username: req.user.username });
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+
+    if (!user || user.role !== 'tenant') {
+      return res.status(403).json({ error: 'Only tenants can view apartment info' });
+    }
+
+    // Check if tenant has an apartment assigned
+    if (!user.apartment) {
+      return res.status(404).json({ error: 'You are not assigned to any apartment yet' });
+    }
+
+    // Fetch apartment with building info
+    const apartment = await Apartment.findById(user.apartment);
+    if (!apartment) {
+      return res.status(404).json({ error: 'Apartment not found' });
+    }
+
+    const building = await Building.findById(apartment.building)
+      .populate('manager', 'firstName lastName email');
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    // Get apartment count for building
+    const apartmentCount = await Apartment.countDocuments({ building: building._id });
+
+    console.log('Tenant apartment info retrieved successfully');
+    res.json({
+      apartment: {
+        _id: apartment._id,
+        unitNumber: apartment.unitNumber,
+        address: apartment.address,
+        numPeople: apartment.numPeople,
+        floor: apartment.floor
+      },
+      building: {
+        _id: building._id,
+        name: building.name,
+        address: building.address,
+        imageUrl: building.imageUrl,
+        apartmentCount: apartmentCount,
+        manager: building.manager
+      }
+    });
+  } catch (err) {
+    console.error('Get tenant apartment error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
