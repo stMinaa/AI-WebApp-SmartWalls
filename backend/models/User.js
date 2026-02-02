@@ -16,6 +16,9 @@ const userSchema = new mongoose.Schema({
     enum: ['pending', 'active', 'rejected'],
     default: 'pending'
   },
+  // For tenants
+  building: { type: mongoose.Schema.Types.ObjectId, ref: 'Building' },
+  apartment: { type: mongoose.Schema.Types.ObjectId, ref: 'Apartment' },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -863,6 +863,67 @@ app.get('/api/buildings/:id/apartments', authenticateToken, async (req, res) => 
   }
 });
 
+// ===== TENANT ENDPOINTS =====
+
+// GET /api/buildings/:id/tenants - Get all tenants for building (manager/director)
+app.get('/api/buildings/:id/tenants', authenticateToken, async (req, res) => {
+  console.log('GET /api/buildings/:id/tenants - User:', req.user?.username);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !['manager', 'director'].includes(user.role)) {
+      return res.status(403).json({ error: 'Only managers and directors can view tenants' });
+    }
+
+    const building = await Building.findById(req.params.id);
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    // Find all tenants assigned to this building
+    const tenants = await User.find({ 
+      building: building._id,
+      role: 'tenant'
+    })
+      .populate('apartment', 'unitNumber')
+      .populate('building', 'name address')
+      .select('username email firstName lastName apartment building createdAt');
+
+    res.json(tenants);
+  } catch (err) {
+    console.error('Get tenants error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/tenants/:id - Delete tenant and free apartment (manager/director)
+app.delete('/api/tenants/:id', authenticateToken, async (req, res) => {
+  console.log('DELETE /api/tenants/:id - User:', req.user?.username, 'Tenant:', req.params.id);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || !['manager', 'director'].includes(user.role)) {
+      return res.status(403).json({ error: 'Only managers and directors can delete tenants' });
+    }
+
+    const tenant = await User.findById(req.params.id);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // If tenant has an apartment, free it
+    if (tenant.apartment) {
+      await Apartment.findByIdAndUpdate(tenant.apartment, { tenant: null });
+      console.log('Freed apartment:', tenant.apartment);
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    console.log('Tenant deleted:', tenant.username);
+    res.json({ message: 'Tenant deleted successfully' });
+  } catch (err) {
+    console.error('Delete tenant error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
