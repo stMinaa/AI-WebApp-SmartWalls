@@ -30,6 +30,42 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-02 - 71a60f5 - Phase 2.1 Frontend
+[REFACTOR] Removed redundant apartment prefetch
+
+**Summary:** Optimized ManagerDashboard.js by removing redundant prefetch useEffect (lines 177-195) that fetched full apartment arrays for all buildings just to display counts. Backend already returns `apartmentCount` field in GET /api/buildings/managed response. Frontend was correctly using `b.apartmentCount` in JSX but had unnecessary N+1 query pattern (1 query for buildings + N queries for apartments). Removed prefetch improves performance and follows CODE_QUALITY_STANDARDS.md principle of avoiding redundant operations. The apartmentsCache state is retained for on-demand fetching when viewing detailed apartment lists.
+
+**Problems:**
+- Redundant API calls: prefetch fetched all apartments for each building just to display count
+- N+1 query pattern: 1 call to /api/buildings/managed + N calls to /api/buildings/:id/apartments
+- Backend already returns apartmentCount but frontend wasn't leveraging it optimally
+
+**Fixes:**
+- Removed prefetch useEffect (lines 177-195) from ManagerDashboard.js
+- Kept apartmentsCache for on-demand fetching via ensureAptsInCache when viewing details
+- Frontend already correctly displays b.apartmentCount in building cards
+
+**Tests:**
+- All 19 backend tests passing (no regressions)
+- Frontend builds successfully without errors
+- apartmentsCache still works for detailed views (on-demand fetching remains functional)
+
+**Connectivity:**
+- ✅ Backend server: localhost:5000
+- ✅ MongoDB: MongoMemoryServer for tests, Atlas for production
+- ✅ Frontend: Builds successfully, optimized API usage
+
+**Code Quality:**
+- Eliminated redundant operations (CODE_QUALITY_STANDARDS.md)
+- Leveraged existing backend data instead of duplicate fetches
+- Maintained on-demand fetching for detailed views
+
+**Next Steps:**
+- Phase 2.1 complete (backend + frontend)
+- Phase 2.2: Create apartments (bulk & single)
+
+---
+
 ### 2026-02-02 - a3232b4 - Phase 2.1 Backend
 [GREEN] Manager views assigned buildings
 
