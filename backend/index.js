@@ -1051,6 +1051,66 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
   }
 });
 
+// ===== PHASE 3.2: TENANT REPORTS ISSUES =====
+// POST /api/issues - Tenant creates an issue
+app.post('/api/issues', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues - User: ${req.user.username} Body:`, req.body);
+    
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+    
+    // Check if user is a tenant
+    if (!user || user.role !== 'tenant') {
+      return res.status(403).json({ error: 'Only tenants can report issues' });
+    }
+    
+    // Check if tenant is assigned to an apartment
+    if (!user.apartment) {
+      return res.status(404).json({ error: 'You are not assigned to any apartment yet' });
+    }
+    
+    const { title, description, priority } = req.body;
+    
+    // Validate required fields
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
+    if (!description) {
+      return res.status(400).json({ error: 'Description is required' });
+    }
+    
+    // Validate priority if provided
+    if (priority && !['low', 'medium', 'high'].includes(priority)) {
+      return res.status(400).json({ error: 'Invalid priority. Must be low, medium, or high' });
+    }
+    
+    // Fetch apartment to get building
+    const apartment = await Apartment.findById(user.apartment);
+    
+    // Create issue
+    const issue = new Issue({
+      createdBy: user._id,
+      apartment: user.apartment,
+      building: apartment.building,
+      title: title.trim(),
+      description: description.trim(),
+      priority: priority || 'medium',
+      status: 'reported'
+    });
+    
+    await issue.save();
+    console.log(`Issue created: ${issue._id}`);
+    
+    res.status(201).json({ issue });
+  } catch (error) {
+    console.error('Error creating issue:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
