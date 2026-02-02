@@ -289,8 +289,10 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user) {
-      return res.status(403).json({ message: 'User not found' });
+    
+    // Phase 2.5: Only managers can view issues via this endpoint
+    if (!user || user.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can view issues' });
     }
 
     const { status, priority } = req.query;
@@ -298,35 +300,37 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-    // Role-based filtering
-    if (user.role === 'manager') {
-      // Managers see issues from their buildings (status: reported, assigned, in-progress, resolved)
-      const buildings = await Building.find({ manager: user._id });
-      const buildingIds = buildings.map(b => b._id);
-      const apartments = await Apartment.find({ building: { $in: buildingIds } });
-      const apartmentIds = apartments.map(a => a._id);
-      filter.apartment = { $in: apartmentIds };
-    } else if (user.role === 'tenant') {
-      // Tenants see only their own issues
-      filter.createdBy = user._id;
-    } else if (user.role === 'associate') {
-      // Associates see only issues assigned to them
-      filter.assignedTo = user._id;
-    } else if (user.role === 'director') {
-      // Directors see forwarded and assigned issues (to track what they've assigned)
-      if (!filter.status) {
-        filter.status = { $in: ['forwarded', 'assigned', 'in-progress', 'resolved'] };
-      }
-    }
+    // Managers see issues from their buildings
+    const buildings = await Building.find({ manager: user._id });
+    const buildingIds = buildings.map(b => b._id);
+    const apartments = await Apartment.find({ building: { $in: buildingIds } });
+    const apartmentIds = apartments.map(a => a._id);
+    filter.apartment = { $in: apartmentIds };
 
     const issues = await Issue.find(filter)
-      .populate('apartment', 'number building')
+      .populate('apartment', 'unitNumber address')
+      .populate({
+        path: 'apartment',
+        populate: {
+          path: 'building',
+          select: 'name address'
+        }
+      })
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'firstName lastName email')
       .sort({ createdAt: -1 });
 
-    console.log('Returning issues:', issues.length);
-    res.json(issues);
+    // Flatten building from apartment.building to building for easier access
+    const issuesWithBuilding = issues.map(issue => {
+      const issueObj = issue.toObject();
+      if (issueObj.apartment && issueObj.apartment.building) {
+        issueObj.building = issueObj.apartment.building;
+      }
+      return issueObj;
+    });
+
+    console.log('Returning issues:', issuesWithBuilding.length);
+    res.json(issuesWithBuilding);
   } catch (err) {
     console.error('Get issues error:', err);
     res.status(500).json({ message: 'Server error' });
