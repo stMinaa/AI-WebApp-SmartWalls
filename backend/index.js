@@ -53,11 +53,19 @@ const authenticateToken = (req, res, next) => {
 
 // ===== SIGNUP HELPERS =====
 /**
+ * Check if required signup fields are provided
+ * @private
+ */
+function hasRequiredSignupFields(username, email, password) {
+  return username && email && password;
+}
+
+/**
  * Validate signup input data
  * @private
  */
 function validateSignupInput(username, email, password, role) {
-  if (!username || !email || !password) {
+  if (!hasRequiredSignupFields(username, email, password)) {
     return { valid: false, status: 400, message: 'Username, email, and password are required' };
   }
 

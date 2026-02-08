@@ -426,6 +426,46 @@ async function handleGenericStatusChange(issue, username, options) {
 }
 
 /**
+ * Get appropriate handler function for status update
+ * @param {string} role
+ * @param {string} status
+ * @returns {Function|null}
+ */
+function getStatusUpdateHandler(role, status) {
+  const handlerKey = `${role}:${status}`;
+  const statusUpdateHandlers = {
+    'associate:in progress': handleAssociateAccept,
+    'associate:resolved': handleAssociateResolve,
+    'manager:forwarded': handleManagerForward,
+    'director:assigned': handleAssignment,
+    'manager:assigned': handleAssignment,
+    'admin:assigned': handleAssignment
+  };
+  
+  return statusUpdateHandlers[handlerKey] || null;
+}
+
+/**
+ * Execute status update with appropriate handler
+ * @param {Function} handler
+ * @param {Object} issue
+ * @param {string} username
+ * @param {Object} updates
+ * @returns {Promise<Object>}
+ */
+async function executeStatusUpdate(handler, issue, username, updates) {
+  const { cost, assignee } = updates;
+  
+  if (handler === handleAssociateAccept) {
+    return await handler(issue, username, cost);
+  } else if (handler === handleAssignment) {
+    return await handler(issue, username, assignee);
+  } else {
+    return await handler(issue, username);
+  }
+}
+
+/**
  * Update issue status with validation
  * @param {string} issueId
  * @param {string} role - user role
@@ -434,30 +474,17 @@ async function handleGenericStatusChange(issue, username, options) {
  * @returns {Promise<Object>}
  */
 async function updateIssueStatus(issueId, role, username, updates) {
-  const { status, note, cost, assignee } = updates;
+  const { status, note, assignee } = updates;
 
   // Validation
   const { issue } = await validateIssueStatusChange(issueId, role, username, status);
   validateRolePermissions(role, status);
 
-  // Associate accept
-  if (role === 'associate' && status === 'in progress') {
-    return await handleAssociateAccept(issue, username, cost);
-  }
-
-  // Associate resolve
-  if (role === 'associate' && status === 'resolved') {
-    return await handleAssociateResolve(issue, username);
-  }
-
-  // Manager forward
-  if (role === 'manager' && status === 'forwarded') {
-    return await handleManagerForward(issue, username);
-  }
-
-  // Assignment (director, manager, admin)
-  if (['director', 'manager', 'admin'].includes(role) && status === 'assigned') {
-    return await handleAssignment(issue, username, assignee);
+  // Get appropriate handler
+  const handler = getStatusUpdateHandler(role, status);
+  
+  if (handler) {
+    return await executeStatusUpdate(handler, issue, username, updates);
   }
 
   // Generic status change
