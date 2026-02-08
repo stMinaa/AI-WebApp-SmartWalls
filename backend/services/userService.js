@@ -102,6 +102,30 @@ async function registerUser(data) {
 }
 
 /**
+ * Setup tenant-specific user configuration
+ * @private
+ */
+async function setupTenantUser(user, buildingId, apartmentId) {
+  user.status = USER_STATUS.PENDING;
+  
+  if (buildingId && apartmentId) {
+    await validateTenantBuilding(user, buildingId, apartmentId);
+  }
+}
+
+/**
+ * Setup associate or manager user configuration
+ * @private
+ */
+function setupAssociateOrManager(user, role, company) {
+  user.status = USER_STATUS.PENDING;
+  
+  if (role === USER_ROLES.ASSOCIATE && company) {
+    user.company = sanitizeString(company);
+  }
+}
+
+/**
  * Handle role-specific user setup
  * @param {Object} user - User document
  * @param {string} role - User role
@@ -112,20 +136,64 @@ async function handleRoleSpecificSetup(user, role, options) {
 
   // Tenant setup
   if (role === USER_ROLES.TENANT) {
-    user.status = USER_STATUS.PENDING;
-    
-    if (buildingId && apartmentId) {
-      await validateTenantBuilding(user, buildingId, apartmentId);
-    }
+    await setupTenantUser(user, buildingId, apartmentId);
+    return;
   }
 
   // Associate/Manager setup
   if (role === USER_ROLES.ASSOCIATE || role === USER_ROLES.MANAGER) {
-    user.status = USER_STATUS.PENDING;
-    
-    if (role === USER_ROLES.ASSOCIATE && company) {
-      user.company = sanitizeString(company);
-    }
+    setupAssociateOrManager(user, role, company);
+  }
+}
+
+// ============= TENANT VALIDATION HELPERS =============
+
+/**
+ * Find and validate building exists
+ * @param {string} buildingId
+ * @returns {Promise<Object>} Building document
+ */
+async function findAndValidateBuilding(buildingId) {
+  const { Building } = require('../models');
+  const building = await Building.findById(buildingId);
+  if (!building) {
+    throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid building selection');
+  }
+  return building;
+}
+
+/**
+ * Find and validate apartment exists
+ * @param {string} apartmentId
+ * @returns {Promise<Object>} Apartment document
+ */
+async function findAndValidateApartment(apartmentId) {
+  const { Apartment } = require('../models');
+  const apartment = await Apartment.findById(apartmentId);
+  if (!apartment) {
+    throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid apartment selection');
+  }
+  return apartment;
+}
+
+/**
+ * Validate apartment belongs to building
+ * @param {Object} apartment - Apartment document
+ * @param {Object} building - Building document
+ */
+function validateApartmentBelongsToBuilding(apartment, building) {
+  if (String(apartment.building) !== String(building._id)) {
+    throw createError(HTTP_STATUS.BAD_REQUEST, 'Apartment not in selected building');
+  }
+}
+
+/**
+ * Validate apartment is available
+ * @param {Object} apartment - Apartment document
+ */
+function validateApartmentIsAvailable(apartment) {
+  if (apartment.tenant) {
+    throw createError(HTTP_STATUS.BAD_REQUEST, 'Apartment already occupied');
   }
 }
 
@@ -136,26 +204,10 @@ async function handleRoleSpecificSetup(user, role, options) {
  * @param {string} apartmentId - Apartment ID
  */
 async function validateTenantBuilding(user, buildingId, apartmentId) {
-  const { Building } = require('../models');
-  const { Apartment } = require('../models');
-
-  const building = await Building.findById(buildingId);
-  if (!building) {
-    throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid building selection');
-  }
-
-  const apartment = await Apartment.findById(apartmentId);
-  if (!apartment) {
-    throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid apartment selection');
-  }
-
-  if (String(apartment.building) !== String(building._id)) {
-    throw createError(HTTP_STATUS.BAD_REQUEST, 'Apartment not in selected building');
-  }
-
-  if (apartment.tenant) {
-    throw createError(HTTP_STATUS.BAD_REQUEST, 'Apartment already occupied');
-  }
+  const building = await findAndValidateBuilding(buildingId);
+  const apartment = await findAndValidateApartment(apartmentId);
+  validateApartmentBelongsToBuilding(apartment, building);
+  validateApartmentIsAvailable(apartment);
 
   user.requestedBuilding = building._id;
   user.requestedApartment = apartment._id;
@@ -227,6 +279,29 @@ async function getUserProfile(username) {
 }
 
 /**
+ * Update basic user fields
+ * @private
+ */
+function updateBasicFields(user, firstName, lastName) {
+  if (firstName) user.firstName = sanitizeString(firstName);
+  if (lastName) user.lastName = sanitizeString(lastName);
+}
+
+/**
+ * Validate and update mobile number
+ * @private
+ */
+function updateMobileField(user, mobile) {
+  if (!mobile) return;
+
+  const mobileValidation = require('../utils/validation').validateMobile(mobile, false);
+  if (!mobileValidation.valid) {
+    throw createError(HTTP_STATUS.BAD_REQUEST, mobileValidation.message);
+  }
+  user.mobile = sanitizeString(mobile);
+}
+
+/**
  * Update user profile
  * @param {string} username
  * @param {Object} updates - { firstName, lastName, mobile, householdMembers, company, specialties, description, website, serviceAreas, yearsExperience }
@@ -252,17 +327,10 @@ async function updateUserProfile(username, updates) {
   } = updates;
 
   // Update basic fields
-  if (firstName) user.firstName = sanitizeString(firstName);
-  if (lastName) user.lastName = sanitizeString(lastName);
+  updateBasicFields(user, firstName, lastName);
 
   // Validate and update mobile
-  if (mobile) {
-    const mobileValidation = require('../utils/validation').validateMobile(mobile, false);
-    if (!mobileValidation.valid) {
-      throw createError(HTTP_STATUS.BAD_REQUEST, mobileValidation.message);
-    }
-    user.mobile = sanitizeString(mobile);
-  }
+  updateMobileField(user, mobile);
 
   // Tenant-specific updates
   if (user.role === USER_ROLES.TENANT && householdMembers !== undefined) {
@@ -311,6 +379,49 @@ async function updateTenantHousehold(user, householdMembers) {
   }
 }
 
+// ============= ASSOCIATE FIELD UPDATE HELPERS =============
+
+/**
+ * Update a string field on user document
+ * @param {Object} user - User document
+ * @param {string} fieldName - Name of field to update
+ * @param {*} value - Value to set
+ */
+function updateStringField(user, fieldName, value) {
+  if (typeof value === 'string') {
+    user[fieldName] = sanitizeString(value);
+  }
+}
+
+/**
+ * Update an array field on user document
+ * @param {Object} user - User document
+ * @param {string} fieldName - Name of field to update
+ * @param {*} arrayValue - Array value to process
+ */
+function updateArrayField(user, fieldName, arrayValue) {
+  if (Array.isArray(arrayValue)) {
+    user[fieldName] = arrayValue
+      .map(item => sanitizeString(String(item)))
+      .filter(Boolean);
+  }
+}
+
+/**
+ * Update years of experience with validation
+ * @param {Object} user - User document
+ * @param {*} value - Years of experience value
+ */
+function updateYearsExperience(user, value) {
+  if (value !== undefined) {
+    const years = Number(value);
+    if (!Number.isInteger(years) || years < 0) {
+      throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid years of experience');
+    }
+    user.yearsExperience = years;
+  }
+}
+
 /**
  * Update associate-specific fields
  * @param {Object} user - User document
@@ -319,37 +430,12 @@ async function updateTenantHousehold(user, householdMembers) {
 function updateAssociateFields(user, fields) {
   const { company, specialties, description, website, serviceAreas, yearsExperience } = fields;
 
-  if (typeof company === 'string') {
-    user.company = sanitizeString(company);
-  }
-
-  if (Array.isArray(specialties)) {
-    user.specialties = specialties
-      .map(s => sanitizeString(String(s)))
-      .filter(Boolean);
-  }
-
-  if (typeof description === 'string') {
-    user.description = sanitizeString(description);
-  }
-
-  if (typeof website === 'string') {
-    user.website = sanitizeString(website);
-  }
-
-  if (Array.isArray(serviceAreas)) {
-    user.serviceAreas = serviceAreas
-      .map(s => sanitizeString(String(s)))
-      .filter(Boolean);
-  }
-
-  if (yearsExperience !== undefined) {
-    const y = Number(yearsExperience);
-    if (!Number.isInteger(y) || y < 0) {
-      throw createError(HTTP_STATUS.BAD_REQUEST, 'Invalid years of experience');
-    }
-    user.yearsExperience = y;
-  }
+  updateStringField(user, 'company', company);
+  updateArrayField(user, 'specialties', specialties);
+  updateStringField(user, 'description', description);
+  updateStringField(user, 'website', website);
+  updateArrayField(user, 'serviceAreas', serviceAreas);
+  updateYearsExperience(user, yearsExperience);
 }
 
 /**

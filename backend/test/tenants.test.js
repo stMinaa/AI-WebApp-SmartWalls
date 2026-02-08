@@ -1,24 +1,20 @@
 const request = require('supertest');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
+const { connectTestDB, disconnectTestDB } = require('./setup');
 
-let mongoServer;
 let app;
 
 describe('Phase 2.3: Manager Views & Manages Tenants', () => {
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
-    await mongoose.connect(uri);
+    await connectTestDB();
     app = require('../index');
   });
 
   afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    await disconnectTestDB();
   });
 
   let directorToken, managerToken, otherManagerToken, tenantToken;

@@ -8,6 +8,130 @@ const Poll = require('../models/Poll');
 const Building = require('../models/Building');
 const NoticeRead = require('../models/NoticeRead');
 
+// ============= HELPER FUNCTIONS =============
+
+/**
+ * Validate notice input data
+ * @param {Object} data - { title, body }
+ * @throws {Object} Error with status and message
+ */
+function validateNoticeInput(data) {
+  const { title, body } = data;
+  if (!title || !title.trim()) {
+    throw { status: 400, message: 'Title required' };
+  }
+  if (!body || !body.trim()) {
+    throw { status: 400, message: 'Body required' };
+  }
+}
+
+/**
+ * Verify building exists
+ * @param {string} buildingId
+ * @returns {Promise<Object>} Building document
+ * @throws {Object} Error with status 404 if not found
+ */
+async function verifyBuildingExists(buildingId) {
+  const building = await Building.findById(buildingId);
+  if (!building) {
+    throw { status: 404, message: 'Building not found' };
+  }
+  return building;
+}
+
+/**
+ * Validate poll input data
+ * @param {Object} data - { question, options }
+ * @throws {Object} Error with status and message
+ */
+function validatePollInput(data) {
+  const { question, options } = data;
+  if (!question || !question.trim()) {
+    throw { status: 400, message: 'Question required' };
+  }
+  if (!Array.isArray(options) || options.length < 2) {
+    throw { status: 400, message: 'At least 2 options required' };
+  }
+}
+
+/**
+ * Sanitize poll options array
+ * @param {Array} options - Array of option strings
+ * @returns {Array} Trimmed and filtered options
+ */
+function sanitizePollOptions(options) {
+  return options.map(opt => opt.trim()).filter(opt => opt);
+}
+
+/**
+ * Validate vote option input
+ * @param {string} option
+ * @throws {Object} Error with status 400 if invalid
+ */
+function validateVoteOption(option) {
+  if (!option || !option.trim()) {
+    throw { status: 400, message: 'Option required' };
+  }
+}
+
+/**
+ * Verify poll exists and return it
+ * @param {string} pollId
+ * @returns {Promise<Object>} Poll document
+ * @throws {Object} Error with status 404 if not found
+ */
+async function verifyPollExists(pollId) {
+  const poll = await Poll.findById(pollId);
+  if (!poll) {
+    throw { status: 404, message: 'Poll not found' };
+  }
+  return poll;
+}
+
+/**
+ * Validate option exists in poll
+ * @param {Object} poll - Poll document
+ * @param {string} option - Option to validate
+ * @throws {Object} Error with status 400 if invalid option
+ */
+function validateOptionInPoll(poll, option) {
+  if (!poll.options.includes(option.trim())) {
+    throw { status: 400, message: 'Invalid option' };
+  }
+}
+
+/**
+ * Check if tenant has already voted
+ * @param {string} pollId
+ * @param {string} tenantId
+ * @returns {Promise<boolean>} True if already voted
+ */
+async function checkAlreadyVoted(pollId, tenantId) {
+  const existing = await Poll.findOne({
+    _id: pollId,
+    voters: { $elemMatch: { voter: tenantId } }
+  });
+  return !!existing;
+}
+
+/**
+ * Record vote and save poll
+ * @param {Object} poll - Poll document
+ * @param {string} tenantId
+ * @param {string} option
+ * @returns {Promise<Object>} Saved poll
+ */
+async function recordVote(poll, tenantId, option) {
+  poll.voters.push({
+    voter: tenantId,
+    vote: option.trim()
+  });
+  await poll.save();
+  return poll;
+}
+
+// ============= MAIN SERVICE FUNCTIONS =============
+
 /**
  * Create a building notice
  * @param {string} buildingId
@@ -15,14 +139,10 @@ const NoticeRead = require('../models/NoticeRead');
  * @returns {Promise<Object>}
  */
 async function createNotice(buildingId, data) {
+  validateNoticeInput(data);
+  await verifyBuildingExists(buildingId);
+
   const { title, body, attachment } = data;
-
-  if (!title || !title.trim()) throw { status: 400, message: 'Title required' };
-  if (!body || !body.trim()) throw { status: 400, message: 'Body required' };
-
-  const building = await Building.findById(buildingId);
-  if (!building) throw { status: 404, message: 'Building not found' };
-
   const notice = new Notice({
     building: buildingId,
     title: title.trim(),
@@ -93,20 +213,14 @@ async function markNoticeAsRead(noticeId, tenantId) {
  * @returns {Promise<Object>}
  */
 async function createPoll(buildingId, data) {
-  const { question, options } = data;
+  validatePollInput(data);
+  await verifyBuildingExists(buildingId);
 
-  if (!question || !question.trim()) throw { status: 400, message: 'Question required' };
-  if (!Array.isArray(options) || options.length < 2) {
-    throw { status: 400, message: 'At least 2 options required' };
-  }
-
-  const building = await Building.findById(buildingId);
-  if (!building) throw { status: 404, message: 'Building not found' };
-
+  const { question } = data;
   const poll = new Poll({
     building: buildingId,
     question: question.trim(),
-    options: options.map(opt => opt.trim()).filter(opt => opt)
+    options: sanitizePollOptions(data.options)
   });
 
   await poll.save();
@@ -132,31 +246,17 @@ async function getPollsByBuilding(buildingId) {
  * @returns {Promise<Object>}
  */
 async function votePoll(pollId, tenantId, option) {
-  if (!option || !option.trim()) throw { status: 400, message: 'Option required' };
-
-  const poll = await Poll.findById(pollId);
-  if (!poll) throw { status: 404, message: 'Poll not found' };
-
-  if (!poll.options.includes(option.trim())) {
-    throw { status: 400, message: 'Invalid option' };
+  validateVoteOption(option);
+  const poll = await verifyPollExists(pollId);
+  validateOptionInPoll(poll, option);
+  
+  const alreadyVoted = await checkAlreadyVoted(pollId, tenantId);
+  if (alreadyVoted) {
+    throw { status: 400, message: 'Already voted' };
   }
 
-  // Check if already voted
-  const existing = await Poll.findOne({
-    _id: pollId,
-    voters: { $elemMatch: { voter: tenantId } }
-  });
-
-  if (existing) throw { status: 400, message: 'Already voted' };
-
-  // Add vote
-  poll.voters.push({
-    voter: tenantId,
-    vote: option.trim()
-  });
-
-  await poll.save();
-  return { message: 'Vote recorded', poll };
+  const updatedPoll = await recordVote(poll, tenantId, option);
+  return { message: 'Vote recorded', poll: updatedPoll };
 }
 
 /**

@@ -37,35 +37,88 @@ if (process.env.NODE_ENV !== 'test') {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  if (!token) {
+    console.log('❌ authenticateToken: No token provided');
+    return res.status(401).json({ message: 'Token required' });
+  }
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
+    if (err) {
+      console.log('❌ authenticateToken: Invalid token', err.message);
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
     req.user = user;
     next();
   });
 };
 
+// ===== SIGNUP HELPERS =====
+/**
+ * Validate signup input data
+ * @private
+ */
+function validateSignupInput(username, email, password, role) {
+  if (!username || !email || !password) {
+    return { valid: false, status: 400, message: 'Username, email, and password are required' };
+  }
+
+  if (password.length < 6) {
+    return { valid: false, status: 400, message: 'Password must be at least 6 characters' };
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return { valid: false, status: 400, message: 'Invalid email format' };
+  }
+
+  const validRoles = ['tenant', 'manager', 'director', 'associate'];
+  if (role && !validRoles.includes(role)) {
+    return { valid: false, status: 400, error: 'Invalid role. Must be one of: tenant, manager, director, associate' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Determine user status based on role
+ * @private
+ */
+function getUserStatusByRole(role) {
+  if (!role || role === 'director') {
+    return 'active';
+  }
+  return 'pending';
+}
+
+/**
+ * Create user response object
+ * @private
+ */
+function createUserResponse(user, token) {
+  return {
+    message: 'User registered successfully',
+    token,
+    user: {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      status: user.status
+    }
+  };
+}
+
 // ===== SIGNUP =====
 app.post('/api/auth/signup', async (req, res) => {
   const { username, email, password, firstName, lastName, role } = req.body;
 
-  // Validation
-  if (!username || !email || !password) {
-    return res.status(400).json({ message: 'Username, email, and password are required' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters' });
-  }
-
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
-    return res.status(400).json({ message: 'Invalid email format' });
-  }
-
-  // Validate role if provided
-  const validRoles = ['tenant', 'manager', 'director', 'associate'];
-  if (role && !validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be one of: tenant, manager, director, associate' });
+  // Validate input
+  const validation = validateSignupInput(username, email, password, role);
+  if (!validation.valid) {
+    return res.status(validation.status).json({ 
+      message: validation.message,
+      error: validation.error 
+    });
   }
 
   try {
@@ -79,12 +132,9 @@ app.post('/api/auth/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Determine status based on role
-    let status = 'pending';
-    if (!role || role === 'tenant' || role === 'director') {
-      status = 'active';
-    }
+    const status = getUserStatusByRole(role);
 
-    // Create user
+    // Create user - building and apartment assigned by manager during approval
     const user = new User({
       username,
       email,
@@ -92,7 +142,9 @@ app.post('/api/auth/signup', async (req, res) => {
       firstName: firstName || '',
       lastName: lastName || '',
       role: role || 'tenant',
-      status: status
+      status: status,
+      building: null, // Will be assigned by manager during approval
+      apartment: null // Will be assigned by manager during approval
     });
 
     await user.save();
@@ -104,19 +156,7 @@ app.post('/api/auth/signup', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        status: user.status
-      }
-    });
+    res.status(201).json(createUserResponse(user, token));
   } catch (err) {
     console.error('Signup error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -178,6 +218,130 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     }
     res.json(user);
   } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ===== UPDATE CURRENT USER =====
+app.patch('/api/auth/me', authenticateToken, async (req, res) => {
+  console.log('PATCH /api/auth/me - User:', req.user?.username, 'Body:', req.body);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      console.log('User not found:', req.user.username);
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { firstName, lastName, mobile } = req.body;
+    console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile });
+    
+    // Restrict tenants from editing certain fields (future: add more restrictions if needed)
+    if (user.role === 'tenant') {
+      // Tenants can only update firstName, lastName, mobile - not username, email, role, etc.
+      if (firstName !== undefined) user.firstName = firstName;
+      if (lastName !== undefined) user.lastName = lastName;
+      if (mobile !== undefined) user.mobile = mobile;
+    } else {
+      // Other roles can update these fields too
+      if (firstName !== undefined) user.firstName = firstName;
+      if (lastName !== undefined) user.lastName = lastName;
+      if (mobile !== undefined) user.mobile = mobile;
+    }
+
+    await user.save();
+    console.log('User saved successfully:', user.username);
+    const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
+    res.json({ message: 'Profile updated', user: updatedUser });
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ message: 'Greška pri ažuriranju profila' });
+  }
+});
+
+// ===== PAYMENT - Tenant pays debt =====
+app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { amount } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid payment amount' });
+    }
+
+    if (amount > user.debt) {
+      return res.status(400).json({ message: 'Payment amount cannot exceed debt' });
+    }
+
+    // Reduce debt
+    user.debt = Math.max(0, user.debt - amount);
+    await user.save();
+
+    const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
+    res.json({ message: 'Payment successful', user: updatedUser, remainingDebt: user.debt });
+  } catch (err) {
+    console.error('Error processing payment:', err);
+    res.status(500).json({ message: 'Error processing payment' });
+  }
+});
+
+// ===== UPDATE DEBT - Director/Manager adds or adjusts tenant debt =====
+app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
+  try {
+    const currentUser = await User.findOne({ username: req.user.username });
+    if (!currentUser || (currentUser.role !== 'director' && currentUser.role !== 'manager')) {
+      return res.status(403).json({ message: 'Only directors and managers can adjust debt' });
+    }
+
+    const targetUser = await User.findById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { debt, reason } = req.body;
+    
+    if (debt === undefined || debt < 0) {
+      return res.status(400).json({ message: 'Invalid debt amount' });
+    }
+
+    targetUser.debt = debt;
+    await targetUser.save();
+
+    res.json({ message: 'Debt updated', user: targetUser, reason });
+  } catch (err) {
+    console.error('Error updating debt:', err);
+    res.status(500).json({ message: 'Error updating debt' });
+  }
+});
+
+// ===== GET PENDING USERS (for managers/directors) =====
+app.get('/api/users/pending', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+      return res.status(403).json({ message: 'Only managers and directors can view pending users' });
+    }
+
+    const query = { status: 'pending' };
+    
+    // Managers only see pending tenants for their buildings
+    if (user.role === 'manager') {
+      const managedBuildings = await Building.find({ manager: user._id });
+      const buildingIds = managedBuildings.map(b => b._id);
+      query.building = { $in: buildingIds };
+    }
+
+    const pendingUsers = await User.find(query)
+      .select('-password')
+      .populate('building', 'name address')
+      .sort({ createdAt: -1 });
+
+    res.json(pendingUsers);
+  } catch (err) {
+    console.error('Error fetching pending users:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -628,13 +792,13 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
-// PATCH /api/users/:userId/approve - Approve pending user (director only)
+// PATCH /api/users/:userId/approve - Approve pending user (manager/director can approve and assign apartment)
 app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
   console.log('PATCH /api/users/:userId/approve - User:', req.user?.username, 'Target:', req.params.userId);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can approve users' });
+    if (!user || (user.role !== 'director' && user.role !== 'manager')) {
+      return res.status(403).json({ message: 'Only directors and managers can approve users' });
     }
 
     const targetUser = await User.findById(req.params.userId);
@@ -646,7 +810,25 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'User is already active' });
     }
 
+    // Manager can only approve tenants in their buildings
+    if (user.role === 'manager') {
+      const managedBuildings = await Building.find({ manager: user._id });
+      const canApprove = managedBuildings.some(b => String(b._id) === String(targetUser.building));
+      if (!canApprove) {
+        return res.status(403).json({ message: 'You can only approve tenants in your buildings' });
+      }
+    }
+
     targetUser.status = 'active';
+    
+    // Allow assigning apartment number and number of residents
+    if (req.body.apartment !== undefined) {
+      targetUser.apartment = req.body.apartment;
+    }
+    if (req.body.residents !== undefined) {
+      targetUser.residents = req.body.residents;
+    }
+    
     await targetUser.save();
 
     console.log('User approved:', targetUser.username);
@@ -659,7 +841,9 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
         lastName: targetUser.lastName,
         email: targetUser.email,
         role: targetUser.role,
-        status: targetUser.status
+        status: targetUser.status,
+        apartment: targetUser.apartment,
+        residents: targetUser.residents
       }
     });
   } catch (err) {
@@ -1635,6 +1819,18 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
 });
 
+// GET /api/test/me - Test authentication
+app.get('/api/test/me', authenticateToken, async (req, res) => {
+  console.log('GET /api/test/me - User:', req.user);
+  try {
+    const user = await User.findOne({ username: req.user.username }).select('-password');
+    res.json({ message: 'Authentication working!', user });
+  } catch (err) {
+    console.error('Test me error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // POST /api/test/seed-issues - Create test issues (dev only)
 app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
   console.log('POST /api/test/seed-issues - User:', req.user?.username);
@@ -1684,6 +1880,57 @@ app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('Seed issues error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/test/seed-notices - Create test notices (dev only)
+app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
+  console.log('POST /api/test/seed-notices - User:', req.user?.username);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user || user.role !== 'director') {
+      return res.status(403).json({ message: 'Only directors can seed data' });
+    }
+
+    // Find first building and manager
+    const building = await Building.findOne();
+    const manager = await User.findOne({ role: 'manager' });
+    
+    if (!building || !manager) {
+      return res.status(400).json({ message: 'Need at least one building and manager to create notices' });
+    }
+
+    const testNotices = [
+      'Obaveštenje o planiranom održavanju lifta 10. februara od 9h do 15h. Molimo stanare da ne koriste lift tog dana.',
+      'Redovno čišćenje stepeništa je planirano svakog ponedeljka i četvrtka. Molimo stanare da ne ostavljaju predmete na stepeništu.',
+      'Skupština stanara će se održati 15. februara u 18h u prostorijama zgrade. Molimo sve stanare da prisustvuju.',
+      'Grejanje će biti isključeno 12. februara od 8h do 12h zbog servisa kotlarnice.',
+      'Molimo stanare da vode računa o zatvaranju ulaznih vrata. Primećeno je da vrata često ostaju otvorena.',
+      'Parking mesto broj 7 je trenutno van upotrebe zbog radova. Molimo stanare da koriste alternativna mesta.',
+      'Novo radno vreme domara: ponedeljak-petak 8-16h, subota 9-13h. U slučaju hitnosti zovite 064-123-4567.'
+    ];
+
+    const createdNotices = [];
+    for (const content of testNotices) {
+      const notice = new Notice({
+        building: building._id,
+        author: manager._id,
+        authorName: manager.username,
+        authorRole: manager.role,
+        content
+      });
+      await notice.save();
+      createdNotices.push(notice);
+    }
+
+    console.log(`Created ${createdNotices.length} test notices`);
+    res.json({ 
+      message: `Created ${createdNotices.length} test notices`,
+      count: createdNotices.length 
+    });
+  } catch (err) {
+    console.error('Seed notices error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

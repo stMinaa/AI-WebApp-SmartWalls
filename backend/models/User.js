@@ -19,6 +19,8 @@ const userSchema = new mongoose.Schema({
   // For tenants
   building: { type: mongoose.Schema.Types.ObjectId, ref: 'Building' },
   apartment: { type: mongoose.Schema.Types.ObjectId, ref: 'Apartment' },
+  debt: { type: Number, default: 0 }, // Tenant debt in currency
+  mobile: { type: String }, // Phone number
   createdAt: { type: Date, default: Date.now }
 });
 

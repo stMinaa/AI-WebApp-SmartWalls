@@ -1,23 +1,18 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('../index');
 const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const Issue = require('../models/Issue');
-
-let mongoServer;
+const { connectTestDB, disconnectTestDB } = require('./setup');
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri);
+  await connectTestDB();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await disconnectTestDB();
 });
 
 beforeEach(async () => {

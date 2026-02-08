@@ -7,27 +7,24 @@
 
 const request = require('supertest');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('../index');
 const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const Issue = require('../models/Issue');
 const bcrypt = require('bcryptjs');
+const { connectTestDB, disconnectTestDB } = require('./setup');
 
-let mongoServer;
 let director, associate1, associate2, manager, tenant;
 let directorToken, associate1Token, associate2Token, managerToken, tenantToken;
 let building, apartment, assignedIssue, unassignedIssue;
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
+  await connectTestDB();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await disconnectTestDB();
 });
 
 describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {

@@ -1,0 +1,30 @@
+# CodeScene konfiguracija za projekat
+# Postavke za analizu koda i health checks
+
+# Koje fajlove analizirati
+include:
+  - "backend/**/*.js"
+  - "frontend/src/**/*.js"
+  - "frontend/src/**/*.jsx"
+
+# Koje fajlove preskočiti
+exclude:
+  - "**/node_modules/**"
+  - "**/build/**"
+  - "**/dist/**"
+  - "**/*.test.js"
+  - "**/*.spec.js"
+
+# Pragovi za code health
+thresholds:
+  complexity: 15
+  code-health: 7.0
+  
+# Pravila za analizu
+rules:
+  - rule: complex-method
+    threshold: 15
+  - rule: bumpy-road
+    threshold: 5
+  - rule: nested-complexity
+    threshold: 4
