@@ -1,108 +1,81 @@
 # UI/UX Design Standards
 
-Design guidelines for the Tenant Management System to ensure consistent, accessible, and user-friendly interface.
+Design system for Smartwalls - Building & Tenant Management System.
 
 ---
 
-## 🎯 Core Design Principles
+## Core Principles
 
-### Language Requirement
-- ✅ **ALL UI text MUST be in Serbian language**
-- This includes: labels, buttons, messages, placeholders, navigation, headings, descriptions
-- Use Serbian Cyrillic or Latin script (Latin preferred for web readability)
+### Language
+- **ALL UI text MUST be in Serbian** (Latin script preferred for web readability)
+- Includes: labels, buttons, messages, placeholders, navigation, headings, descriptions
+- Code/comments can be in English
 
-### UX Principles
-- **Intuitive:** Users should understand functionality immediately without explanation
-- **Easy:** Minimize clicks and steps to complete tasks
-- **Clear:** Use descriptive labels and obvious action buttons
-- **Consistent:** Same patterns across all pages and roles
+### UX
+- **Intuitive** - Users understand functionality without explanation
+- **Easy** - Minimize clicks and steps
+- **Clear** - Descriptive labels and obvious action buttons
+- **Consistent** - Same patterns across all pages and roles
 
-### UI Principles  
-- **Elegant & Minimal:** Clean, simple designs over bold statements
-- **Subtle:** Use understated colors and spacing
-- **Professional:** Business-appropriate styling
-- **Refined:** Attention to typography, alignment, whitespace
+### UI
+- **Elegant & Minimal** - Clean, simple designs
+- **Subtle** - Understated colors and spacing
+- **Professional** - Business-appropriate styling
+- **Refined** - Attention to typography, alignment, whitespace
 
-### Design Restrictions
-- ❌ **NO gradient colors** (e.g., linear-gradient)
-- ❌ **NO bright/vibrant colors** (e.g., #FF0000, #00FF00)
-- ❌ **NO colorful emojis** (e.g., 🏢 🎉 ✨)
-- ❌ **NO English text in UI** (code/comments can be English, but user-facing text must be Serbian)
-- ✅ **YES to black/white icons** (e.g., ▪ ○ ✓ ✕ ▸)
-- ✅ **YES to subtle grays** (#f8f9fa, #e9ecef, #6c757d)
-- ✅ **YES to muted accent colors** (#3498db, #27ae60, #95a5a6)
-
----
-
-## 🏠 Landing Page & Authentication
-
-### Landing Page (Public - Home)
-**Layout:**
-- Full-screen background: Looping video of buildings (overlay with semi-transparent dark gradient)
-- Centered content with white text
-- Top navigation bar (dark, transparent background)
-
-**Elements:**
-- **Logo/Title:** "Smartwalls" (large, bold, white sans-serif font)
-- **Tagline:** "Tennet's assembly and building management" (smaller, white, below title)
-- **Navigation:** Top-left corner
-  - Home (current page)
-  - Login (link to login page)
-  - Style: White text, dark background (#2C3E50 or darker with transparency)
-
-**Background Video:**
-- Looping video of modern buildings/apartments
-- Semi-transparent overlay to ensure text readability
-- Subtle fade-in animation on page load
+### Restrictions
+- NO gradient colors (e.g., linear-gradient)
+- NO bright/vibrant colors (e.g., #FF0000, #00FF00)
+- NO colorful emojis (e.g., 🏢 🎉 ✨)
+- NO English text in UI
+- YES to black/white icons (e.g., ▪ ○ ✓ ✕ ▸)
+- YES to subtle grays (#f8f9fa, #e9ecef, #6c757d)
 
 ---
 
-### Login Page
-**Layout:**
-- Same full-screen video background as landing page
-- Centered modal/card with login form
-- Semi-transparent white card (backdrop blur effect)
+## Color Palette
 
-**Form Elements:**
-- **Card:** White/light background with slight transparency, centered
-- **Username Field:**
-  - Label: "Username" (white text, above input)
-  - Input: White background, rounded corners, placeholder: "anja@smartwalls"
-- **Password Field:**
-  - Label: "Password" (white text, above input)
-  - Input: White background, rounded corners, password dots shown
-- **Submit Button:**
-  - Text: "Log In"
-  - Color: Green (#10b981 or similar)
-  - Style: Rounded, full-width within card
-  - Hover: Darker green
+### Navigation Bar
+| Context | Color | Notes |
+|---------|-------|-------|
+| Public Pages (Home, Login, Signup) | `#2c3e50` | Dark blue-gray |
+| Authenticated Pages (TopNav) | `#16202b` | Dark blue-black, fixed, full width |
 
-**Navigation:**
-- Same top navigation as landing page (Home, Login)
+**TopNav styling:** Position fixed, top 0, full width, padding `15px 40px`, z-index 100, links as white text buttons (transparent bg, no borders).
 
-**Signup Page:**
-- Similar layout to Login
-- Additional fields: firstName, lastName, email, role dropdown
-- Submit button: "Sign Up" (same green styling)
-- Message below: "Your account requires approval" (small text)
+### Role Sidebar Colors (Implemented)
+| Role | Sidebar | Buttons |
+|------|---------|---------|
+| Tenant | `#1fc08f` (teal) | `#147346` (dark green) |
+| Manager | `#a79cc7` (purple) | `#7f5f91` (dark purple) |
+| Associate | `#74a1c9` (blue) | `#476078` (dark blue) |
+| Director | `#aab1af` (gray) | `#6c737b` (dark gray) |
 
----
+### Action Buttons
+| Context | Color |
+|---------|-------|
+| Primary Action Buttons | `#198653` (green) |
+| Links in Dark Transparent Boxes | `#1fc08f` (lighter green for visibility) |
 
-## 📸 How to Add Images to This File
+### Status Badge Colors
+| Status | Color |
+|--------|-------|
+| Reported | `#6b7280` (gray) |
+| Forwarded | `#f59e0b` (yellow) |
+| Assigned | `#2563eb` (blue) |
+| In Progress | `#f97316` (orange) |
+| Resolved | `#10b981` (green) |
+| Rejected | `#ef4444` (red) |
 
-```markdown
-![Button Example](./images/button-example.png)
-or
-![Wireframe](https://example.com/image.png)
-```
+### Transparency & Backgrounds
+| Element | Value |
+|---------|-------|
+| Login/Signup Boxes | `rgba(0, 0, 0, 0.5)` with `backdrop-filter: blur(10px)`, border-radius `12px`, box-shadow `0 4px 20px rgba(0,0,0,0.3)` |
+| Text in transparent boxes | White (`#fff`, `#ddd`) |
+| Input backgrounds | `#f8f9fa` (light gray) |
+| Page background (auth pages) | `#f5f5f5` or `#e8e8e8` |
 
-Store design assets in: `docs/images/` folder
-
----
-
-## 🎨 Color Palette
-
-### Neutral Colors (Primary)
+### Neutral Colors
 ```
 Text Primary:        #2c3e50  (Headings, important text)
 Text Secondary:      #7f8c8d  (Descriptions, labels)
@@ -113,69 +86,53 @@ Border:              #dee2e6  (Dividers, card borders)
 White:               #ffffff  (Containers, inputs)
 ```
 
-### Accent Colors (Subtle)
+### Accent Colors
 ```
-Primary Blue:        #3498db  (Links, primary actions)
-Primary Blue Dark:   #2980b9  (Hover states)
 Success Green:       #27ae60  (Approvals, success messages)
 Warning Orange:      #e67e22  (Warnings, pending status)
 Error Red:           #c0392b  (Errors, rejections)
 Info Gray:           #95a5a6  (Neutral information)
 ```
 
-### Role Colors (Sidebar - Muted Tones)
-```
-Tenant:              #27ae60  (Muted green)
-Manager:             #9b59b6  (Muted purple)
-Director:            #34495e  (Dark gray-blue)
-Associate:           #16a085  (Muted teal)
-Director:        #8A8A8A  (Gray)
-Associate:       #6BA3D4  (Light Blue)
-Admin:           #64748b  (Slate)
-```
-
-### Neutral Colors
-```
-Background:      #f9fafb  (Page background)
-Card:            #ffffff  (Cards, modals)
-Border:          #e5e7eb  (Borders, dividers)
-Text Primary:    #111827  (Headings, body)
-Text Secondary:  #6b7280  (Labels, captions)
-```
-
 ---
 
-## 📏 Typography
+## Typography
 
-### Font Family
+### Font System
+**CRITICAL: System fonts ONLY - NO custom fonts**
+
 ```css
 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
              'Helvetica Neue', Arial, sans-serif;
 ```
 
+**NEVER use Caviar Dreams** - it renders password bullets (•) as eye-like characters. This was a resolved critical bug.
+
 ### Font Sizes
-```
-Section Heading:  24px / 1.5rem  (INFORMACIJE, letter-spacing: 4px, font-weight: 300)
-Heading 1:        32px / 2rem    (Page titles)
-Heading 2:        24px / 1.5rem  (Section titles)
-Heading 3:        20px / 1.25rem (Card titles)
-Body:             16px / 1rem    (Default text, field labels)
-Small:            14px / 0.875rem (Role labels, buttons)
-Tiny:             12px / 0.75rem  (Timestamps, hints)
-Large Display:    48px / 3rem     (Debt amount display)
-```
+| Element | Size | Weight | Notes |
+|---------|------|--------|-------|
+| Main Title (Smartwalls) | `120px` | `300` (thin) | letter-spacing `2px`, NO text shadow |
+| Subtitle | `28px` | `300` | |
+| Section Heading (INFORMACIJE) | `24px` | `300` | letter-spacing `4px` |
+| Page Title (H1) | `32px` / `2rem` | | |
+| Section Title (H2) | `24px` / `1.5rem` | | |
+| Card Title (H3) | `20px` / `1.25rem` | | |
+| Body / Labels | `16px` / `1rem` | `400` | |
+| Small (role labels, buttons) | `14px` / `0.875rem` | | |
+| Tiny (timestamps, hints) | `12px` / `0.75rem` | | |
+| Large Display (debt amount) | `48px` / `3rem` | `300` | |
 
 ### Font Weights
 ```
-Light:      300  (Section headings like "INFORMACIJE", field values, large numbers)
-Regular:    400  (Body text)
-Semibold:   600  (Field labels, buttons, user names)
-Bold:       700  (Strong emphasis if needed)
+Light:      300  (section headings, field values, large numbers, main title)
+Regular:    400  (body text)
+Semibold:   600  (field labels, buttons, user names, primary actions)
+Bold:       700  (strong emphasis if needed)
 ```
 
 ---
 
-## 🧱 Spacing System (8px Grid)
+## Spacing System (8px Grid)
 
 ```
 XXS:  4px   (0.25rem)  - Icon padding
@@ -187,149 +144,91 @@ XL:   48px  (3rem)     - Page padding
 XXL:  64px  (4rem)     - Major sections
 ```
 
-**Rule**: All margins, padding, gaps use multiples of 8px
+**Rule**: All margins, padding, gaps use multiples of 8px.
 
 ---
 
-## 🔘 Component Standards
+## Component Standards
 
 ### Buttons
 
-#### Primary Button
+**Primary:**
 ```css
-background: #2563eb
-color: #ffffff
-padding: 10px 20px
-border-radius: 4px
-font-weight: 600
+background: #198653;
+color: #ffffff;
+padding: 10px 20px;
+border-radius: 4px;
+font-weight: 600;
 ```
-**Use for**: Main actions (Save, Submit, Create)
 
-#### Secondary Button
+**Secondary:**
 ```css
-background: #ffffff
-color: #2563eb
-border: 1px solid #2563eb
-padding: 10px 20px
-border-radius: 4px
+background: #ffffff;
+color: #198653;
+border: 1px solid #198653;
+padding: 10px 20px;
+border-radius: 4px;
 ```
-**Use for**: Cancel, secondary actions
 
-#### Danger Button
+**Danger:**
 ```css
-background: #ef4444
-color: #ffffff
-padding: 10px 20px
-border-radius: 4px
+background: #ef4444;
+color: #ffffff;
+padding: 10px 20px;
+border-radius: 4px;
 ```
-**Use for**: Delete, reject, destructive actions
 
-#### Button States
-- **Hover**: Darken background by 10%
-- **Disabled**: Opacity 0.5, cursor: not-allowed
-- **Loading**: Show spinner, disable interaction
-
----
+**States:** Hover = darken 10%, Disabled = opacity 0.5 + cursor not-allowed, Loading = spinner + disabled.
 
 ### Cards
-
 ```css
-background: #ffffff
-border: 1px solid #e5e7eb
-border-radius: 8px
-padding: 20px
-box-shadow: 0 1px 3px rgba(0,0,0,0.1)
+background: #ffffff;
+border: 1px solid #e5e7eb;
+border-radius: 8px;
+padding: 20px;
+box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 ```
-
-**Spacing**:
-- Between cards: 16px (1rem)
-- Inside card: 20px padding
-- Card title margin-bottom: 16px
-
----
+Between cards: `16px`. Card title margin-bottom: `16px`.
 
 ### Forms
 
-#### Input Fields
+**Input Fields:**
 ```css
-width: 100%
-padding: 10px
-border: 1px solid #d1d5db
-border-radius: 4px
-font-size: 14px
+width: 100%;
+padding: 10px;
+border: 1px solid #d1d5db;
+border-radius: 4px;
+font-size: 14px;
 ```
+Focus: border `#2563eb`, outline `2px #dbeafe`. Error: border `#ef4444`. Disabled: bg `#f3f4f6`.
 
-**States**:
-- **Focus**: Border color #2563eb, outline 2px #dbeafe
-- **Error**: Border color #ef4444, red text below
-- **Disabled**: Background #f3f4f6, cursor: not-allowed
-
-#### Labels
+**Labels:**
 ```css
-font-size: 14px
-font-weight: 600
-color: #374151
-margin-bottom: 8px
-display: block
+font-size: 14px;
+font-weight: 600;
+color: #374151;
+margin-bottom: 8px;
+display: block;
 ```
-
-#### Required Fields
-- Add red asterisk (*) after label
-- Or use "(required)" text in gray
-
----
-
-### Navigation (TopNav)
-
-```css
-background: #ffffff
-border-bottom: 1px solid #e5e7eb
-height: 64px
-padding: 0 24px
-```
-
-**Tabs**:
-- Active tab: Border-bottom 2px #2563eb, text #2563eb
-- Inactive tab: Text #6b7280
-- Hover: Text #111827
-
-**Profile Button**:
-- Position: Top right
-- Circle avatar or icon
-- Dropdown on click
-
----
 
 ### Status Badges
-
 ```css
-padding: 4px 12px
-border-radius: 12px
-font-size: 12px
-font-weight: 600
-text-transform: uppercase
+padding: 4px 12px;
+border-radius: 12px;
+font-size: 12px;
+font-weight: 600;
+text-transform: uppercase;
 ```
 
-**Status Colors**:
-- Reported: Gray (#6b7280)
-- Forwarded: Yellow (#f59e0b)
-- Assigned: Blue (#2563eb)
-- In Progress: Orange (#f97316)
-- Resolved: Green (#10b981)
-- Rejected: Red (#ef4444)
-
----
-
 ### Urgency Badges
-
 - **Urgent**: Red background, white text, pulse animation
 - **Not Urgent**: Gray background, dark text
 
 ---
 
-## 🖼️ Layout Standards
+## Layout Standards
 
-### Profile Page Layout (After Login Landing)
+### Profile Page Layout
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Sidebar (220px)    │  Main Content                 │
@@ -349,6 +248,48 @@ text-transform: uppercase
 └─────────────────────────────────────────────────────┘
 ```
 
+**Sidebar:**
+```css
+background: [Role-specific color];
+padding: 32px 16px;
+min-height: 100vh;
+text-align: center;
+```
+
+Contents: Avatar (180x180), Role Label (14px, rgba(255,255,255,0.9)), Full Name (20px, #fff, 600), Edit Button ("Izmeni podatke", rgba(0,0,0,0.2) bg).
+
+**Main Content:**
+```css
+background: #f5f5f5;
+padding: 40px 60px;
+min-height: 100vh;
+```
+
+**Information Grid:**
+```css
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 32px 80px;
+```
+
+Field Labels: 16px, 600, #333. Field Values: 16px, 300, #666.
+
+### Role-Specific Profile Details
+
+**Tenant** (Sidebar: `#1fc08f`):
+- Fields: Korisničko ime, Zgrada, Broj stana, Broj ukucana
+- Special: DUGOVANJA section (48px, 300 weight, "Plati" button in `#1fc08f`)
+
+**Manager** (Sidebar: `#a79cc7`):
+- Fields: Ime, Prezime, Email, Broj telefona
+
+**Director** (Sidebar: `#aab1af`):
+- Fields: Ime, Prezime, Email, Broj telefona
+
+**Associate** (Sidebar: `#74a1c9`):
+- Heading: Company name or specialty instead of "INFORMACIJE"
+- Fields: Ime, Prezime, Email, Broj telefona
+
 ### Page Layout
 ```
 Max width: 1200px
@@ -356,434 +297,182 @@ Centered horizontally
 Padding: 24px (mobile), 48px (desktop)
 ```
 
-### Dashboard Grid
+### Dashboard Grids
 ```css
-display: grid
-grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))
-gap: 16px
-```
+/* General dashboard */
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: 16px;
 
-### Building Cards Grid
-```css
-display: grid
-grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))
-gap: 20px
+/* Building cards */
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+gap: 20px;
 ```
 
 ---
 
-## 📱 Responsive Breakpoints
+## Landing Page & Authentication
+
+### Home Page
+- Full-screen looping video background (buildings)
+- Semi-transparent dark overlay
+- Navbar: `#2c3e50`
+- "Smartwalls" title: 120px, thin, white, no shadow
+- Subtitle: "Tennet's assembly and building management"
+
+### Login Page
+- Same video background as Home
+- Navbar: `#2c3e50`
+- Dark transparent card (`rgba(0, 0, 0, 0.5)`)
+- Labels above inputs: white text
+- Password: `autocomplete="new-password"`
+- "Log In" button
+
+### Signup Page
+- Same video background
+- Navbar: `#2c3e50`
+- Dark transparent card
+- Role selection dropdown
+- Building selection for tenants
+- White title "Registracija"
+- Account approval message after signup
+
+### CSS: Hide Browser Password Icons
+```css
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-contacts-auto-fill-button,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+}
+```
+
+---
+
+## Dashboard UI by Role
+
+### Tenant Dashboard
+- Sidebar: `#1fc08f`, Buttons: `#198654`
+- Greeting: "Zdravo {name}" (NO emoji)
+- Tabs: Početna, Glasanja, Obaveštenja, Prijavi Problem
+- Issue reporting modal, issue history with filtering
+
+### Manager Dashboard
+**CRITICAL: Manager has ONLY 2 top-level tabs: Profile + Buildings**
+
+Buildings tab: grid of building cards, each with:
+- Building image, Lokacija, Broj stanova
+- 5 action buttons:
+  1. **Detalji o zgradi** - Tenant list
+  2. **Kvarovi** - Issue triage
+  3. **Oglasna tabla** - Notices
+  4. **Ankete** - Polls
+  5. **Naplati** - Billing
+
+NO separate top-level tabs for Apartments, Tenants, Issues, etc.
+
+### Director Dashboard
+- Tabs: Buildings, Managers, Associates, Approvals, Issues
+- Forwarded issues with assign dropdown
+
+### Associate Dashboard
+- Display: "Stanar: {name}" (NO emoji)
+- Active jobs section, issue assignment flow
+
+---
+
+## Responsive Breakpoints
 
 ```css
-Mobile:     < 640px   (1 column)
+Mobile:     < 640px   (1 column, 16px padding, hamburger menu)
 Tablet:     640-1024px (2 columns)
 Desktop:    > 1024px  (3+ columns)
 ```
 
-### Mobile Adjustments
-- Stack cards vertically
-- Full-width buttons
-- Reduce padding to 16px
-- Hide secondary info
-- Hamburger menu for navigation
-
 ---
 
-## ♿ Accessibility Standards
+## Accessibility (WCAG AA)
 
 ### Keyboard Navigation
-- All interactive elements must be reachable via Tab
-- Focus states clearly visible (2px outline)
-- Escape key closes modals/dropdowns
+- All interactive elements reachable via Tab
+- Focus states: 2px outline
+- Escape closes modals/dropdowns
 
 ### Screen Readers
-- Use semantic HTML (`<button>`, `<nav>`, `<main>`)
-- Add `aria-label` for icon-only buttons
-- Use `role` attributes where needed
-- Alt text for all images
+- Semantic HTML (`<button>`, `<nav>`, `<main>`)
+- `aria-label` for icon-only buttons
+- Alt text for images
 
-### Contrast Ratios (WCAG AA)
-- Text: Minimum 4.5:1
-- Large text: Minimum 3:1
-- Interactive elements: Minimum 3:1
-
-### Color Blindness
+### Contrast
+- Text: minimum 4.5:1
+- Large text: minimum 3:1
 - Never use color alone to convey information
-- Add icons/text to status badges
-- Use patterns in charts
 
 ---
 
-## 🎭 User Feedback
+## Interaction Patterns
 
-### Loading States
-```
-Skeleton screens for initial load
-Spinner for button actions
-Progress bar for file uploads
-```
+### Dropdowns
+- Click to open, click outside/Escape to close
+- Arrow keys to navigate, Enter to select
+- Full width for form fields, 14px font
+- First option: "-- Izaberite --" or "-- Bez dodele --"
+
+### Modals
+- Centered, dark overlay `rgba(0,0,0,0.5)`
+- Escape to close, click outside for non-critical
+
+### Forms
+- Submit on Enter, validate on blur
+- Show all errors on submit, disable during loading
+- Auto-focus first field on open
+
+### Tables
+- Sortable headers (↑↓), row hover `#f9fafb`
+- Sticky header, pagination if > 20 items
+
+---
+
+## User Feedback
 
 ### Success Messages
 ```css
-background: #d1fae5
-border-left: 4px solid #10b981
-padding: 12px 16px
+background: #d1fae5;
+border-left: 4px solid #10b981;
+padding: 12px 16px;
 ```
-**Duration**: 3-5 seconds, then fade out
+Duration: 3-5 seconds, fade out.
 
 ### Error Messages
 ```css
-background: #fee2e2
-border-left: 4px solid #ef4444
-padding: 12px 16px
-color: #991b1b
+background: #fee2e2;
+border-left: 4px solid #ef4444;
+padding: 12px 16px;
+color: #991b1b;
 ```
-**Duration**: Persist until dismissed or resolved
+Duration: persist until dismissed.
+
+### Loading States
+- Skeleton screens for initial load
+- Spinner for button actions
+- Progress bar for file uploads
 
 ### Empty States
-```
-Icon + Message + Action Button
-Example: "No issues reported yet. Report your first issue."
-```
+- Icon + Message + Action Button
+- Example: "Nema prijavljenih kvarova. Prijavite prvi kvar."
 
 ---
 
-## 🧩 Component Patterns by Role
+## Animation Guidelines
 
-### Profile Page Layout (After Login)
-
-All roles follow this layout:
-
-#### Sidebar (Left, 220px width)
-```css
-background: [Role-specific color]
-padding: 32px 16px
-min-height: 100vh
-text-align: center
-```
-
-**Contents (top to bottom)**:
-1. **Avatar** - Illustrated character (180x180px, rounded corners)
-2. **Role Label** - Small text, centered, uppercase
-   ```css
-   font-size: 14px
-   color: rgba(255,255,255,0.9)
-   margin-top: 16px
-   ```
-3. **Full Name** - User's first and last name
-   ```css
-   font-size: 20px
-   font-weight: 600
-   color: #ffffff
-   margin-top: 8px
-   line-height: 1.3
-   ```
-4. **Edit Button** - "Izmeni podatke" (Edit Info)
-   ```css
-   background: rgba(0,0,0,0.2)
-   color: #ffffff
-   border: none
-   border-radius: 4px
-   padding: 10px 20px
-   margin-top: 20px
-   font-size: 14px
-   cursor: pointer
-   ```
-
-#### Main Content Area (Right side)
-```css
-background: #f5f5f5 or #e8e8e8 (light gray)
-padding: 40px 60px
-min-height: 100vh
-```
-
-**Contents**:
-1. **Section Heading** - "INFORMACIJE" or role-specific heading
-   ```css
-   font-size: 24px
-   font-weight: 300
-   letter-spacing: 4px
-   color: #333333
-   margin-bottom: 32px
-   ```
-
-2. **Information Grid** - Two columns
-   ```css
-   display: grid
-   grid-template-columns: 1fr 1fr
-   gap: 32px 80px
-   ```
-
-3. **Field Labels**
-   ```css
-   font-size: 16px
-   font-weight: 600
-   color: #333333
-   margin-bottom: 8px
-   ```
-
-4. **Field Values**
-   ```css
-   font-size: 16px
-   font-weight: 300
-   color: #666666
-   ```
-
----
-
-### Tenant Profile Specifics
-
-**Sidebar**: Green/teal (#26D07C)
-
-**Information Fields**:
-- Korisničko ime (Username) - email format
-- Zgrada (Building) - address
-- Broj stana (Apartment number)
-- Broj ukucana (Household members)
-
-**Special Section**: DUGOVANJA (Debt)
-```css
-margin-top: 48px
-```
-- Large number display:
-  ```css
-  font-size: 48px
-  font-weight: 300
-  color: #333333
-  ```
-- "Plati" button (Pay):
-  ```css
-  background: #26D07C (green)
-  color: #ffffff
-  padding: 12px 32px
-  border-radius: 4px
-  font-size: 16px
-  font-weight: 600
-  margin-top: 16px
-  ```
-
----
-
-### Manager Profile Specifics
-
-**Sidebar**: Purple/lavender (#B8A3D4)
-
-**Information Fields**:
-- Ime (First name)
-- Prezime (Last name)
-- Email
-- Broj telefona (Phone number)
-
----
-
-### Director Profile Specifics
-
-**Sidebar**: Gray (#8A8A8A)
-
-**Information Fields**:
-- Ime (First name)
-- Prezime (Last name)
-- Email
-- Broj telefona (Phone number)
-
----
-
-### Associate Profile Specifics
-
-**Sidebar**: Light blue (#6BA3D4)
-
-**Company/Specialty Heading**: Instead of "INFORMACIJE"
-- Display company name or specialty (e.g., "ELEKTRO VANJA")
-- Same styling as section heading
-
-**Information Fields**:
-- Ime (First name)
-- Prezime (Last name)
-- Email
-- Broj telefona (Phone number)
-
----
-
-### Dashboard Tabs (Not on Profile)
-- **Home Tab**: Company info, recent notices
-- **Issues Tab**: List of issues with status badges
-- **Bulletin Board Tab**: Notices (outlined if manager-posted) + Polls
-
-### Manager Dashboard
-
-**CRITICAL: Manager has ONLY 2 top-level tabs:**
-1. **Profile Tab** - Personal information and settings
-2. **Buildings Tab** - All assigned buildings displayed as cards
-
-**Buildings Tab Layout (Reference: managerBuildingPage.png):**
-- Grid of building cards (3 columns desktop, 2 tablet, 1 mobile)
-- Each card shows:
-  - Building image (top)
-  - **Lokacija** (Location): Building name/address
-  - **Broj stanova** (Number of apartments): Count
-  - 5 action buttons (each opens a specific view for that building):
-    1. **Detalji o zgradi** (Building Details) - Tenant list with apartment #, # people, debt
-    2. **Kvarovi** (Issues) - Triage tenant issues (forward/reject)
-    3. **Oglasna tabla** (Bulletin Board) - Create/view notices
-    4. **Ankete** (Polls) - Create polls, view results
-    5. **Naplati** (Billing) - Payment and debt management
-
-**NO separate Apartments, Tenants, Issues, or Bulletin Board tabs** - Everything is accessed via building cards.
-
-### Director Dashboard
-- **Buildings Tab**: All buildings with assign manager option
-- **Managers Tab**: Manager cards with load indicator
-- **Associates Tab**: Associate profile cards
-- **Approvals Tab**: Pending staff cards with Approve/Reject buttons
-- **Issues Tab**: Forwarded issues with assign dropdown
-
-### Associate Dashboard
-- **Jobs Tab**: Assigned jobs with accept/reject/complete actions
-- Each job card shows: Building address, tenant name, unit number
-
----
-
-## 🖱️ Interaction Patterns
-
-### Dropdowns
-```
-Click to open
-Click outside to close
-Escape key to close
-Arrow keys to navigate options
-Enter to select
-```
-
-**Styling:**
-- Padding: 10-12px
-- Border: 1px solid #dee2e6
-- Border radius: 6px
-- Font size: 14px
-- Background: white
-- Cursor: pointer
-- Full width for form fields
-
-**Usage Patterns:**
-1. **Inline Dropdowns** (quick changes)
-   - Example: Priority selector in issues table
-   - Auto-saves on change
-   - No additional buttons needed
-   
-2. **Modal Dropdowns** (complex selections)
-   - Example: Assign issue to associate
-   - Shows meaningful text (Name + Email)
-   - First option: "-- Bez dodele --" or "-- Izaberite --"
-   - Pre-selects current value if exists
-   
-3. **Filter Dropdowns** (data filtering)
-   - Example: Filter issues by priority/status
-   - First option: "Svi..." (show all)
-   - Updates results immediately on change
-
-### Modals
-```
-Centered on screen
-Dark overlay (rgba(0,0,0,0.5))
-Escape key to close
-Click outside to close (for non-critical)
-```
-
-### Forms
-```
-Submit on Enter key
-Validate on blur (individual fields)
-Show all errors on submit
-Disable submit during loading
-Auto-focus first field on open
-```
-
-### Tables
-```
-Sortable headers (↑↓ arrows)
-Row hover effect (background #f9fafb)
-Sticky header on scroll
-Pagination if > 20 items
-```
-
----
-
-## 🎯 Specific UI Elements
-
-### Issue Card (Tenant)
-```
-┌─────────────────────────────────────┐
-│ [Urgent] 🔴 Water Leak in Kitchen   │
-│ Status: [In Progress]               │
-│ Reported: Jan 15, 2026              │
-│ Cost: $150                          │
-│ ETA: Jan 20, 2026                   │
-│ [I'll be home ✓]                    │
-└─────────────────────────────────────┘
-```
-
-### Building Card (Manager/Director)
-```
-┌─────────────────────────────────────┐
-│ [Image]                             │
-│ Downtown Tower                      │
-│ 123 Main St                         │
-│ 24 apartments                       │
-│ Manager: John Doe                   │
-│                                     │
-│ [Manage Apartments] [View Issues]   │
-└─────────────────────────────────────┘
-```
-
-### Notice Card (Tenant - Manager Posted)
-```
-┌─────────────────────────────────────┐ ← Outlined border
-│ 📢 Elevator Maintenance             │
-│ "The elevator will be out of ser... │
-│                                     │
-│ Posted by: Jane Smith (Manager)     │
-│ Jan 10, 2026                        │
-│                                     │
-│ [Mark as Read]                      │
-└─────────────────────────────────────┘
-```
-
-### Poll Card (Tenant)
-```
-┌─────────────────────────────────────┐
-│ 🗳️ Best time for building meeting?  │
-│                                     │
-│ ○ Morning (9-11 AM)                 │
-│ ○ Afternoon (2-4 PM)                │
-│ ● Evening (6-8 PM) [Selected]       │
-│                                     │
-│ [Vote]                              │
-│                                     │
-│ Results: 10 votes                   │
-│ Evening: 60% ████████░░             │
-│ Morning: 30% ████░░░░░░             │
-│ Afternoon: 10% ██░░░░░░░░           │
-└─────────────────────────────────────┘
-```
-
----
-
-## 🚀 Animation Guidelines
-
-### Subtle Animations Only
 ```css
 transition: all 0.2s ease-in-out;
 ```
 
-**Use for**:
-- Button hover states
-- Card hover elevation
-- Modal fade in/out
-- Dropdown slide down
-
-**Don't use**:
-- Page transitions
-- Heavy animations on mobile
-- Animations that delay user actions
+**Use for:** button hover, card hover elevation, modal fade, dropdown slide.
+**Don't use:** page transitions, heavy mobile animations, anything that delays user actions.
 
 ### Loading Spinner
 ```css
@@ -805,101 +494,26 @@ animation: pulse 2s ease-in-out infinite;
 
 ---
 
-## 📐 Wireframe Examples
-
-Store wireframes as images in `docs/images/` folder:
-
-```markdown
-### Tenant Dashboard
-![Tenant Dashboard](./images/tenant-dashboard.png)
-
-### Manager Building View
-![Manager Building](./images/manager-building.png)
-
-### Director Approvals
-![Director Approvals](./images/director-approvals.png)
-```
-
----
-
-## ✅ UI/UX Checklist
+## UI/UX Checklist
 
 Before implementing a new feature:
 
-**Layout**:
-- [ ] Uses 8px grid spacing
-- [ ] Responsive (mobile, tablet, desktop)
-- [ ] Consistent with existing pages
-
-**Typography**:
-- [ ] Font sizes match standards
-- [ ] Font weights appropriate
-- [ ] Text readable (contrast ≥ 4.5:1)
-
-**Colors**:
-- [ ] Uses defined color palette
-- [ ] Status colors consistent
-- [ ] Role colors if applicable
-
-**Components**:
-- [ ] Buttons match standards
-- [ ] Forms validate properly
-- [ ] Cards have proper spacing
-- [ ] Status badges correct
-
-**Interactions**:
-- [ ] Keyboard navigation works
-- [ ] Focus states visible
-- [ ] Loading states shown
-- [ ] Error messages clear
-
-**Accessibility**:
-- [ ] Semantic HTML used
-- [ ] ARIA labels where needed
-- [ ] Alt text on images
-- [ ] Color not sole indicator
-
-**User Feedback**:
-- [ ] Success messages shown
-- [ ] Error messages helpful
-- [ ] Empty states defined
-- [ ] Loading indicators present
+**Layout:** 8px grid, responsive, consistent with existing pages.
+**Typography:** Sizes match, weights appropriate, contrast ≥ 4.5:1.
+**Colors:** Defined palette, consistent status colors, role colors.
+**Components:** Button standards, form validation, card spacing, status badges.
+**Interactions:** Keyboard nav, focus states, loading states, error messages.
+**Accessibility:** Semantic HTML, ARIA labels, alt text, color not sole indicator.
 
 ---
 
-## 🎨 Design Tools
+## Design Notes
 
-Recommended tools for creating mockups/wireframes:
-- **Figma** (web-based, free)
-- **Excalidraw** (quick sketches)
-- **Draw.io** (diagrams)
-- **Screenshot + annotate** (for existing UI)
-
-Export as PNG/JPG and save to `docs/images/` folder.
+- **Outlined borders for manager-posted notices** → distinguish authoritative announcements
+- **No auto-login** → security: users must authenticate each session
+- **Profile landing after login** → users verify info and understand role before navigating
+- **No emoji icons** → clean, professional UI (removed 👤, ➜, 👋)
 
 ---
 
-## 📝 Design Notes
-
-Add design decisions, rationale, or user feedback here:
-
-### Why outlined borders for manager-posted notices?
-> To visually distinguish authoritative building management announcements from other content.
-
-### Why no auto-login?
-> Security requirement - users must explicitly authenticate each session.
-
-### Why profile landing after login?
-> Ensures users verify their information and understand their role permissions before navigating.
-
----
-
-## 🔄 Updates
-
-When you add new UI components or change design patterns, update this document:
-
-1. Add screenshots to `docs/images/`
-2. Document color choices
-3. Add component specifications
-4. Update checklist if needed
-
+*Last updated: February 2026*

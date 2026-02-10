@@ -310,15 +310,15 @@ CRITICAL FOR MANAGER ROLE:
 
 ---
 
-## 📋 Development Rules
+## Development Rules
 
 1. **One Phase at a Time** - Complete current sub-phase before next
-2. **Test Immediately** - Test API calls after every change (see TESTING_REQUIREMENTS.md)
+2. **Test Immediately** - Test API calls after every change (see [TESTING.md](../workflow/TESTING.md))
 3. **All Tests Pass** - Run full test suite before moving on
-4. **Code Quality** - Follow CODE_QUALITY_STANDARDS.md
-5. **UI/UX Standards** - Follow UI_UX_STANDARDS.md (minimal, elegant design)
+4. **Code Quality** - Follow [CODE_QUALITY.md](../standards/CODE_QUALITY.md)
+5. **UI/UX Standards** - Follow [UI_UX.md](../standards/UI_UX.md)
 6. **No Breaking Changes** - Previous phases must continue working
-7. **Update Progress** - Mark sub-phases ✅ DONE when complete
+7. **Update Progress** - Mark sub-phases as DONE when complete
 
 ---
 
@@ -716,30 +716,5 @@ PATCH /api/auth/me - update apartment.numPeople
 
 ---
 
-## Authorization Matrix
-
-| Action | Tenant | Manager | Director | Associate |
-|--------|--------|---------|----------|-----------|
-| Report issues | ✅ | ❌ | ❌ | ❌ |
-| Triage issues | ❌ | ✅ | ❌ | ❌ |
-| Assign to associate | ❌ | ✅ | ✅ | ❌ |
-| Accept job | ❌ | ❌ | ❌ | ✅ |
-| Create building | ❌ | ❌ | ✅ | ❌ |
-| Bulk apartments | ❌ | ✅ | ✅ | ❌ |
-| Assign manager | ❌ | ❌ | ✅ | ❌ |
-| Manage tenants | ❌ | ✅ | ❌ | ❌ |
-| Approve staff | ❌ | ❌ | ✅ | ❌ |
-| Post notice | ❌ | ✅ | ❌ | ❌ |
-| Create poll | ❌ | ✅ | ❌ | ❌ |
-| Vote on poll | ✅ | ❌ | ❌ | ❌ |
-
----
-
-## Development Rules
-
-1. **One Phase at a Time** - Complete current phase before next
-2. **All Tests Pass** - Run TESTING_REQUIREMENTS.md tests
-3. **Code Quality** - Check CODE_QUALITY_STANDARDS.md
-4. **No Breaking Changes** - Previous phases must work
-5. **Update Progress** - Mark phases ✅ DONE when complete
+*Note: Authorization Matrix is defined above (line ~294). Development rules are in [DEVELOPMENT.md](../workflow/DEVELOPMENT.md).*
 

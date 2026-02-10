@@ -7,28 +7,31 @@ Fast lookup for common tasks while developing.
 ## Essential Files
 
 ```
-backend/index.js          → Main API server
-backend/models/User.js    → User schema
+Backend:
+  backend/index.js              → Main API server & routes
+  backend/models/User.js        → User schema (role, status, building, apartment)
+  backend/models/Building.js    → Building schema
+  backend/models/Apartment.js   → Apartment schema
+  backend/models/Issue.js       → Issue schema (status workflow)
+  backend/models/Notice.js      → Notice schema
+  backend/models/Poll.js        → Poll schema
+  backend/services/             → Business logic (issueService, userService, buildingService, noticeService)
+  backend/test/                 → Jest tests (117 passing)
 
-frontend/src/App.js       → Main routing & auth
-frontend/src/Login.js     → Login form
-frontend/src/Signup.js    → Signup form
+Frontend:
+  frontend/src/App.js           → Main routing & auth state
+  frontend/src/Login.js         → Login form
+  frontend/src/Signup.js        → Signup form with role selection
+  frontend/src/*Dashboard.js    → Role-specific dashboards
 
-ROLE_SYSTEM_SPECIFICATION.md → What to build
-TESTING_REQUIREMENTS.md       → How to test
-CODE_QUALITY_STANDARDS.md     → Code rules
-DEVELOPMENT_WORKFLOW.md       → Process
+Documentation:
+  CLAUDE.md                     → Root navigator (start here)
+  docs/standards/               → CODE_QUALITY, UI_UX
+  docs/workflow/                → DEVELOPMENT (TDD), TESTING
+  docs/specs/ROLES.md           → Role system specification
+  docs/reference/               → QUICK_REF (this file), IMPLEMENTATION
+  docs/logs/PROJECT_LOG.md      → Development history
 ```
-
----
-
-## MongoDB Connection String
-
-```javascript
-mongodb+srv://minastankovic111_db_user:XcZ45WFEEOnILNJu@cluster0.2lelkqq.mongodb.net/tennetdb?retryWrites=true&w=majority&appName=Cluster0
-```
-
-Database: `tennetdb`
 
 ---
 
@@ -40,24 +43,30 @@ cd backend
 node index.js
 
 # Expected output:
-# ✅ MONGO RUNNING - Connected to MongoDB
-# ✅ BACKEND RUNNING - Server listening on port 5000
+# MONGO RUNNING - Connected to MongoDB
+# Server listening on port 5000
 ```
 
 ### Terminal 2: Frontend
 ```bash
 cd frontend
 npm start
-
 # Opens http://localhost:3000
+```
+
+### Running Tests
+```bash
+cd backend
+npm test
+# Expected: 117 tests passing
 ```
 
 ---
 
 ## Testing API Endpoints
 
-### Using curl (Windows PowerShell)
-```bash
+### Using PowerShell
+```powershell
 # Signup
 $body = @{
     username = "testuser"
@@ -81,241 +90,187 @@ Invoke-WebRequest -Uri http://localhost:5000/api/auth/login `
   -Headers @{'Content-Type'='application/json'} `
   -Body $body
 
-# Get current user (replace TOKEN with actual token)
+# Get current user (replace TOKEN)
 Invoke-WebRequest -Uri http://localhost:5000/api/auth/me `
   -Headers @{'Authorization'='Bearer TOKEN'}
 ```
 
 ### Using Postman
-1. Create new request
-2. Set method (POST, GET, etc.)
-3. Set URL (http://localhost:5000/api/...)
-4. Under "Headers" tab, add:
-   - `Content-Type: application/json`
-   - `Authorization: Bearer <TOKEN>` (if protected)
-5. Under "Body" tab, select "raw" → JSON, add data
-6. Click Send
+1. Set method (POST, GET, etc.) and URL
+2. Headers: `Content-Type: application/json`, `Authorization: Bearer <TOKEN>`
+3. Body: raw → JSON
+4. Send
 
 ---
 
-## Response Format (Always Consistent)
+## Response Format
 
 ### Success
 ```javascript
-{
-  "success": true,
-  "message": "Operation successful",
-  "data": { /* actual data */ }
-}
+{ "success": true, "message": "Operation successful", "data": { /* payload */ } }
 ```
 
 ### Error
 ```javascript
-{
-  "success": false,
-  "message": "Error description",
-  "code": "ERROR_CODE"
-}
+{ "success": false, "message": "Error description", "code": "ERROR_CODE" }
 ```
 
 ---
 
-## Common Status Codes
+## HTTP Status Codes
 
-| Code | Meaning | When |
-|------|---------|------|
+| Code | Meaning | Common Cause |
+|------|---------|--------------|
 | 200 | OK | Request succeeded |
 | 201 | Created | New resource created |
-| 400 | Bad Request | Invalid input |
-| 401 | Unauthorized | No/invalid token |
-| 403 | Forbidden | User lacks permission |
-| 404 | Not Found | Resource not found |
-| 500 | Server Error | Unexpected error |
+| 400 | Bad Request | Invalid input / validation error |
+| 401 | Unauthorized | Missing or expired token |
+| 403 | Forbidden | User lacks required role |
+| 404 | Not Found | Resource doesn't exist |
+| 500 | Server Error | Unexpected backend error |
 
 ---
 
-## Frontend localStorage Keys
+## User Roles & Status
 
-```javascript
-// After login/signup:
-localStorage.getItem('token')     // JWT token
-localStorage.getItem('user')      // JSON user object
-  // Contains: id, username, email, firstName, lastName, role
+### Roles
+```
+TENANT      → Reports issues, votes on polls, views notices
+MANAGER     → Manages buildings, triages issues, creates notices/polls
+DIRECTOR    → Creates buildings, assigns managers, approves staff, assigns issues
+ASSOCIATE   → Accepts jobs, sets cost, marks complete
+```
+
+### Status on Signup
+```
+Tenant/Director  → status: 'active' (immediate access)
+Manager/Associate → status: 'pending' (requires director approval)
 ```
 
 ---
 
-## User Roles
-
-```
-TENANT      → Can report issues
-MANAGER     → Can manage buildings
-DIRECTOR    → Can create buildings
-ASSOCIATE   → Can accept jobs
-```
-
----
-
-## Middleware in Backend
+## Middleware
 
 ### authenticateToken
 ```javascript
-// Used on protected routes
-// Checks Authorization header for valid JWT token
-// Adds user object to req.user
+// Checks Authorization header for valid JWT
+// Adds decoded user to req.user
+// Returns 401 if missing/invalid
 
-// Usage:
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   res.json(req.user);
 });
 ```
 
-### checkRole
-```javascript
-// (To be created) Used for role-based authorization
-// Checks if user.role === required role
-
-// Usage (will be):
-app.post('/api/buildings', authenticateToken, checkRole('DIRECTOR'), (req, res) => {
-  // Only directors can access
-});
-```
-
 ---
 
-## Password Security
+## Code Snippets
 
+### Password Hashing (bcryptjs)
 ```javascript
-// When storing password:
 const bcrypt = require('bcryptjs');
 const salt = await bcrypt.genSalt(10);
 const hashedPassword = await bcrypt.hash(password, salt);
 
-// When checking password:
+// Verify
 const match = await bcrypt.compare(providedPassword, storedHash);
-if (match) {
-  // Password correct
-}
 ```
 
----
-
-## JWT Token
-
+### JWT Token
 ```javascript
-// When creating token:
 const jwt = require('jsonwebtoken');
-const token = jwt.sign(
-  { id: user._id, username: user.username },
-  'your_secret_key_here',
-  { expiresIn: '24h' }
-);
 
-// When verifying token:
-const decoded = jwt.verify(token, 'your_secret_key_here');
-const userId = decoded.id;
+// Create
+const token = jwt.sign({ id: user._id, username: user.username }, SECRET, { expiresIn: '24h' });
+
+// Verify
+const decoded = jwt.verify(token, SECRET);
 ```
 
----
-
-## Database Queries (Mongoose)
-
+### Mongoose Queries
 ```javascript
-// Create
-const user = await User.create({ username, email, password });
-
-// Find
 const user = await User.findById(id);
 const user = await User.findOne({ username });
-const users = await User.find({ role: 'TENANT' });
-
-// Update
-await User.findByIdAndUpdate(id, { role: 'MANAGER' });
-const user = await User.findByIdAndUpdate(id, { role: 'MANAGER' }, { new: true });
-
-// Delete
-await User.findByIdAndDelete(id);
-
-// Count
-const count = await User.countDocuments({ role: 'TENANT' });
-
-// Lean (read-only, faster)
 const users = await User.find({ role: 'TENANT' }).lean();
+await User.findByIdAndUpdate(id, { role: 'MANAGER' }, { new: true });
+const count = await User.countDocuments({ role: 'TENANT' });
 ```
 
----
-
-## React Hooks Quick Reference
-
+### React Hooks
 ```javascript
-// State
 const [value, setValue] = useState(null);
 
-// Effect (run when component mounts)
-useEffect(() => {
-  fetchData();
-}, []); // Empty dependency = run once
-
-// Effect (run when userId changes)
-useEffect(() => {
-  fetchUser(userId);
-}, [userId]);
-
-// Effect (run every render)
-useEffect(() => {
-  console.log('Rendered');
-});
+useEffect(() => { fetchData(); }, []);       // Run once on mount
+useEffect(() => { fetchUser(id); }, [id]);   // Run when id changes
 ```
 
 ---
 
-## Common Errors & Fixes
+## Troubleshooting
+
+### Backend Not Starting
+```bash
+# Check if port in use
+netstat -ano | findstr :5000
+
+# Kill Node processes
+Taskkill /IM node.exe /F
+
+# Kill specific PID
+Taskkill /PID <PID> /F
+```
+
+### 401 Unauthorized
+- Token missing or expired
+- Check `localStorage.getItem('token')`
+- Login again to get fresh token
+
+### 403 Forbidden
+- User doesn't have required role
+- Check `user.role` matches endpoint requirement
+- Check if user status is 'active' (not 'pending')
+
+### CORS Errors
+- Backend not running on port 5000
+- Check CORS configuration in `backend/index.js`
+
+### MongoDB Connection Failed
+- Check MongoDB Atlas connection string in .env
+- Verify network access in Atlas dashboard
+- Check username/password in connection string
+
+### Frontend Not Updating
+- Check browser DevTools console for errors
+- Check Network tab for failed API calls
+- Verify state is being set (add console.log temporarily)
+- Check if useEffect dependencies are correct
+
+### Common Errors
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| 401 Unauthorized | No token | Login first |
-| 403 Forbidden | Wrong role | Check user.role |
-| 404 Not Found | URL wrong | Check endpoint path |
 | Network Error | Backend down | Start backend |
 | CORS Error | Domain blocked | Check CORS config |
 | TypeError in fetch | Response not JSON | Check Content-Type |
+| ValidationError | Schema mismatch | Check field types |
 
 ---
 
 ## Useful Commands
 
 ```bash
-# Check if port is in use
-netstat -ano | findstr :5000
-
-# Kill process on port 5000
-Taskkill /PID <PID> /F
-
-# Kill all Node processes
-Taskkill /IM node.exe /F
-
-# MongoDB connection test
-mongo "mongodb+srv://user:pass@cluster.mongodb.net/database"
-
 # Clear npm cache
 npm cache clean --force
 
 # Reinstall node_modules
-rm -r node_modules package-lock.json
-npm install
+rm -r node_modules package-lock.json && npm install
+
+# CodeScene analysis
+cs delta --staged
+cs review backend/services/issueService.js
+.\analyze-code.ps1
 ```
 
 ---
 
-## Next Phase Checklist
-
-Before starting Phase 1 (Role Field):
-
-- [ ] Current system running (backend + frontend)
-- [ ] Can signup/login successfully
-- [ ] User.js schema visible and understood
-- [ ] Backend index.js endpoints understood
-- [ ] All tests in TESTING_REQUIREMENTS.md Phase 1 read
-
-Ready? → Start implementing Phase 1!
-
+*Last updated: February 2026*
