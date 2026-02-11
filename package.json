@@ -8,7 +8,8 @@
     "dev": "cd backend && node server.js",
     "backend": "cd backend && node server.js",
     "frontend": "cd frontend && npm start",
-    "test": "jest --detectOpenHandles --forceExit"
+    "test": "jest backend/test/ --detectOpenHandles --forceExit --runInBand",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@shelf/jest-mongodb": "^6.0.2",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
     "supertest": "^7.2.2"
   }

@@ -46,5 +46,14 @@ obj/
 # Profiles
 profiles/
 
+# MCP konfiguracija sa tokenima
+.vscode/mcp.json
+setup-codescene.ps1
+install-cs-tool.ps1
+
 # MongoDB
 *.lock
+
+# Invalid Windows files
+nul
+**/nul

@@ -62,7 +62,7 @@ async function reportIssue(tenantUsername, data) {
   if (!user) throw { status: 404, message: 'User not found.' };
 
   const issue = new Issue({
-    tenant: user._id,
+    createdBy: user._id,
     title: title.trim(),
     description,
     urgency: urgency || 'not urgent',
@@ -82,7 +82,7 @@ async function getTenantIssues(tenantUsername) {
   const user = await User.findOne({ username: tenantUsername });
   if (!user) throw { status: 404, message: 'User not found.' };
 
-  return await Issue.find({ tenant: user._id }).sort({ createdAt: -1 });
+  return await Issue.find({ createdBy: user._id }).sort({ createdAt: -1 });
 }
 
 /**
@@ -92,13 +92,16 @@ async function getTenantIssues(tenantUsername) {
 async function getAllIssues() {
   return await Issue.find()
     .populate({
-      path: 'tenant',
+      path: 'createdBy',
       select: 'username firstName lastName email building apartment',
       populate: [
         { path: 'building', select: 'name address' },
         { path: 'apartment', select: 'unitNumber' }
       ]
     })
+    .populate({ path: 'building', select: 'name address' })
+    .populate({ path: 'apartment', select: 'unitNumber' })
+    .populate({ path: 'assignedTo', select: 'username firstName lastName' })
     .sort({ createdAt: -1 });
 }
 
@@ -115,7 +118,7 @@ async function getAssociateIssues(associateUsername) {
 
   return await Issue.find({ assignee: associateUsername })
     .populate({
-      path: 'tenant',
+      path: 'createdBy',
       select: 'firstName lastName building apartment',
       populate: [
         { path: 'building', select: 'address name' },

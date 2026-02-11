@@ -21,9 +21,9 @@ router.get('/managers', authMiddleware, requireRole('director', 'admin'), asyncH
 
 /**
  * GET /api/users/associates
- * Get all associates (director/admin only)
+ * Get all associates (manager/director/admin can access)
  */
-router.get('/associates', authMiddleware, requireRole('director', 'admin'), asyncHandler(async (req, res) => {
+router.get('/associates', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
   const associates = await userService.getAllAssociates();
   sendSuccess(res, 200, 'Associates retrieved', associates);
 }));

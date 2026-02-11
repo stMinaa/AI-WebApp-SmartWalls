@@ -18,6 +18,7 @@ const Apartment = require('./models/Apartment');
 const Issue = require('./models/Issue');
 const Notice = require('./models/Notice');
 const Poll = require('./models/Poll');
+const Invoice = require('./models/Invoice');
 
 // Middleware
 app.use(cors());
@@ -123,9 +124,9 @@ app.post('/api/auth/signup', async (req, res) => {
   // Validate input
   const validation = validateSignupInput(username, email, password, role);
   if (!validation.valid) {
-    return res.status(validation.status).json({ 
+    return res.status(validation.status).json({
       message: validation.message,
-      error: validation.error 
+      error: validation.error
     });
   }
 
@@ -240,20 +241,27 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const { firstName, lastName, mobile } = req.body;
-    console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile });
-    
+    const { firstName, lastName, mobile, company } = req.body;
+    console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile, company });
+
     // Restrict tenants from editing certain fields (future: add more restrictions if needed)
     if (user.role === 'tenant') {
       // Tenants can only update firstName, lastName, mobile - not username, email, role, etc.
       if (firstName !== undefined) user.firstName = firstName;
       if (lastName !== undefined) user.lastName = lastName;
       if (mobile !== undefined) user.mobile = mobile;
+    } else if (user.role === 'associate') {
+      // Associates can update firstName, lastName, mobile, company
+      if (firstName !== undefined) user.firstName = firstName;
+      if (lastName !== undefined) user.lastName = lastName;
+      if (mobile !== undefined) user.mobile = mobile;
+      if (company !== undefined) user.company = company;
     } else {
       // Other roles can update these fields too
       if (firstName !== undefined) user.firstName = firstName;
       if (lastName !== undefined) user.lastName = lastName;
       if (mobile !== undefined) user.mobile = mobile;
+      if (company !== undefined) user.company = company;
     }
 
     await user.save();
@@ -275,7 +283,7 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
     }
 
     const { amount } = req.body;
-    
+
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Invalid payment amount' });
     }
@@ -310,7 +318,7 @@ app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
     }
 
     const { debt, reason } = req.body;
-    
+
     if (debt === undefined || debt < 0) {
       return res.status(400).json({ message: 'Invalid debt amount' });
     }
@@ -334,7 +342,7 @@ app.get('/api/users/pending', authenticateToken, async (req, res) => {
     }
 
     const query = { status: 'pending' };
-    
+
     // Managers only see pending tenants for their buildings
     if (user.role === 'manager') {
       const managedBuildings = await Building.find({ manager: user._id });
@@ -391,7 +399,7 @@ app.post('/api/buildings', authenticateToken, async (req, res) => {
 
 // GET /api/buildings - Director views all buildings with apartment count
 app.get('/api/buildings', authenticateToken, async (req, res) => {
-  console.log('GET /api/buildings - User:', req.user?.username);
+  console.log('GET /api/buildings - User:', req.user?.username, 'Query:', req.query);
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
@@ -400,7 +408,13 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Only directors can view all buildings' });
     }
 
-    const buildings = await Building.find({})
+    // Support filtering by managerId
+    const filter = {};
+    if (req.query.managerId) {
+      filter.manager = req.query.managerId;
+    }
+
+    const buildings = await Building.find(filter)
       .populate('manager', 'firstName lastName email')
       .populate('director', 'firstName lastName email')
       .sort({ createdAt: -1 });
@@ -463,10 +477,10 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    
-    // Phase 2.5: Only managers can view issues via this endpoint
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can view issues' });
+
+    // Phase 2.5: Only managers and directors can view issues via this endpoint
+    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+      return res.status(403).json({ error: 'Only managers and directors can view issues' });
     }
 
     const { status, priority } = req.query;
@@ -474,12 +488,16 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-    // Managers see issues from their buildings
-    const buildings = await Building.find({ manager: user._id });
-    const buildingIds = buildings.map(b => b._id);
-    const apartments = await Apartment.find({ building: { $in: buildingIds } });
-    const apartmentIds = apartments.map(a => a._id);
-    filter.apartment = { $in: apartmentIds };
+    // Managers see issues from their buildings only
+    // Directors see ALL issues
+    if (user.role === 'manager') {
+      const buildings = await Building.find({ manager: user._id });
+      const buildingIds = buildings.map(b => b._id);
+      const apartments = await Apartment.find({ building: { $in: buildingIds } });
+      const apartmentIds = apartments.map(a => a._id);
+      filter.apartment = { $in: apartmentIds };
+    }
+    // For directors, no filter on apartments - they see all
 
     const issues = await Issue.find(filter)
       .populate('apartment', 'unitNumber address')
@@ -513,52 +531,64 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
 
 // PATCH /api/issues/:issueId/triage - Manager triages issue (forward/reject/assign)
 app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => {
-  console.log('PATCH /api/issues/:issueId/triage - User:', req.user?.username, 'Body:', req.body);
+  console.log('🔍 TRIAGE REQUEST - User:', req.user?.username, 'Issue:', req.params.issueId, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
     if (!user || user.role !== 'manager') {
+      console.log('❌ Access denied - user role:', user?.role);
       return res.status(403).json({ message: 'Only managers can triage issues' });
     }
 
     const issue = await Issue.findById(req.params.issueId);
     if (!issue) {
+      console.log('❌ Issue not found:', req.params.issueId);
       return res.status(404).json({ message: 'Issue not found' });
     }
 
-    const { action, associateId } = req.body;
-    
+    const { action, associateId, assignedTo } = req.body;
+    // Support both associateId and assignedTo for backwards compatibility
+    const targetAssociate = associateId || assignedTo;
+
     const updateData = { updatedAt: new Date() };
 
     if (action === 'forward') {
       updateData.status = 'forwarded';
     } else if (action === 'reject') {
       updateData.status = 'rejected';
-    } else if (action === 'assign' && associateId) {
-      // Manager assigns to associate directly
-      const associate = await User.findById(associateId);
-      if (!associate || associate.role !== 'associate' || associate.status !== 'active') {
+    } else if (action === 'assign' && targetAssociate) {
+      // Manager assigns to associate directly - targetAssociate is username
+      const associate = await User.findOne({
+        username: targetAssociate,
+        role: 'associate'
+      });
+      if (!associate) {
+        console.log('❌ Associate not found:', targetAssociate);
         return res.status(400).json({ message: 'Invalid associate' });
       }
-      updateData.assignedTo = associateId;
+      updateData.assignedTo = associate._id;
       updateData.status = 'assigned';
+      console.log('✅ Assigning to associate:', associate.username, associate._id);
     } else {
+      console.log('❌ Invalid action or missing associate:', action, targetAssociate);
       return res.status(400).json({ message: 'Invalid action' });
     }
 
+    // Simply update and return without populate to avoid errors
     const updated = await Issue.findByIdAndUpdate(
       req.params.issueId,
       updateData,
-      { new: true, runValidators: false }
-    )
-      .populate('apartment', 'number building')
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'firstName lastName email');
+      { new: true }
+    );
 
-    console.log('Issue triaged:', req.params.issueId, 'Action:', action);
+    console.log('✅ Issue triaged successfully:', req.params.issueId, 'Action:', action);
     res.json(updated);
   } catch (err) {
-    console.error('Triage issue error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Triage issue error:', err.message);
+    console.error('❌ Full error:', err);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: err.message 
+    });
   }
 });
 
@@ -603,7 +633,7 @@ app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => 
       updateData,
       { new: true, runValidators: false }
     )
-      .populate('apartment', 'number building')
+      .populate('apartment', 'unitNumber building')
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'firstName lastName email');
 
@@ -642,7 +672,7 @@ app.patch('/api/issues/:issueId/accept', authenticateToken, async (req, res) => 
       { status: 'in-progress', updatedAt: new Date() },
       { new: true, runValidators: false }
     )
-      .populate('apartment', 'number building')
+      .populate('apartment', 'unitNumber building')
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'firstName lastName email');
 
@@ -690,7 +720,7 @@ app.patch('/api/issues/:issueId/complete', authenticateToken, async (req, res) =
       updateData,
       { new: true, runValidators: false }
     )
-      .populate('apartment', 'number building')
+      .populate('apartment', 'unitNumber building')
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'firstName lastName email');
 
@@ -715,7 +745,7 @@ app.patch('/api/buildings/:buildingId/assign-manager', authenticateToken, async 
 
     const { managerId } = req.body;
     const building = await Building.findById(req.params.buildingId);
-    
+
     if (!building) {
       return res.status(404).json({ message: 'Building not found' });
     }
@@ -763,7 +793,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     const filter = {};
     if (role) filter.role = role;
     if (status) filter.status = status;
-    
+
     // Exclude test users by default (usernames starting with 'test' or names matching test patterns)
     if (includeTest !== 'true') {
       filter.$and = [
@@ -774,8 +804,15 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select('firstName lastName email username role status')
+      .select('firstName lastName email username role status mobile company')
       .sort({ createdAt: -1 });
+
+    console.log('Sample user data:', users[0] ? {
+      firstName: users[0].firstName,
+      lastName: users[0].lastName,
+      mobile: users[0].mobile,
+      company: users[0].company
+    } : 'No users found');
 
     // If fetching managers, add building count
     if (role === 'manager') {
@@ -802,14 +839,20 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
 // PATCH /api/users/:userId/approve - Approve pending user (manager/director can approve and assign apartment)
 app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
-  console.log('PATCH /api/users/:userId/approve - User:', req.user?.username, 'Target:', req.params.userId);
+  console.log('\n' + '='.repeat(60));
+  console.log('🎯 APPROVE ENDPOINT CALLED!');
+  console.log('User:', req.user?.username);
+  console.log('Target UserID:', req.params.userId);
+  console.log('='.repeat(60) + '\n');
   try {
     const user = await User.findOne({ username: req.user.username });
+    console.log('Approving user found:', user?.username, 'Role:', user?.role);
     if (!user || (user.role !== 'director' && user.role !== 'manager')) {
       return res.status(403).json({ message: 'Only directors and managers can approve users' });
     }
 
     const targetUser = await User.findById(req.params.userId);
+    console.log('Target user found:', targetUser?.username, 'Role:', targetUser?.role, 'Status:', targetUser?.status);
     if (!targetUser) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -819,7 +862,8 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
     }
 
     // Manager can only approve tenants in their buildings
-    if (user.role === 'manager') {
+    if (user.role === 'manager' && targetUser.role === 'tenant') {
+      console.log('Manager approving tenant, checking buildings...');
       const managedBuildings = await Building.find({ manager: user._id });
       const canApprove = managedBuildings.some(b => String(b._id) === String(targetUser.building));
       if (!canApprove) {
@@ -827,20 +871,21 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
       }
     }
 
+    // Director can approve managers, associates, and tenants without restrictions
+    console.log('Setting status to active...');
+
+    // Simple direct update without optional fields
     targetUser.status = 'active';
     
-    // Allow assigning apartment number and number of residents
-    if (req.body.apartment !== undefined) {
-      targetUser.apartment = req.body.apartment;
-    }
-    if (req.body.residents !== undefined) {
-      targetUser.residents = req.body.residents;
-    }
-    
-    await targetUser.save();
+    // Use updateOne instead of save to bypass validation
+    await User.updateOne(
+      { _id: targetUser._id },
+      { $set: { status: 'active' } }
+    );
 
-    console.log('User approved:', targetUser.username);
-    res.json({ 
+    console.log('User approved successfully:', targetUser.username);
+
+    res.json({
       message: 'User approved successfully',
       user: {
         _id: targetUser._id,
@@ -849,14 +894,21 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
         lastName: targetUser.lastName,
         email: targetUser.email,
         role: targetUser.role,
-        status: targetUser.status,
+        status: 'active',
         apartment: targetUser.apartment,
         residents: targetUser.residents
       }
     });
   } catch (err) {
     console.error('Approve user error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error stack:', err.stack);
+    console.error('Error name:', err.name);
+    res.status(500).json({
+      message: 'Server error',
+      error: err.message,
+      errorName: err.name,
+      errorDetails: err.toString()
+    });
   }
 });
 
@@ -939,9 +991,9 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
     });
 
     console.log(`Deleted ${result.deletedCount} test users`);
-    res.json({ 
+    res.json({
       message: `Successfully deleted ${result.deletedCount} test users`,
-      deletedCount: result.deletedCount 
+      deletedCount: result.deletedCount
     });
   } catch (err) {
     console.error('Bulk delete error:', err);
@@ -977,11 +1029,11 @@ app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, re
     if (floorsSpec) {
       // Advanced spec: custom floors (e.g., "2,3,5")
       const floorNumbers = floorsSpec.split(',').map(f => parseInt(f.trim()));
-      
+
       for (const floorNum of floorNumbers) {
         // Floor 5 has 2 units, others have 4 units (as per test spec)
         const unitsOnFloor = (floorNum === 5) ? 2 : 4;
-        
+
         for (let unit = 1; unit <= unitsOnFloor; unit++) {
           apartments.push({
             building: building._id,
@@ -1084,7 +1136,7 @@ app.get('/api/buildings/:id/tenants', authenticateToken, async (req, res) => {
     }
 
     // Find all tenants assigned to this building
-    const tenants = await User.find({ 
+    const tenants = await User.find({
       building: building._id,
       role: 'tenant'
     })
@@ -1135,7 +1187,7 @@ app.post('/api/tenants/:id/approve', authenticateToken, async (req, res) => {
   try {
     // Check if user is manager
     const user = await User.findOne({ username: req.user.username });
-    
+
     if (!user || user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can approve tenants' });
     }
@@ -1284,40 +1336,40 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
 app.post('/api/issues', authenticateToken, async (req, res) => {
   try {
     console.log(`POST /api/issues - User: ${req.user.username} Body:`, req.body);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
     console.log(`Found user: ${user.username} Role: ${user.role}`);
-    
+
     // Check if user is a tenant
     if (!user || user.role !== 'tenant') {
       return res.status(403).json({ error: 'Only tenants can report issues' });
     }
-    
+
     // Check if tenant is assigned to an apartment
     if (!user.apartment) {
       return res.status(404).json({ error: 'You are not assigned to any apartment yet' });
     }
-    
+
     const { title, description, priority } = req.body;
-    
+
     // Validate required fields
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
-    
+
     if (!description) {
       return res.status(400).json({ error: 'Description is required' });
     }
-    
+
     // Validate priority if provided
     if (priority && !['low', 'medium', 'high'].includes(priority)) {
       return res.status(400).json({ error: 'Invalid priority. Must be low, medium, or high' });
     }
-    
+
     // Fetch apartment to get building
     const apartment = await Apartment.findById(user.apartment);
-    
+
     // Create issue
     const issue = new Issue({
       createdBy: user._id,
@@ -1328,10 +1380,10 @@ app.post('/api/issues', authenticateToken, async (req, res) => {
       priority: priority || 'medium',
       status: 'reported'
     });
-    
+
     await issue.save();
     console.log(`Issue created: ${issue._id}`);
-    
+
     res.status(201).json({ issue });
   } catch (error) {
     console.error('Error creating issue:', error);
@@ -1344,21 +1396,21 @@ app.post('/api/issues', authenticateToken, async (req, res) => {
 app.get('/api/issues/my', authenticateToken, async (req, res) => {
   try {
     console.log(`GET /api/issues/my - User: ${req.user.username} Query:`, req.query);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
     console.log(`Found user: ${user.username} Role: ${user.role}`);
-    
+
     // Check if user is a tenant
     if (!user || user.role !== 'tenant') {
       return res.status(403).json({ error: 'Only tenants can view their issues' });
     }
-    
+
     const { status, priority } = req.query;
     const filter = { createdBy: user._id };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
-    
+
     const issues = await Issue.find(filter)
       .populate('apartment', 'unitNumber address')
       .populate({
@@ -1370,7 +1422,7 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
       })
       .populate('createdBy', 'firstName lastName email')
       .sort({ createdAt: -1 });
-    
+
     // Flatten building from apartment.building to building for easier access
     const issuesWithBuilding = issues.map(issue => {
       const issueObj = issue.toObject();
@@ -1379,7 +1431,7 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
       }
       return issueObj;
     });
-    
+
     console.log(`Tenant issues retrieved: ${issuesWithBuilding.length}`);
     res.json(issuesWithBuilding);
   } catch (error) {
@@ -1393,21 +1445,21 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
 app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
   try {
     console.log(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
     console.log(`Found user: ${user.username} Role: ${user.role}`);
-    
+
     // Check if user is an associate
     if (!user || user.role !== 'associate') {
       return res.status(403).json({ error: 'Only associates can view their jobs' });
     }
-    
+
     const { status, priority } = req.query;
     const filter = { assignedTo: user._id };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
-    
+
     const jobs = await Issue.find(filter)
       .populate('apartment', 'unitNumber address')
       .populate({
@@ -1420,7 +1472,7 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'username firstName lastName email company')
       .sort({ createdAt: -1 });
-    
+
     // Flatten building from apartment.building to building for easier access
     const jobsWithBuilding = jobs.map(job => {
       const jobObj = job.toObject();
@@ -1429,7 +1481,7 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
       }
       return jobObj;
     });
-    
+
     console.log(`Associate jobs retrieved: ${jobsWithBuilding.length}`);
     res.json(jobsWithBuilding);
   } catch (error) {
@@ -1443,15 +1495,15 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
 app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
   try {
     console.log(`POST /api/issues/${req.params.id}/accept - User: ${req.user.username}`);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Check if user is an associate
     if (!user || user.role !== 'associate') {
       return res.status(403).json({ error: 'Only associates can accept jobs' });
     }
-    
+
     // Validate estimatedCost
     const { estimatedCost } = req.body;
     if (estimatedCost === undefined || estimatedCost === null) {
@@ -1463,28 +1515,28 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
     if (estimatedCost < 0) {
       return res.status(400).json({ error: 'estimatedCost must be a positive number' });
     }
-    
+
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
-    
+
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'This issue is not assigned to you' });
     }
-    
+
     // Check if issue is in assigned status
     if (issue.status !== 'assigned') {
       return res.status(400).json({ error: 'Issue must be in assigned status to accept' });
     }
-    
+
     // Update issue
     issue.status = 'in-progress';
     issue.cost = estimatedCost;
     await issue.save();
-    
+
     // Populate and return
     const updated = await Issue.findById(issue._id)
       .populate('apartment', 'unitNumber address')
@@ -1497,13 +1549,13 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
       })
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'username firstName lastName email company');
-    
+
     // Flatten building
     const issueObj = updated.toObject();
     if (issueObj.apartment && issueObj.apartment.building) {
       issueObj.building = issueObj.apartment.building;
     }
-    
+
     console.log(`Issue ${issue._id} accepted with cost $${estimatedCost}`);
     res.json(issueObj);
   } catch (error) {
@@ -1516,31 +1568,31 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
 app.post('/api/issues/:id/reject', authenticateToken, async (req, res) => {
   try {
     console.log(`POST /api/issues/${req.params.id}/reject - User: ${req.user.username}`);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Check if user is an associate
     if (!user || user.role !== 'associate') {
       return res.status(403).json({ error: 'Only associates can reject jobs' });
     }
-    
+
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
-    
+
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'This issue is not assigned to you' });
     }
-    
+
     // Update issue - return to director for reassignment
     issue.status = 'forwarded';
     issue.assignedTo = null;
     await issue.save();
-    
+
     console.log(`Issue ${issue._id} rejected by associate`);
     res.json({ message: 'Job rejected successfully' });
   } catch (error) {
@@ -1554,31 +1606,31 @@ app.post('/api/issues/:id/reject', authenticateToken, async (req, res) => {
 app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
   try {
     console.log(`POST /api/issues/${req.params.id}/complete - User: ${req.user.username}`);
-    
+
     // Fetch user
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Check if user is an associate
     if (!user || user.role !== 'associate') {
       return res.status(403).json({ error: 'Only associates can complete jobs' });
     }
-    
+
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
-    
+
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'This issue is not assigned to you' });
     }
-    
+
     // Check if issue is in in-progress status
     if (issue.status !== 'in-progress') {
       return res.status(400).json({ error: 'Issue must be in in-progress status to complete' });
     }
-    
+
     // Update issue
     issue.status = 'resolved';
     issue.completionDate = new Date();
@@ -1586,7 +1638,47 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
       issue.completionNotes = req.body.completionNotes;
     }
     await issue.save();
+
+    // Create invoice for the completed work
+    console.log(`Attempting to create invoice for issue ${issue._id}`);
+    console.log(`Issue cost: ${issue.cost}`);
+    console.log(`User company: ${user.company}`);
     
+    if (issue.cost && issue.cost > 0) {
+      console.log(`Creating invoice with amount: ${issue.cost}`);
+      
+      const invoice = new Invoice({
+        company: user.company || 'N/A',
+        associate: user._id,
+        associateName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+        title: issue.title,
+        reason: `Rešavanje kvara: ${issue.description?.substring(0, 100) || 'Servisni rad'}`,
+        amount: issue.cost,
+        date: new Date(),
+        building: issue.apartment?.building || null,
+        issue: issue._id,
+        paid: false
+      });
+      
+      console.log(`Invoice data:`, {
+        company: invoice.company,
+        associate: invoice.associate,
+        associateName: invoice.associateName,
+        title: invoice.title,
+        amount: invoice.amount
+      });
+      
+      try {
+        await invoice.save();
+        console.log(`✅ Invoice created successfully for issue ${issue._id}, Amount: ${issue.cost}`);
+      } catch (invoiceError) {
+        console.error('❌ Error creating invoice:', invoiceError);
+        // Don't fail the whole request if invoice creation fails
+      }
+    } else {
+      console.log(`❌ Invoice NOT created - cost is ${issue.cost}`);
+    }
+
     // Populate and return
     const updated = await Issue.findById(issue._id)
       .populate('apartment', 'unitNumber address')
@@ -1599,13 +1691,13 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
       })
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedTo', 'username firstName lastName email company');
-    
+
     // Flatten building
     const issueObj = updated.toObject();
     if (issueObj.apartment && issueObj.apartment.building) {
       issueObj.building = issueObj.apartment.building;
     }
-    
+
     console.log(`Issue ${issue._id} marked as complete`);
     res.json(issueObj);
   } catch (error) {
@@ -1617,22 +1709,41 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
 // ===== GET ALL ASSOCIATES (for manager/director dropdowns) =====
 app.get('/api/associates', authenticateToken, async (req, res) => {
   try {
+    console.log('\n🔍 GET /api/associates - DEBUG');
     const user = await User.findOne({ username: req.user.username });
-    
+    console.log('   Requesting user:', user?.firstName, user?.lastName, `(${user?.role})`);
+
     // Only managers and directors can view associates list
     if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+      console.log('   ❌ Access denied - user role:', user?.role);
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    console.log('   ✅ Access granted - fetching associates...');
     
-    // Get all approved associates
-    const associates = await User.find({ 
-      role: 'associate', 
-      approved: true 
-    }).select('_id username firstName lastName email company');
+    // Get all active associates (status 'active' or undefined for existing users)
+    const associates = await User.find({
+      role: 'associate',
+      $or: [
+        { status: 'active' },
+        { status: { $exists: false } },
+        { status: null }
+      ]
+    }).select('_id username firstName lastName email company status');
+
+    console.log(`   📊 Query result: ${associates.length} associates found`);
     
+    if (associates.length > 0) {
+      console.log('   Sample results:');
+      associates.slice(0, 3).forEach((assoc, index) => {
+        const name = `${assoc.firstName || ''} ${assoc.lastName || ''}`.trim();
+        console.log(`      ${index + 1}. ${name} (@${assoc.username}) - status: ${assoc.status}`);
+      });
+    }
+
     res.json(associates);
   } catch (error) {
-    console.error('Error fetching associates:', error);
+    console.error('❌ Error fetching associates:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1644,7 +1755,7 @@ app.get('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) 
     const polls = await Poll.find({ building: req.params.buildingId })
       .populate('createdBy', 'username firstName lastName')
       .sort({ createdAt: -1 });
-    
+
     res.json(polls);
   } catch (error) {
     console.error('Error fetching polls:', error);
@@ -1656,18 +1767,18 @@ app.get('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) 
 app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Only managers can create polls
     if (!user || user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can create polls' });
     }
-    
+
     const { question, options } = req.body;
-    
+
     if (!question || !options || options.length < 2) {
       return res.status(400).json({ error: 'Question and at least 2 options required' });
     }
-    
+
     const poll = await Poll.create({
       building: req.params.buildingId,
       question,
@@ -1675,10 +1786,10 @@ app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res)
       votes: [],
       createdBy: user._id
     });
-    
+
     const populated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
-    
+
     res.status(201).json(populated);
   } catch (error) {
     console.error('Error creating poll:', error);
@@ -1691,29 +1802,29 @@ app.post('/api/polls/:pollId/vote', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     const { option } = req.body;
-    
+
     if (!option) {
       return res.status(400).json({ error: 'Option is required' });
     }
-    
+
     const poll = await Poll.findById(req.params.pollId);
     if (!poll) {
       return res.status(404).json({ error: 'Poll not found' });
     }
-    
+
     // Check if already voted
     const existingVote = poll.votes.find(v => v.voter.toString() === user._id.toString());
     if (existingVote) {
       return res.status(400).json({ error: 'You have already voted on this poll' });
     }
-    
+
     // Add vote
     poll.votes.push({ option, voter: user._id });
     await poll.save();
-    
+
     const updated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
-    
+
     res.json(updated);
   } catch (error) {
     console.error('Error voting on poll:', error);
@@ -1725,23 +1836,23 @@ app.post('/api/polls/:pollId/vote', authenticateToken, async (req, res) => {
 app.post('/api/polls/:pollId/close', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Only managers can close polls
     if (!user || user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can close polls' });
     }
-    
+
     const poll = await Poll.findById(req.params.pollId);
     if (!poll) {
       return res.status(404).json({ error: 'Poll not found' });
     }
-    
+
     poll.closedAt = new Date();
     await poll.save();
-    
+
     const updated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
-    
+
     res.json(updated);
   } catch (error) {
     console.error('Error closing poll:', error);
@@ -1756,7 +1867,7 @@ app.get('/api/buildings/:buildingId/notices', authenticateToken, async (req, res
     const notices = await Notice.find({ building: req.params.buildingId })
       .populate('author', 'username firstName lastName')
       .sort({ createdAt: -1 });
-    
+
     res.json(notices);
   } catch (error) {
     console.error('Error fetching notices:', error);
@@ -1768,18 +1879,18 @@ app.get('/api/buildings/:buildingId/notices', authenticateToken, async (req, res
 app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Only managers can create notices
     if (!user || user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can create notices' });
     }
-    
+
     const { content } = req.body;
-    
+
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
     }
-    
+
     const notice = await Notice.create({
       building: req.params.buildingId,
       author: user._id,
@@ -1787,10 +1898,10 @@ app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, re
       authorRole: user.role,
       content
     });
-    
+
     const populated = await Notice.findById(notice._id)
       .populate('author', 'username firstName lastName');
-    
+
     res.status(201).json(populated);
   } catch (error) {
     console.error('Error creating notice:', error);
@@ -1802,19 +1913,19 @@ app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, re
 app.delete('/api/notices/:noticeId', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    
+
     // Only managers can delete notices
     if (!user || user.role !== 'manager') {
       return res.status(403).json({ error: 'Only managers can delete notices' });
     }
-    
+
     const notice = await Notice.findById(req.params.noticeId);
     if (!notice) {
       return res.status(404).json({ error: 'Notice not found' });
     }
-    
+
     await Notice.findByIdAndDelete(req.params.noticeId);
-    
+
     res.json({ message: 'Notice deleted successfully' });
   } catch (error) {
     console.error('Error deleting notice:', error);
@@ -1851,7 +1962,7 @@ app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
     // Find first apartment and tenant
     const apartment = await Apartment.findOne();
     const tenant = await User.findOne({ role: 'tenant' });
-    
+
     if (!apartment || !tenant) {
       return res.status(400).json({ message: 'Need at least one apartment and tenant to create issues' });
     }
@@ -1882,9 +1993,9 @@ app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
     }
 
     console.log(`Created ${createdIssues.length} test issues`);
-    res.json({ 
+    res.json({
       message: `Created ${createdIssues.length} test issues`,
-      count: createdIssues.length 
+      count: createdIssues.length
     });
   } catch (err) {
     console.error('Seed issues error:', err);
@@ -1904,7 +2015,7 @@ app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
     // Find first building and manager
     const building = await Building.findOne();
     const manager = await User.findOne({ role: 'manager' });
-    
+
     if (!building || !manager) {
       return res.status(400).json({ message: 'Need at least one building and manager to create notices' });
     }
@@ -1933,9 +2044,9 @@ app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
     }
 
     console.log(`Created ${createdNotices.length} test notices`);
-    res.json({ 
+    res.json({
       message: `Created ${createdNotices.length} test notices`,
-      count: createdNotices.length 
+      count: createdNotices.length
     });
   } catch (err) {
     console.error('Seed notices error:', err);
@@ -1946,6 +2057,10 @@ app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
 app.get('/', (req, res) => {
   res.send('Backend API is running');
 });
+
+// Register modular routes
+const invoicesRouter = require('./routes/invoices');
+app.use('/api/invoices', invoicesRouter);
 
 const PORT = process.env.PORT || 5000;
 

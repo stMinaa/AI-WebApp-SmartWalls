@@ -31,7 +31,7 @@ router.post('/', authMiddleware, requireRole('tenant'), asyncHandler(async (req,
  */
 router.get('/', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
   const issues = await issueService.getAllIssues();
-  sendSuccess(res, 200, 'Issues retrieved', issues);
+  res.json(issues);
 }));
 
 /**
@@ -116,6 +116,54 @@ router.post('/:id/acknowledge-eta', authMiddleware, requireRole('tenant'), async
 
   const result = await issueService.acknowledgeETA(req.params.id, req.user.username);
   sendSuccess(res, 200, result.message, result.issue);
+}));
+
+/**
+ * PATCH /api/issues/:id/triage
+ * Manager triages issue - assign, forward, or reject
+ */
+router.patch('/:id/triage', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
+  const { action, assignedTo, associateId, note } = req.body;
+  
+  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
+  if (!action) return sendError(res, 400, 'Action required');
+  
+  // Support both assignedTo and associateId for compatibility
+  const targetAssociate = assignedTo || associateId;
+  
+  console.log(`🎯 TRIAGE REQUEST: Issue ${req.params.id}, Action: ${action}, AssignedTo: ${targetAssociate}`);
+  
+  const Issue = require('../models/Issue');
+  const User = require('../models/User');
+  
+  const issue = await Issue.findById(req.params.id);
+  if (!issue) return sendError(res, 404, 'Issue not found');
+  
+  let updateData = {
+    triageAction: action,
+    triageNote: note || '',
+    triageDate: new Date(),
+    triageBy: req.user.username
+  };
+  
+  if (action === 'assign' && targetAssociate) {
+    // Verify associate exists
+    const associate = await User.findOne({ username: targetAssociate, role: 'associate' });
+    if (!associate) return sendError(res, 400, 'Associate not found');
+    
+    updateData.status = 'assigned';
+    updateData.assignedTo = associate._id;  // Use ObjectId, not username
+    updateData.assignedDate = new Date();
+  } else if (action === 'forward') {
+    updateData.status = 'forwarded';
+  } else if (action === 'reject') {
+    updateData.status = 'rejected';
+  }
+  
+  const updatedIssue = await Issue.findByIdAndUpdate(req.params.id, updateData, { new: true });
+  
+  console.log(`✅ TRIAGE SUCCESS: Issue ${req.params.id} ${action}ed`);
+  sendSuccess(res, 200, `Issue ${action}ed successfully`, updatedIssue);
 }));
 
 module.exports = router;

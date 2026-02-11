@@ -6,7 +6,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { JWT_SECRET, HTTP_STATUS, ERROR_MESSAGES, USER_ROLES, USER_STATUS } = require('../config/constants');
+const { JWT_SECRET, HTTP_STATUS, ERROR_MESSAGES, USER_ROLES, USER_STATUS, TOKEN_EXPIRY } = require('../config/constants');
 const { 
   validateRegistrationData, 
   validateLoginData,
@@ -84,11 +84,15 @@ async function registerUser(data) {
   // Save user
   await user.save();
 
-  // Generate token
+  // Generate token with consistent payload format
   const token = jwt.sign(
-    { username: user.username, role: user.role }, 
-    JWT_SECRET, 
-    { expiresIn: '1h' }
+    { 
+      userId: user._id,
+      username: user.username, 
+      role: user.role 
+    },
+    JWT_SECRET,
+    { expiresIn: TOKEN_EXPIRY || '1h' }
   );
 
   // Return user info without password
@@ -246,11 +250,15 @@ async function loginUser(data) {
     throw createError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
-  // Generate token
+  // Generate token with consistent payload format
   const token = jwt.sign(
-    { username: user.username, role: user.role }, 
-    JWT_SECRET, 
-    { expiresIn: '1h' }
+    { 
+      userId: user._id,
+      username: user.username, 
+      role: user.role 
+    },
+    JWT_SECRET,
+    { expiresIn: TOKEN_EXPIRY || '1h' }
   );
 
   // Return user info without password
@@ -454,7 +462,14 @@ async function getAllManagers() {
  * @returns {Promise<Array>}
  */
 async function getAllAssociates() {
-  const associates = await User.find({ role: 'associate' })
+  // Find associates that are active (either status: 'active' or status: undefined)
+  const associates = await User.find({ 
+    role: 'associate',
+    $or: [
+      { status: 'active' },
+      { status: { $exists: false } }
+    ]
+  })
     .select('username firstName lastName email mobile company specialties description website serviceAreas yearsExperience');
   return associates;
 }
