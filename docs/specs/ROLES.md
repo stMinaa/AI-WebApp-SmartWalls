@@ -718,3 +718,6 @@ PATCH /api/auth/me - update apartment.numPeople
 
 *Note: Authorization Matrix is defined above (line ~294). Development rules are in [DEVELOPMENT.md](../workflow/DEVELOPMENT.md).*
 
+---
+
+*Last updated: February 2026*

@@ -445,3 +445,6 @@ Expected:
 6. Never skip a phase
 7. Never ignore a failing test
 
+---
+
+*Last updated: February 2026*

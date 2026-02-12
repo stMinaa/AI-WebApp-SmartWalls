@@ -25,12 +25,14 @@ cd frontend && npm start
 | Category | Document | What's Inside |
 |----------|----------|---------------|
 | **Standards** | [CODE_QUALITY.md](docs/standards/CODE_QUALITY.md) | Code health rules, CodeScene CLI, pre-commit hooks, targets (score ≥ 9.0) |
+| **Standards** | [REFACTORING.md](docs/standards/REFACTORING.md) | Hexagonal architecture migration plan, SOLID principles, automated quality gates |
 | **Standards** | [UI_UX.md](docs/standards/UI_UX.md) | Full design system: colors, typography, role themes, components, accessibility |
 | **Workflow** | [DEVELOPMENT.md](docs/workflow/DEVELOPMENT.md) | TDD process (RED → GREEN → BLUE), commit rules, connectivity checks |
 | **Workflow** | [TESTING.md](docs/workflow/TESTING.md) | Phase-by-phase test specs, manual testing checklists |
 | **Specs** | [ROLES.md](docs/specs/ROLES.md) | Role system, phase breakdown, data flows, schemas, authorization matrix |
 | **Reference** | [QUICK_REF.md](docs/reference/QUICK_REF.md) | Commands, API format, curl examples, troubleshooting, common errors |
 | **Reference** | [IMPLEMENTATION.md](docs/reference/IMPLEMENTATION.md) | Component structure, auth flow, state management, server config |
+| **Reference** | [QUALITY_QUICK_REF.md](docs/reference/QUALITY_QUICK_REF.md) | Architecture test commands, quality gates, quick quality checks |
 | **Logs** | [PROJECT_LOG.md](docs/logs/PROJECT_LOG.md) | Development history, commits, problems & fixes |
 
 ---
