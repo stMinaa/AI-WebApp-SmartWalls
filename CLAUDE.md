@@ -37,6 +37,45 @@ cd frontend && npm start
 
 ---
 
+## MANDATORY: Agent & Skill System
+
+> **SVE GENERISANJE KODA IDE ISKLJUCIVO KROZ AGENTE.** Nema izuzetaka.
+
+### Agenti (pisu/analiziraju kod)
+
+| Agent | Fajl | Uloga | Pise kod? |
+|-------|------|-------|-----------|
+| **nodejs-coder** | `.claude/commands/agents/nodejs-coder.md` | Backend implementacija, striktni TDD | **DA - JEDINI za backend** |
+| **react-coder** | `.claude/commands/agents/react-coder.md` | Frontend implementacija, TDD | **DA - JEDINI za frontend** |
+| **backend-architect** | `.claude/commands/agents/backend-architect.md` | Hexagonalna arhitektura, konsultant | NE - samo preporuke |
+| **code-quality-reviewer** | `.claude/commands/agents/code-quality-reviewer.md` | SOLID, kompleksnost, code smells | NE - samo review |
+| **database-architect** | `.claude/commands/agents/database-architect.md` | Sheme, migracije, rollback | NE - samo plan |
+
+### Skillovi (orkestriraju agente)
+
+| Skill | Komanda | Poziva agenta | Kada se koristi |
+|-------|---------|---------------|-----------------|
+| **TDD Workflow** | `/tdd` | nodejs-coder ILI react-coder | Bug fix, novi feature |
+| **API Design** | `/api-design` | backend-architect → nodejs-coder | Novi/promenjen endpoint |
+| **Code Quality** | `/quality` | code-quality-reviewer | Refaktoring, review, pre-commit |
+| **DB Migration** | `/db-migration` | database-architect → nodejs-coder | Promena sheme (RETKO) |
+| **Documentation** | `/documenting` | - | Novi modul, feature, arhitektura |
+| **Feature Spec** | `/spec` | - | Pregled specifikacije rola |
+
+### Rutiranje (OBAVEZNO)
+
+```
+Backend kod (routes, services, models, tests) → nodejs-coder (TDD: RED→GREEN→BLUE)
+Frontend kod (components, dashboards, styles)  → react-coder  (TDD: RED→GREEN→BLUE)
+Arhitekturna pitanja                           → backend-architect (samo preporuke)
+Code review / refaktoring                      → code-quality-reviewer (samo analiza)
+DB shema promena                               → database-architect (samo plan)
+```
+
+**ZLATNO PRAVILO:** nodejs-coder i react-coder NE SMEJU da pisu produkcijski kod dok ne napisu testove koji PADAJU (RED faza).
+
+---
+
 ## Critical Rules (Details in Linked Docs)
 
 ### TDD Workflow → [DEVELOPMENT.md](docs/workflow/DEVELOPMENT.md)
@@ -80,7 +119,14 @@ project/
 │   ├── logs/              - PROJECT_LOG
 │   └── archive/           - Historical docs
 └── .claude/
-    └── commands/          - Slash command skills (quality, tdd, spec)
+    └── commands/
+        ├── agents/        - Agent instrukcije (nodejs-coder, react-coder, backend-architect, code-quality-reviewer, database-architect)
+        ├── tdd.md         - TDD Workflow skill
+        ├── api-design.md  - API Design skill
+        ├── quality.md     - Code Quality skill
+        ├── db-migration.md - DB Migration skill
+        ├── documenting.md - Documentation skill
+        └── spec.md        - Feature Specification skill
 ```
 
 ---
@@ -90,8 +136,9 @@ project/
 1. **Read** the role spec → `docs/specs/ROLES.md`
 2. **Check** test requirements → `docs/workflow/TESTING.md`
 3. **Follow** TDD process → `docs/workflow/DEVELOPMENT.md`
-4. **Verify** code quality → `cs delta --staged`
-5. **Update** project log → `docs/logs/PROJECT_LOG.md`
+4. **Use agents** → Backend: nodejs-coder | Frontend: react-coder
+5. **Verify** code quality → `/quality` or `cs delta --staged`
+6. **Update** project log → `docs/logs/PROJECT_LOG.md`
 
 ---
 

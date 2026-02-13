@@ -1,40 +1,73 @@
-# TDD Workflow
+# Skill: TDD Workflow
 
-Load and follow the TDD workflow from `docs/workflow/DEVELOPMENT.md`.
+> Orkestrator za TDD proces. Aktivira se za bug fixes i nove funkcionalnosti.
+> Zna kog agenta da pozove za koji deo sistema.
 
-## Process
+---
 
-1. **RED Phase** - Write failing tests first
-   - Create test file in `backend/test/`
-   - Run `npm test` to confirm tests fail
-   - Optional commit: `[RED] Add tests for [feature]`
+## Kako radi ovaj skill
 
-2. **GREEN Phase** - Minimal implementation
-   - Only implement what tests require
-   - Run `npm test` to confirm tests pass
-   - Verify connectivity (Backend + MongoDB + Frontend)
-   - Required commit: `[GREEN] Implement [feature]`
+Kada se aktivira `/tdd`, ovaj skill:
+1. Utvrdi da li je zadatak **backend** ili **frontend**
+2. Pozove odgovarajuceg agenta
+3. Prati TDD proces RED → GREEN → BLUE
 
-3. **BLUE Phase** - Refactor (optional)
-   - All tests must stay passing
-   - No behavior changes
-   - Optional commit: `[BLUE] Refactor [what]`
+## Rutiranje
 
-## Before Every Commit
+### Backend zadatak?
+**Ucitaj i prati instrukcije iz:** `.claude/commands/agents/nodejs-coder.md`
 
+Prepoznajes backend zadatak po:
+- Rad na fajlovima u `backend/` direktorijumu
+- API endpointi, rute, servisi, modeli
+- MongoDB operacije
+- Testovi u `backend/test/`
+
+### Frontend zadatak?
+**Ucitaj i prati instrukcije iz:** `.claude/commands/agents/react-coder.md`
+
+Prepoznajes frontend zadatak po:
+- Rad na fajlovima u `frontend/src/`
+- React komponente, Dashboard-ovi
+- UI/UX promene, stilovi
+- Korisnicko okruzenje
+
+## TDD Proces (RED → GREEN → BLUE)
+
+### 1. RED - Napisi testove PRVO
 ```bash
-npm test                    # All tests passing
-cs delta --staged           # CodeScene score >= 8.0
-node index.js               # Backend starts
+# Backend
+cd backend && npm test -- --testPathPattern="<test-file>"
+
+# Frontend
+cd frontend && npm test -- --testPathPattern="<test-file>"
+```
+- Testovi MORAJU da padnu. Ako prolaze - testovi su losi.
+- NE NASTAVLJAJ dok ne potvrds da testovi padaju.
+
+### 2. GREEN - Minimalna implementacija
+- Napisi SAMO kod koji testovi zahtevaju
+- Pokreni testove - moraju da prodju
+- Nema bonus funkcionalnosti
+
+### 3. BLUE - Refaktoring (opciono)
+- Testovi ostaju zeleni
+- Poboljsaj strukturu, ne ponasanje
+
+## Pre zavrsetka - pozovi druge skillove
+
+```
+/quality    - Proveri kvalitet napisanog koda
 ```
 
 ## Connectivity Checklist
 
-- [ ] Backend starts without errors
-- [ ] MongoDB connection confirmed
-- [ ] Frontend can reach backend
-- [ ] No CORS errors
+- [ ] Backend starts: `cd backend && node index.js`
+- [ ] MongoDB: "MONGO RUNNING" poruka
+- [ ] Frontend: `cd frontend && npm start`
+- [ ] Nema CORS gresaka
 
-## Reference
+## Referentni dokumenti
 
-Full details: [docs/workflow/DEVELOPMENT.md](../docs/workflow/DEVELOPMENT.md)
+- `docs/workflow/DEVELOPMENT.md` - Puni TDD proces
+- `docs/workflow/TESTING.md` - Test specifikacije po fazama
