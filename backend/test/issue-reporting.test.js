@@ -9,6 +9,7 @@ const {
   createBuilding, assignManager, createApartment,
   assignTenant
 } = require('./helpers');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 jest.setTimeout(60000);
 
@@ -59,16 +60,17 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: 'Broken faucet', description: 'Kitchen faucet is leaking water', priority: 'high' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.issue).toBeDefined();
-      expect(res.body.issue.title).toBe('Broken faucet');
-      expect(res.body.issue.description).toBe('Kitchen faucet is leaking water');
-      expect(res.body.issue.priority).toBe('high');
-      expect(res.body.issue.status).toBe('reported');
-      expect(res.body.issue.createdBy.toString()).toBe(ctx.tenant1Id.toString());
-      expect(res.body.issue.building.toString()).toBe(ctx.building);
-      expect(res.body.issue.apartment.toString()).toBe(ctx.apartment1);
-      expect(res.body.issue.createdAt).toBeDefined();
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.issue).toBeDefined();
+      expect(data.issue.title).toBe('Broken faucet');
+      expect(data.issue.description).toBe('Kitchen faucet is leaking water');
+      expect(data.issue.priority).toBe('high');
+      expect(data.issue.status).toBe('reported');
+      expect(data.issue.createdBy.toString()).toBe(ctx.tenant1Id.toString());
+      expect(data.issue.building.toString()).toBe(ctx.building);
+      expect(data.issue.apartment.toString()).toBe(ctx.apartment1);
+      expect(data.issue.createdAt).toBeDefined();
     });
 
     it('should default priority to medium if not provided', async () => {
@@ -77,8 +79,9 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: 'Minor issue', description: 'Light bulb needs replacement' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.issue.priority).toBe('medium');
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.issue.priority).toBe('medium');
     });
 
     it('should return 400 if title is missing', async () => {
@@ -87,7 +90,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ description: 'Some description' });
 
-      expect(res.status).toBe(400);
+      assertError(res, 400);
       expect(res.body.error).toContain('Title');
     });
 
@@ -97,7 +100,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: 'Some title' });
 
-      expect(res.status).toBe(400);
+      assertError(res, 400);
       expect(res.body.error).toContain('Description');
     });
 
@@ -107,7 +110,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: 'Test issue', description: 'Test description', priority: 'critical' });
 
-      expect(res.status).toBe(400);
+      assertError(res, 400);
       expect(res.body.error).toMatch(/priority/i);
     });
 
@@ -117,7 +120,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant2Token}`)
         .send({ title: 'Test issue', description: 'Test description' });
 
-      expect(res.status).toBe(404);
+      assertError(res, 404);
       expect(res.body.error).toMatch(/not assigned/i);
     });
 
@@ -126,7 +129,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .post('/api/issues')
         .send({ title: 'Test issue', description: 'Test description' });
 
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 403 if user is not a tenant', async () => {
@@ -135,7 +138,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.managerToken}`)
         .send({ title: 'Test issue', description: 'Test description' });
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
       expect(res.body.error).toMatch(/Only tenants/i);
     });
 
@@ -150,9 +153,9 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: 'Issue 2', description: 'Description 2', priority: 'high' });
 
-      expect(res1.status).toBe(201);
-      expect(res2.status).toBe(201);
-      expect(res1.body.issue._id).not.toBe(res2.body.issue._id);
+      assertSuccess(res1, 201);
+      assertSuccess(res2, 201);
+      expect(getData(res1).issue._id).not.toBe(getData(res2).issue._id);
 
       const issueCount = await Issue.countDocuments({ createdBy: ctx.tenant1Id });
       expect(issueCount).toBe(2);
@@ -164,9 +167,10 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`)
         .send({ title: '  Broken window  ', description: '  Window is cracked  ' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.issue.title).toBe('Broken window');
-      expect(res.body.issue.description).toBe('Window is cracked');
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.issue.title).toBe('Broken window');
+      expect(data.issue.description).toBe('Window is cracked');
     });
   });
 });

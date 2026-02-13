@@ -1,0 +1,173 @@
+name: Quality & Architecture Checks
+
+on:
+  push:
+    branches: [main, develop, refactor/*, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-quality:
+    name: Backend Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for CodeScene
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run ESLint
+        run: npm run lint
+      
+      - name: Check dependency boundaries
+        run: npm run deps:check
+        continue-on-error: false
+      
+      - name: Run architectural tests
+        run: npm run test:arch
+      
+      - name: Run unit tests
+        run: npm test
+        env:
+          CI: true
+      
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+        if: always()
+  
+  frontend-quality:
+    name: Frontend Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm install
+      
+      - name: Run ESLint
+        working-directory: ./frontend
+        run: npm run lint
+      
+      - name: Run tests with coverage
+        working-directory: ./frontend
+        run: npm run test:coverage
+        env:
+          CI: true
+      
+      - name: Build production bundle
+        working-directory: ./frontend
+        run: npm run build
+      
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+        if: always()
+  
+  architecture-visualization:
+    name: Generate Architecture Diagram
+    runs-on: ubuntu-latest
+    needs: [backend-quality]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Install Graphviz
+        run: sudo apt-get install -y graphviz
+      
+      - name: Generate dependency graph
+        run: npm run deps:graph
+        continue-on-error: true
+      
+      - name: Upload dependency graph
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-graph
+          path: dependency-graph.svg
+          retention-days: 30
+        if: always()
+  
+  codescene-analysis:
+    name: CodeScene Code Health
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install CodeScene CLI
+        run: |
+          npm install -g codescene-enterprise-cli
+          # Or use Docker version:
+          # docker pull codescene/cs-cli
+      
+      - name: Run CodeScene analysis
+        run: cs delta --error-on-warnings
+        continue-on-error: true
+        env:
+          CODESCENE_API_TOKEN: ${{ secrets.CODESCENE_API_TOKEN }}
+  
+  quality-gate:
+    name: Quality Gate Summary
+    runs-on: ubuntu-latest
+    needs: [backend-quality, frontend-quality, architecture-visualization]
+    if: always()
+    
+    steps:
+      - name: Check job status
+        run: |
+          echo "🔍 Quality Gate Results:"
+          echo "Backend Quality: ${{ needs.backend-quality.result }}"
+          echo "Frontend Quality: ${{ needs.frontend-quality.result }}"
+          echo "Architecture Visualization: ${{ needs.architecture-visualization.result }}"
+          
+          if [ "${{ needs.backend-quality.result }}" != "success" ] || \
+             [ "${{ needs.frontend-quality.result }}" != "success" ]; then
+            echo "❌ Quality gate FAILED"
+            exit 1
+          else
+            echo "✅ Quality gate PASSED"
+          fi

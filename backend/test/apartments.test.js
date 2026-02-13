@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const { connectTestDB, disconnectTestDB } = require('./setup');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 let app;
 
@@ -39,30 +40,14 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         lastName: 'Ector',
         role: 'director'
       });
-    directorToken = directorRes.body.token;
-    directorId = directorRes.body.user._id;
-
-    // Create manager
-    const managerRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'manager1',
-        email: 'manager1@test.com',
-        password: 'pass123',
+    directorToken = getData(directorRes).token;
+    directorId = getData(directorRes).user._id;
         firstName: 'Man',
         lastName: 'Ager',
         role: 'manager'
       });
-    managerToken = managerRes.body.token;
-    managerId = managerRes.body.user._id;
-
-    // Approve manager
-    await request(app)
-      .patch(`/api/users/${managerId}/approve`)
-      .set('Authorization', `Bearer ${directorToken}`);
-
-    // Create tenant
-    const tenantRes = await request(app)
+    managerToken = getData(managerRes).token;
+    managerId = getData(managerRes).user._id;
       .post('/api/auth/signup')
       .send({
         username: 'tenant1',
@@ -72,15 +57,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         lastName: 'Ant',
         role: 'tenant'
       });
-    tenantToken = tenantRes.body.token;
-
-    // Create building
-    const buildingRes = await request(app)
-      .post('/api/buildings')
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({ name: 'Test Building', address: '123 Main St' });
-    buildingId = buildingRes.body._id;
-
+    tenantToken = getData(tenantRes).token;
     // Assign manager to building
     await request(app)
       .patch(`/api/buildings/${buildingId}/assign-manager`)
@@ -95,9 +72,10 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ floors: 3, unitsPerFloor: 4 });
 
-      expect(res.status).toBe(201);
-      expect(res.body.message).toMatch(/created/i);
-      expect(res.body.count).toBe(12); // 3 floors × 4 units
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.message).toMatch(/created/i);
+      expect(data.count).toBe(12); // 3 floors × 4 units
 
       // Verify in database
       const apartments = await Apartment.find({ building: buildingId });
@@ -117,8 +95,9 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ floorsSpec: '2,3,5' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.count).toBe(10); // Floor 2: 4 units, Floor 3: 4 units, Floor 5: 2 units
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.count).toBe(10); // Floor 2: 4 units, Floor 3: 4 units, Floor 5: 2 units
 
       const apartments = await Apartment.find({ building: buildingId });
       expect(apartments.length).toBe(10);
@@ -145,7 +124,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ floors: 1, unitsPerFloor: 1 });
 
-      expect(res.status).toBe(400);
+      assertError(res, 400);
       expect(res.body.error).toMatch(/already has apartments/i);
     });
 
@@ -154,7 +133,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .post(`/api/buildings/${buildingId}/apartments/bulk`)
         .send({ floors: 2, unitsPerFloor: 2 });
 
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 403 if user is not manager or director', async () => {
@@ -163,7 +142,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${tenantToken}`)
         .send({ floors: 2, unitsPerFloor: 2 });
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
 
     it('should return 404 if building not found', async () => {
@@ -173,7 +152,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ floors: 2, unitsPerFloor: 2 });
 
-      expect(res.status).toBe(404);
+      assertError(res, 404);
     });
   });
 
@@ -184,13 +163,14 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ unitNumber: 'A1', address: '123 Main St, Unit A1' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.unitNumber).toBe('A1');
-      expect(res.body.building).toBe(buildingId);
-      expect(res.body.address).toBe('123 Main St, Unit A1');
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data.unitNumber).toBe('A1');
+      expect(data.building).toBe(buildingId);
+      expect(data.address).toBe('123 Main St, Unit A1');
 
       // Verify in database
-      const apartment = await Apartment.findById(res.body._id);
+      const apartment = await Apartment.findById(data._id);
       expect(apartment).toBeTruthy();
       expect(apartment.unitNumber).toBe('A1');
     });
@@ -201,7 +181,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ address: '123 Main St' });
 
-      expect(res.status).toBe(400);
+      assertError(res, 400);
       expect(res.body.error).toMatch(/unitNumber.*required/i);
     });
 
@@ -210,7 +190,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .post(`/api/buildings/${buildingId}/apartments`)
         .send({ unitNumber: 'A1' });
 
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 403 if user is not manager or director', async () => {
@@ -219,7 +199,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .set('Authorization', `Bearer ${tenantToken}`)
         .send({ unitNumber: 'A1' });
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
   });
 
@@ -238,11 +218,12 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .get(`/api/buildings/${buildingId}/apartments`)
         .set('Authorization', `Bearer ${managerToken}`);
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(3);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(3);
       
-      const unitNumbers = res.body.map(a => a.unitNumber).sort();
+      const unitNumbers = data.map(a => a.unitNumber).sort();
       expect(unitNumbers).toEqual(['101', '102', '201']);
     });
 
@@ -250,7 +231,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
       const res = await request(app)
         .get(`/api/buildings/${buildingId}/apartments`);
 
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 404 if building not found', async () => {
@@ -259,7 +240,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .get(`/api/buildings/${fakeId}/apartments`)
         .set('Authorization', `Bearer ${managerToken}`);
 
-      expect(res.status).toBe(404);
+      assertError(res, 404);
     });
   });
 });

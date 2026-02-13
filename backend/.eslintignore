@@ -1,0 +1,54 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Legacy files (during migration)
+# Remove these lines after completing refactoring
+check-*.js
+create-*.js
+debug-*.js
+direct-*.js
+find-*.js
+fix-*.js
+force-*.js
+full-*.js
+index_complex.js
+index-refactored.js
+minimal-*.js
+perf-test.js
+quick-*.js
+reset-*.js
+seed-*.js
+setup-*.js
+super-*.js
+test-*.js
+try-*.js
+update-*.js
+users.js
+
+# Test files (checked separately)
+*.test.js
+*.spec.js
+test/
+
+# Scripts
+bin/
+profiles/

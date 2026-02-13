@@ -9,6 +9,7 @@ const {
   createBuilding, assignManager, createApartment,
   assignTenant, createIssue
 } = require('./helpers');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 jest.setTimeout(60000);
 
@@ -68,10 +69,11 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(2);
-      expect(res.body.every(job => job.assignedTo._id === ctx.associate1Id)).toBe(true);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(2);
+      expect(data.every(job => job.assignedTo._id === ctx.associate1Id)).toBe(true);
     });
 
     it('should populate apartment and building details', async () => {
@@ -79,8 +81,9 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      const job = res.body[0];
+      assertSuccess(res, 200);
+      const data = getData(res);
+      const job = data[0];
       expect(job.apartment).toBeDefined();
       expect(job.apartment.unitNumber).toBe('101');
       expect(job.building).toBeDefined();
@@ -92,8 +95,9 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      const job = res.body[0];
+      assertSuccess(res, 200);
+      const data = getData(res);
+      const job = data[0];
       expect(job.createdBy).toBeDefined();
       expect(job.createdBy.firstName).toBe('Tenant');
       expect(job.createdBy.lastName).toBe('One');
@@ -107,9 +111,10 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs?status=assigned')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].status).toBe('assigned');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(1);
+      expect(data[0].status).toBe('assigned');
     });
 
     it('should filter jobs by priority (query param)', async () => {
@@ -117,9 +122,10 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs?priority=high')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].priority).toBe('high');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(1);
+      expect(data[0].priority).toBe('high');
     });
 
     it('should sort jobs by newest first (default)', async () => {
@@ -127,9 +133,10 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(2);
-      const dates = res.body.map(j => new Date(j.createdAt).getTime());
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(2);
+      const dates = data.map(j => new Date(j.createdAt).getTime());
       expect(dates[0]).toBeGreaterThanOrEqual(dates[1]);
     });
 
@@ -138,14 +145,15 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate2Token}`);
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(0);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(0);
     });
 
     it('should return 401 if not authenticated', async () => {
       const res = await request(app).get('/api/associates/me/jobs');
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 403 if user is not an associate', async () => {
@@ -153,8 +161,7 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.directorToken}`);
 
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe('Only associates can view their jobs');
+      assertError(res, 403, 'Only associates can view their jobs');
     });
 
     it('should include all job fields', async () => {
@@ -162,8 +169,9 @@ describe('Phase 4.1: Associate Views Assigned Jobs', () => {
         .get('/api/associates/me/jobs')
         .set('Authorization', `Bearer ${ctx.associate1Token}`);
 
-      expect(res.status).toBe(200);
-      const job = res.body[0];
+      assertSuccess(res, 200);
+      const data = getData(res);
+      const job = data[0];
       expect(job._id).toBeDefined();
       expect(job.title).toBeDefined();
       expect(job.description).toBeDefined();

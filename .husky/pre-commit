@@ -1,4 +1,27 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-node .husky/pre-commit-check.js
+echo "🔍 Running quality checks..."
+echo ""
+
+# Frontend build check
+echo "📦 Checking frontend build..."
+node .husky/pre-commit-check.js || exit 1
+
+# ═══════════════════════════════════════════════════════════════
+# ARCHITECTURAL CHECKS (Optional during pre-refactoring phase)
+# Uncomment these when starting hexagonal architecture migration
+# ═══════════════════════════════════════════════════════════════
+
+# echo ""
+# echo "🏛️  Running architectural tests..."
+# npm run test:arch || exit 1
+
+# echo ""
+# echo "✨ Linting backend code..."
+# npm run lint || exit 1
+
+echo ""
+echo "✅ All checks passed!"
+echo ""
+echo "💡 Tip: Run 'npm run quality' manually to check architecture"

@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const User = require('../backend/models/User');
 const Building = require('../backend/models/Building');
+const { getData, assertSuccess, assertError } = require('../backend/test/helpers/responseHelpers');
 
 let app;
 let mongoServer;
@@ -64,7 +65,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         role: 'director'
       });
     
-    directorId = directorRes.body.user._id;
+    directorId = getData(directorRes).user._id;
 
     // Login as director
     const directorLogin = await request(app)
@@ -74,7 +75,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         password: 'pass123'
       });
     
-    directorToken = directorLogin.body.token;
+    directorToken = getData(directorLogin).token;
 
     // Create manager
     const managerRes = await request(app)
@@ -88,7 +89,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         role: 'manager'
       });
     
-    managerId = managerRes.body.user._id;
+    managerId = getData(managerRes).user._id;
 
     // Approve manager (set status to active)
     await User.findByIdAndUpdate(managerId, { status: 'active' });
@@ -101,7 +102,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         password: 'pass123'
       });
     
-    managerToken = managerLogin.body.token;
+    managerToken = getData(managerLogin).token;
 
     // Create buildings and assign to manager
     const building1 = await request(app)
@@ -112,7 +113,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         address: 'Address A'
       });
     
-    building1Id = building1.body._id;
+    building1Id = getData(building1)._id;
 
     const building2 = await request(app)
       .post('/api/buildings')
@@ -122,7 +123,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         address: 'Address B'
       });
     
-    building2Id = building2.body._id;
+    building2Id = getData(building2)._id;
 
     // Assign both buildings to manager
     await request(app)
@@ -148,11 +149,12 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         .get('/api/buildings/managed')
         .set('Authorization', `Bearer ${managerToken}`);
 
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBe(2);
+      assertSuccess(response, 200);
+      const data = getData(response);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(2);
       
-      const buildingNames = response.body.map(b => b.name).sort();
+      const buildingNames = data.map(b => b.name).sort();
       expect(buildingNames).toEqual(['Building A', 'Building B']);
     });
 
@@ -167,7 +169,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
           role: 'manager'
         });
 
-      await User.findByIdAndUpdate(manager2Res.body.user._id, { status: 'active' });
+      await User.findByIdAndUpdate(getData(manager2Res).user._id, { status: 'active' });
 
       const manager2Login = await request(app)
         .post('/api/auth/login')
@@ -178,18 +180,19 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
 
       const response = await request(app)
         .get('/api/buildings/managed')
-        .set('Authorization', `Bearer ${manager2Login.body.token}`);
+        .set('Authorization', `Bearer ${getData(manager2Login).token}`);
 
-      expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBe(0);
+      assertSuccess(response, 200);
+      const data = getData(response);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(0);
     });
 
     it('should return 401 if not authenticated', async () => {
       const response = await request(app)
         .get('/api/buildings/managed');
 
-      expect(response.status).toBe(401);
+      assertError(response, 401);
     });
 
     it('should return 403 if user is not a manager', async () => {
@@ -198,7 +201,7 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         .get('/api/buildings/managed')
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(response.status).toBe(403);
+      assertError(response, 403);
     });
 
     it('should populate manager field in response', async () => {
@@ -206,10 +209,11 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         .get('/api/buildings/managed')
         .set('Authorization', `Bearer ${managerToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body[0].manager).toBeDefined();
-      expect(response.body[0].manager._id).toBe(managerId);
-      expect(response.body[0].manager.firstName).toBe('Test');
+      assertSuccess(response, 200);
+      const data = getData(response);
+      expect(data[0].manager).toBeDefined();
+      expect(data[0].manager._id).toBe(managerId);
+      expect(data[0].manager.firstName).toBe('Test');
     });
 
     it('should include apartment count for each building', async () => {
@@ -217,11 +221,12 @@ describe('Phase 2.1: Manager Views Assigned Buildings', () => {
         .get('/api/buildings/managed')
         .set('Authorization', `Bearer ${managerToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body[0]).toHaveProperty('apartmentCount');
-      expect(typeof response.body[0].apartmentCount).toBe('number');
+      assertSuccess(response, 200);
+      const data = getData(response);
+      expect(data[0]).toHaveProperty('apartmentCount');
+      expect(typeof data[0].apartmentCount).toBe('number');
       // Should be 0 since we haven't created any apartments yet
-      expect(response.body[0].apartmentCount).toBe(0);
+      expect(data[0].apartmentCount).toBe(0);
     });
   });
 });

@@ -9,6 +9,7 @@ const {
   createBuilding, assignManager, createApartment,
   assignTenant, createIssue
 } = require('./helpers');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 jest.setTimeout(60000);
 
@@ -63,11 +64,12 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(2);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(2);
 
-      const issueTitles = res.body.map(i => i.title);
+      const issueTitles = data.map(i => i.title);
       expect(issueTitles).toContain('Broken faucet');
       expect(issueTitles).toContain('Light bulb out');
       expect(issueTitles).not.toContain('Heating not working');
@@ -78,11 +80,12 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body[0].apartment).toBeDefined();
-      expect(res.body[0].apartment.unitNumber).toBe('101');
-      expect(res.body[0].building).toBeDefined();
-      expect(res.body[0].building.name).toBe('Test Building');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data[0].apartment).toBeDefined();
+      expect(data[0].apartment.unitNumber).toBe('101');
+      expect(data[0].building).toBeDefined();
+      expect(data[0].building.name).toBe('Test Building');
     });
 
     it('should filter issues by status', async () => {
@@ -92,10 +95,11 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my?status=reported')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].title).toBe('Light bulb out');
-      expect(res.body[0].status).toBe('reported');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(1);
+      expect(data[0].title).toBe('Light bulb out');
+      expect(data[0].status).toBe('reported');
     });
 
     it('should filter issues by priority', async () => {
@@ -103,10 +107,11 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my?priority=high')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].title).toBe('Broken faucet');
-      expect(res.body[0].priority).toBe('high');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(1);
+      expect(data[0].title).toBe('Broken faucet');
+      expect(data[0].priority).toBe('high');
     });
 
     it('should sort issues by newest first (default)', async () => {
@@ -114,10 +119,11 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.length).toBe(2);
-      expect(res.body[0].title).toBe('Light bulb out');
-      expect(res.body[1].title).toBe('Broken faucet');
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.length).toBe(2);
+      expect(data[0].title).toBe('Light bulb out');
+      expect(data[1].title).toBe('Broken faucet');
     });
 
     it('should return empty array if tenant has no issues', async () => {
@@ -127,13 +133,14 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ten3.token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual([]);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data).toEqual([]);
     });
 
     it('should return 401 if not authenticated', async () => {
       const res = await request(app).get('/api/issues/my');
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     it('should return 403 if user is not a tenant', async () => {
@@ -141,7 +148,7 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ctx.managerToken}`);
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
       expect(res.body.error).toMatch(/Only tenants/i);
     });
 
@@ -150,8 +157,9 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
-      expect(res.status).toBe(200);
-      const issue = res.body[0];
+      assertSuccess(res, 200);
+      const data = getData(res);
+      const issue = data[0];
       expect(issue._id).toBeDefined();
       expect(issue.title).toBeDefined();
       expect(issue.description).toBeDefined();
@@ -167,8 +175,9 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .get('/api/issues/my')
         .set('Authorization', `Bearer ${ten3.token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual([]);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data).toEqual([]);
     });
   });
 });

@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const { connectTestDB, disconnectTestDB } = require('./setup');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 beforeAll(async () => {
   await connectTestDB();
@@ -36,7 +37,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         role: 'director'
       });
     
-    directorId = directorRes.body.user._id;
+    directorId = getData(directorRes).user._id;
 
     const directorLogin = await request(app)
       .post('/api/auth/login')
@@ -44,7 +45,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         username: 'director1',
         password: 'password123'
       });
-    directorToken = directorLogin.body.token;
+    directorToken = getData(directorLogin).token;
 
     // Verify director
     const director = await User.findById(directorId);
@@ -60,7 +61,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         lastName: 'One',
         role: 'manager'
       });
-    managerId = managerRes.body.user._id;
+    managerId = getData(managerRes).user._id;
 
     const approveRes = await request(app)
       .patch(`/api/users/${managerId}/approve`)
@@ -72,7 +73,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         username: 'manager1',
         password: 'password123'
       });
-    managerToken = managerLogin.body.token;
+    managerToken = getData(managerLogin).token;
 
     // Create building and assign manager
     const buildingRes = await request(app)
@@ -82,7 +83,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         name: 'Test Building',
         address: '123 Main St'
       });
-    buildingId = buildingRes.body._id;
+    buildingId = getData(buildingRes)._id;
 
     await request(app)
       .patch(`/api/buildings/${buildingId}/assign-manager`)
@@ -97,7 +98,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         unitNumber: '101',
         address: '123 Main St, Unit 101'
       });
-    apartmentId = apartmentRes.body._id;
+    apartmentId = getData(apartmentRes)._id;
 
     // Create tenant
     const tenantRes = await request(app)
@@ -110,7 +111,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         lastName: 'One',
         role: 'tenant'
       });
-    tenantId = tenantRes.body.user._id;
+    tenantId = getData(tenantRes).user._id;
 
     const tenantLogin = await request(app)
       .post('/api/auth/login')
@@ -118,7 +119,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         username: 'tenant1',
         password: 'password123'
       });
-    tenantToken = tenantLogin.body.token;
+    tenantToken = getData(tenantLogin).token;
   });
 
   describe('POST /api/tenants/:id/assign', () => {
@@ -132,7 +133,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
           numPeople: 3
         });
 
-      expect(res.status).toBe(200);
+      assertSuccess(res, 200);
       expect(res.body.message).toBe('Tenant assigned successfully');
 
       // Verify tenant updated
@@ -167,7 +168,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
           numPeople: 4
         });
 
-      expect(res.status).toBe(200);
+      assertSuccess(res, 200);
 
       const apartment = await Apartment.findById(apartmentId);
       expect(apartment.numPeople).toBe(4);
@@ -182,7 +183,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
           unitNumber: '102',
           address: '123 Main St, Unit 102'
         });
-      const apartment2Id = apartment2Res.body._id;
+      const apartment2Id = getData(apartment2Res)._id;
 
       // First assignment to apartment 1
       await request(app)

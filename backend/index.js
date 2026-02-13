@@ -4,12 +4,23 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const ApiResponse = require('./utils/ApiResponse');
+const {
+  JWT_SECRET,
+  USER_ROLES,
+  USER_STATUS,
+  ISSUE_STATUS,
+  PRIORITY_LEVELS,
+  NODE_ENV,
+  VALIDATION_RULES,
+  HTTP_STATUS,
+  ERROR_MESSAGES,
+} = require('./config/constants');
 
 const app = express();
 
 // MongoDB connection string (hardcoded for simplicity)
 const MONGO_URI = 'mongodb+srv://minastankovic111_db_user:XcZ45WFEEOnILNJu@cluster0.2lelkqq.mongodb.net/tennetdb?retryWrites=true&w=majority&appName=Cluster0';
-const JWT_SECRET = 'your_secret_key_here';
 
 // Import models
 const User = require('./models/User');
@@ -25,7 +36,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB (skip in test environment)
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== NODE_ENV.TEST) {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MONGO RUNNING - Connected to MongoDB'))
     .catch(err => {
@@ -40,12 +51,12 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) {
     console.log('❌ authenticateToken: No token provided');
-    return res.status(401).json({ message: 'Token required' });
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({ message: ERROR_MESSAGES.TOKEN_REQUIRED });
   }
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       console.log('❌ authenticateToken: Invalid token', err.message);
-      return res.status(403).json({ message: 'Invalid or expired token' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ message: ERROR_MESSAGES.TOKEN_INVALID });
     }
     req.user = user;
     next();
@@ -67,20 +78,20 @@ function hasRequiredSignupFields(username, email, password) {
  */
 function validateSignupInput(username, email, password, role) {
   if (!hasRequiredSignupFields(username, email, password)) {
-    return { valid: false, status: 400, message: 'Username, email, and password are required' };
+    return { valid: false, status: HTTP_STATUS.BAD_REQUEST, message: ERROR_MESSAGES.USERNAME_EMAIL_PASSWORD_REQUIRED };
   }
 
-  if (password.length < 6) {
-    return { valid: false, status: 400, message: 'Password must be at least 6 characters' };
+  if (password.length < VALIDATION_RULES.PASSWORD_MIN_LENGTH) {
+    return { valid: false, status: HTTP_STATUS.BAD_REQUEST, message: ERROR_MESSAGES.PASSWORD_TOO_SHORT };
   }
 
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
-    return { valid: false, status: 400, message: 'Invalid email format' };
+  if (!VALIDATION_RULES.EMAIL_REGEX.test(email)) {
+    return { valid: false, status: HTTP_STATUS.BAD_REQUEST, message: ERROR_MESSAGES.INVALID_EMAIL };
   }
 
-  const validRoles = ['tenant', 'manager', 'director', 'associate'];
+  const validRoles = Object.values(USER_ROLES);
   if (role && !validRoles.includes(role)) {
-    return { valid: false, status: 400, error: 'Invalid role. Must be one of: tenant, manager, director, associate' };
+    return { valid: false, status: HTTP_STATUS.BAD_REQUEST, error: ERROR_MESSAGES.INVALID_ROLE };
   }
 
   return { valid: true };
@@ -91,10 +102,10 @@ function validateSignupInput(username, email, password, role) {
  * @private
  */
 function getUserStatusByRole(role) {
-  if (!role || role === 'director') {
-    return 'active';
+  if (!role || role === USER_ROLES.DIRECTOR) {
+    return USER_STATUS.ACTIVE;
   }
-  return 'pending';
+  return USER_STATUS.PENDING;
 }
 
 /**
@@ -124,17 +135,14 @@ app.post('/api/auth/signup', async (req, res) => {
   // Validate input
   const validation = validateSignupInput(username, email, password, role);
   if (!validation.valid) {
-    return res.status(validation.status).json({
-      message: validation.message,
-      error: validation.error
-    });
+    return ApiResponse.error(res, validation.message, validation.status, validation.error);
   }
 
   try {
     // Check if user exists
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {
-      return res.status(409).json({ message: 'Username or email already exists' });
+      return ApiResponse.conflict(res, 'Username or email already exists');
     }
 
     // Hash password
@@ -165,10 +173,10 @@ app.post('/api/auth/signup', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.status(201).json(createUserResponse(user, token));
+    return ApiResponse.created(res, createUserResponse(user, token), 'User created successfully');
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -177,20 +185,20 @@ app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required' });
+    return ApiResponse.badRequest(res, ERROR_MESSAGES.USERNAME_PASSWORD_REQUIRED);
   }
 
   try {
     // Find user by username or email
     const user = await User.findOne({ $or: [{ username }, { email: username }] });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return ApiResponse.unauthorized(res, ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return ApiResponse.unauthorized(res, ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     // Create token
@@ -200,8 +208,7 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.json({
-      message: 'Login successful',
+    return ApiResponse.success(res, {
       token,
       user: {
         username: user.username,
@@ -211,10 +218,10 @@ app.post('/api/auth/login', async (req, res) => {
         role: user.role,
         status: user.status
       }
-    });
+    }, 'Login successful');
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -223,11 +230,11 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username }).select('-password');
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
-    res.json(user);
+    return ApiResponse.success(res, user, 'User retrieved');
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -238,19 +245,19 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
     if (!user) {
       console.log('User not found:', req.user.username);
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     const { firstName, lastName, mobile, company } = req.body;
     console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile, company });
 
     // Restrict tenants from editing certain fields (future: add more restrictions if needed)
-    if (user.role === 'tenant') {
+    if (user.role === USER_ROLES.TENANT) {
       // Tenants can only update firstName, lastName, mobile - not username, email, role, etc.
       if (firstName !== undefined) user.firstName = firstName;
       if (lastName !== undefined) user.lastName = lastName;
       if (mobile !== undefined) user.mobile = mobile;
-    } else if (user.role === 'associate') {
+    } else if (user.role === USER_ROLES.ASSOCIATE) {
       // Associates can update firstName, lastName, mobile, company
       if (firstName !== undefined) user.firstName = firstName;
       if (lastName !== undefined) user.lastName = lastName;
@@ -267,10 +274,10 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
     await user.save();
     console.log('User saved successfully:', user.username);
     const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
-    res.json({ message: 'Profile updated', user: updatedUser });
+    return ApiResponse.success(res, updatedUser, 'Profile updated');
   } catch (err) {
     console.error('Error updating profile:', err);
-    res.status(500).json({ message: 'Greška pri ažuriranju profila' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_UPDATING_PROFILE);
   }
 });
 
@@ -279,17 +286,17 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     const { amount } = req.body;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Invalid payment amount' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_PAYMENT_AMOUNT);
     }
 
     if (amount > user.debt) {
-      return res.status(400).json({ message: 'Payment amount cannot exceed debt' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.PAYMENT_EXCEEDS_DEBT);
     }
 
     // Reduce debt
@@ -297,10 +304,10 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
     await user.save();
 
     const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
-    res.json({ message: 'Payment successful', user: updatedUser, remainingDebt: user.debt });
+    return ApiResponse.success(res, { user: updatedUser, remainingDebt: user.debt }, 'Payment successful');
   } catch (err) {
     console.error('Error processing payment:', err);
-    res.status(500).json({ message: 'Error processing payment' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_PROCESSING_PAYMENT);
   }
 });
 
@@ -308,28 +315,28 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
 app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
   try {
     const currentUser = await User.findOne({ username: req.user.username });
-    if (!currentUser || (currentUser.role !== 'director' && currentUser.role !== 'manager')) {
-      return res.status(403).json({ message: 'Only directors and managers can adjust debt' });
+    if (!currentUser || (currentUser.role !== USER_ROLES.DIRECTOR && currentUser.role !== USER_ROLES.MANAGER)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_ADJUST_DEBT);
     }
 
     const targetUser = await User.findById(req.params.id);
     if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     const { debt, reason } = req.body;
 
     if (debt === undefined || debt < 0) {
-      return res.status(400).json({ message: 'Invalid debt amount' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_DEBT_AMOUNT);
     }
 
     targetUser.debt = debt;
     await targetUser.save();
 
-    res.json({ message: 'Debt updated', user: targetUser, reason });
+    return ApiResponse.success(res, { user: targetUser, reason }, 'Debt updated');
   } catch (err) {
     console.error('Error updating debt:', err);
-    res.status(500).json({ message: 'Error updating debt' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_UPDATING_DEBT);
   }
 });
 
@@ -337,14 +344,14 @@ app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
 app.get('/api/users/pending', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
-      return res.status(403).json({ message: 'Only managers and directors can view pending users' });
+    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_PENDING);
     }
 
-    const query = { status: 'pending' };
+    const query = { status: USER_STATUS.PENDING };
 
     // Managers only see pending tenants for their buildings
-    if (user.role === 'manager') {
+    if (user.role === USER_ROLES.MANAGER) {
       const managedBuildings = await Building.find({ manager: user._id });
       const buildingIds = managedBuildings.map(b => b._id);
       query.building = { $in: buildingIds };
@@ -355,10 +362,10 @@ app.get('/api/users/pending', authenticateToken, async (req, res) => {
       .populate('building', 'name address')
       .sort({ createdAt: -1 });
 
-    res.json(pendingUsers);
+    return ApiResponse.success(res, pendingUsers, 'Pending users retrieved');
   } catch (err) {
     console.error('Error fetching pending users:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -370,15 +377,15 @@ app.post('/api/buildings', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== 'director') {
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
       console.log('Authorization failed - user role:', user?.role);
-      return res.status(403).json({ message: 'Only directors can create buildings' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_CREATE_BUILDINGS);
     }
 
     const { name, address, imageUrl } = req.body;
     if (!address) {
       console.log('Validation failed - no address');
-      return res.status(400).json({ message: 'Address is required' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.ADDRESS_REQUIRED);
     }
 
     const building = new Building({
@@ -390,10 +397,10 @@ app.post('/api/buildings', authenticateToken, async (req, res) => {
 
     await building.save();
     console.log('Building created:', building._id);
-    res.status(201).json(building);
+    return ApiResponse.created(res, building, 'Building created successfully');
   } catch (err) {
     console.error('Create building error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -403,9 +410,9 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== 'director') {
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
       console.log('Authorization failed - user role:', user?.role);
-      return res.status(403).json({ message: 'Only directors can view all buildings' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_BUILDINGS);
     }
 
     // Support filtering by managerId
@@ -433,10 +440,10 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
     );
 
     console.log('Returning buildings with counts');
-    res.json(buildingsWithCount);
+    return ApiResponse.success(res, buildingsWithCount, 'Buildings retrieved');
   } catch (err) {
     console.error('Get buildings error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -444,8 +451,8 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
 app.get('/api/buildings/managed', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ message: 'Only managers can view managed buildings' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_VIEW_BUILDINGS);
     }
 
     const buildings = await Building.find({ manager: user._id })
@@ -464,10 +471,10 @@ app.get('/api/buildings/managed', authenticateToken, async (req, res) => {
       })
     );
 
-    res.json(buildingsWithCount);
+    return ApiResponse.success(res, buildingsWithCount, 'Managed buildings retrieved');
   } catch (err) {
     console.error('Get managed buildings error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -479,8 +486,8 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
     console.log('Found user:', user?.username, 'Role:', user?.role);
 
     // Phase 2.5: Only managers and directors can view issues via this endpoint
-    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
-      return res.status(403).json({ error: 'Only managers and directors can view issues' });
+    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_ISSUES);
     }
 
     const { status, priority } = req.query;
@@ -490,7 +497,7 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
 
     // Managers see issues from their buildings only
     // Directors see ALL issues
-    if (user.role === 'manager') {
+    if (user.role === USER_ROLES.MANAGER) {
       const buildings = await Building.find({ manager: user._id });
       const buildingIds = buildings.map(b => b._id);
       const apartments = await Apartment.find({ building: { $in: buildingIds } });
@@ -522,10 +529,10 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
     });
 
     console.log('Returning issues:', issuesWithBuilding.length);
-    res.json(issuesWithBuilding);
+    return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved');
   } catch (err) {
     console.error('Get issues error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -534,15 +541,15 @@ app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => 
   console.log('🔍 TRIAGE REQUEST - User:', req.user?.username, 'Issue:', req.params.issueId, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'manager') {
+    if (!user || user.role !== USER_ROLES.MANAGER) {
       console.log('❌ Access denied - user role:', user?.role);
-      return res.status(403).json({ message: 'Only managers can triage issues' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_TRIAGE);
     }
 
     const issue = await Issue.findById(req.params.issueId);
     if (!issue) {
       console.log('❌ Issue not found:', req.params.issueId);
-      return res.status(404).json({ message: 'Issue not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
     }
 
     const { action, associateId, assignedTo } = req.body;
@@ -552,25 +559,25 @@ app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => 
     const updateData = { updatedAt: new Date() };
 
     if (action === 'forward') {
-      updateData.status = 'forwarded';
+      updateData.status = ISSUE_STATUS.FORWARDED;
     } else if (action === 'reject') {
-      updateData.status = 'rejected';
+      updateData.status = ISSUE_STATUS.REJECTED;
     } else if (action === 'assign' && targetAssociate) {
       // Manager assigns to associate directly - targetAssociate is username
       const associate = await User.findOne({
         username: targetAssociate,
-        role: 'associate'
+        role: USER_ROLES.ASSOCIATE
       });
       if (!associate) {
         console.log('❌ Associate not found:', targetAssociate);
-        return res.status(400).json({ message: 'Invalid associate' });
+        return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ASSOCIATE);
       }
       updateData.assignedTo = associate._id;
-      updateData.status = 'assigned';
+      updateData.status = ISSUE_STATUS.ASSIGNED;
       console.log('✅ Assigning to associate:', associate.username, associate._id);
     } else {
       console.log('❌ Invalid action or missing associate:', action, targetAssociate);
-      return res.status(400).json({ message: 'Invalid action' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
     }
 
     // Simply update and return without populate to avoid errors
@@ -581,14 +588,11 @@ app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => 
     );
 
     console.log('✅ Issue triaged successfully:', req.params.issueId, 'Action:', action);
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Issue triaged successfully');
   } catch (err) {
     console.error('❌ Triage issue error:', err.message);
     console.error('❌ Full error:', err);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: err.message 
-    });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, err.message);
   }
 });
 
@@ -597,13 +601,13 @@ app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => 
   console.log('PATCH /api/issues/:issueId/assign - User:', req.user?.username, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can assign issues' });
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS);
     }
 
     const issue = await Issue.findById(req.params.issueId);
     if (!issue) {
-      return res.status(404).json({ message: 'Issue not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
     }
 
     // Allow assigning any issue for testing (in production, check: issue.status !== 'forwarded')
@@ -616,16 +620,16 @@ app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => 
     const updateData = { updatedAt: new Date() };
 
     if (action === 'reject') {
-      updateData.status = 'rejected';
+      updateData.status = ISSUE_STATUS.REJECTED;
     } else if (action === 'assign' && associateId) {
       const associate = await User.findById(associateId);
-      if (!associate || associate.role !== 'associate' || associate.status !== 'active') {
-        return res.status(400).json({ message: 'Invalid associate' });
+      if (!associate || associate.role !== USER_ROLES.ASSOCIATE || associate.status !== USER_STATUS.ACTIVE) {
+        return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ASSOCIATE);
       }
       updateData.assignedTo = associateId;
-      updateData.status = 'assigned';
+      updateData.status = ISSUE_STATUS.ASSIGNED;
     } else {
-      return res.status(400).json({ message: 'Invalid action' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
     }
 
     const updated = await Issue.findByIdAndUpdate(
@@ -638,10 +642,10 @@ app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => 
       .populate('assignedTo', 'firstName lastName email');
 
     console.log('Issue assigned by director:', action);
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Issue assigned successfully');
   } catch (err) {
     console.error('Assign issue error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -650,26 +654,26 @@ app.patch('/api/issues/:issueId/accept', authenticateToken, async (req, res) => 
   console.log('PATCH /api/issues/:issueId/accept - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ message: 'Only associates can accept jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT);
     }
 
     const issue = await Issue.findById(req.params.issueId);
     if (!issue) {
-      return res.status(404).json({ message: 'Issue not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
     }
 
     if (issue.assignedTo?.toString() !== user._id.toString()) {
-      return res.status(403).json({ message: 'This issue is not assigned to you' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU);
     }
 
-    if (issue.status !== 'assigned') {
-      return res.status(400).json({ message: 'Issue is not in assigned status' });
+    if (issue.status !== ISSUE_STATUS.ASSIGNED) {
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.ISSUE_NOT_IN_ASSIGNED_STATUS);
     }
 
     const updated = await Issue.findByIdAndUpdate(
       req.params.issueId,
-      { status: 'in-progress', updatedAt: new Date() },
+      { status: ISSUE_STATUS.IN_PROGRESS, updatedAt: new Date() },
       { new: true, runValidators: false }
     )
       .populate('apartment', 'unitNumber building')
@@ -677,10 +681,10 @@ app.patch('/api/issues/:issueId/accept', authenticateToken, async (req, res) => 
       .populate('assignedTo', 'firstName lastName email');
 
     console.log('Issue accepted by associate:', user._id);
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Issue accepted successfully');
   } catch (err) {
     console.error('Accept issue error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -689,21 +693,21 @@ app.patch('/api/issues/:issueId/complete', authenticateToken, async (req, res) =
   console.log('PATCH /api/issues/:issueId/complete - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ message: 'Only associates can complete jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_ASSOCIATES_COMPLETE);
     }
 
     const issue = await Issue.findById(req.params.issueId);
     if (!issue) {
-      return res.status(404).json({ message: 'Issue not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
     }
 
     if (issue.assignedTo?.toString() !== user._id.toString()) {
-      return res.status(403).json({ message: 'This issue is not assigned to you' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU);
     }
 
-    if (issue.status !== 'in-progress') {
-      return res.status(400).json({ message: 'Issue must be in-progress to complete' });
+    if (issue.status !== ISSUE_STATUS.IN_PROGRESS) {
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.ISSUE_MUST_BE_IN_PROGRESS);
     }
 
     const { completionNotes, cost } = req.body;
@@ -725,10 +729,10 @@ app.patch('/api/issues/:issueId/complete', authenticateToken, async (req, res) =
       .populate('assignedTo', 'firstName lastName email');
 
     console.log('Issue completed by associate:', user._id);
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Issue completed successfully');
   } catch (err) {
     console.error('Complete issue error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -738,26 +742,26 @@ app.patch('/api/buildings/:buildingId/assign-manager', authenticateToken, async 
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== 'director') {
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
       console.log('Authorization failed - user role:', user?.role);
-      return res.status(403).json({ message: 'Only directors can assign managers' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_ASSIGN_MANAGERS);
     }
 
     const { managerId } = req.body;
     const building = await Building.findById(req.params.buildingId);
 
     if (!building) {
-      return res.status(404).json({ message: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     // Validate manager exists and is active (if managerId provided)
     if (managerId) {
       const manager = await User.findById(managerId);
-      if (!manager || manager.role !== 'manager') {
-        return res.status(400).json({ message: 'Invalid manager' });
+      if (!manager || manager.role !== USER_ROLES.MANAGER) {
+        return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_MANAGER);
       }
-      if (manager.status !== 'active') {
-        return res.status(400).json({ message: 'Manager is not active' });
+      if (manager.status !== USER_STATUS.ACTIVE) {
+        return ApiResponse.badRequest(res, ERROR_MESSAGES.MANAGER_NOT_ACTIVE);
       }
     }
 
@@ -771,10 +775,10 @@ app.patch('/api/buildings/:buildingId/assign-manager', authenticateToken, async 
       .populate('director', 'firstName lastName email');
 
     console.log('Manager assigned:', managerId ? managerId : 'removed');
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Manager assigned successfully');
   } catch (err) {
     console.error('Assign manager error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -784,9 +788,9 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== 'director') {
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
       console.log('Authorization failed - user role:', user?.role);
-      return res.status(403).json({ message: 'Only directors can view users' });
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_USERS);
     }
 
     const { role, status, includeTest } = req.query;
@@ -815,7 +819,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     } : 'No users found');
 
     // If fetching managers, add building count
-    if (role === 'manager') {
+    if (role === USER_ROLES.MANAGER) {
       const usersWithCount = await Promise.all(
         users.map(async (u) => {
           const buildingCount = await Building.countDocuments({ manager: u._id });
@@ -826,14 +830,14 @@ app.get('/api/users', authenticateToken, async (req, res) => {
         })
       );
       console.log('Returning managers with building counts:', usersWithCount.length);
-      return res.json(usersWithCount);
+      return ApiResponse.success(res, usersWithCount, 'Managers retrieved successfully');
     }
 
     console.log('Returning users:', users.length);
-    res.json(users);
+    return ApiResponse.success(res, users, 'Users retrieved successfully');
   } catch (err) {
     console.error('Get users error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(HTTP_STATUS.INTERNAL_ERROR).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 });
 
@@ -847,27 +851,27 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
     console.log('Approving user found:', user?.username, 'Role:', user?.role);
-    if (!user || (user.role !== 'director' && user.role !== 'manager')) {
-      return res.status(403).json({ message: 'Only directors and managers can approve users' });
+    if (!user || (user.role !== USER_ROLES.DIRECTOR && user.role !== USER_ROLES.MANAGER)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_APPROVE_MANAGERS);
     }
 
     const targetUser = await User.findById(req.params.userId);
     console.log('Target user found:', targetUser?.username, 'Role:', targetUser?.role, 'Status:', targetUser?.status);
     if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
-    if (targetUser.status === 'active') {
-      return res.status(400).json({ message: 'User is already active' });
+    if (targetUser.status === USER_STATUS.ACTIVE) {
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.USER_ALREADY_ACTIVE);
     }
 
     // Manager can only approve tenants in their buildings
-    if (user.role === 'manager' && targetUser.role === 'tenant') {
+    if (user.role === USER_ROLES.MANAGER && targetUser.role === USER_ROLES.TENANT) {
       console.log('Manager approving tenant, checking buildings...');
       const managedBuildings = await Building.find({ manager: user._id });
       const canApprove = managedBuildings.some(b => String(b._id) === String(targetUser.building));
       if (!canApprove) {
-        return res.status(403).json({ message: 'You can only approve tenants in your buildings' });
+        return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_APPROVE_TENANTS);
       }
     }
 
@@ -885,8 +889,7 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
 
     console.log('User approved successfully:', targetUser.username);
 
-    res.json({
-      message: 'User approved successfully',
+    return ApiResponse.success(res, {
       user: {
         _id: targetUser._id,
         username: targetUser.username,
@@ -894,17 +897,16 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
         lastName: targetUser.lastName,
         email: targetUser.email,
         role: targetUser.role,
-        status: 'active',
+        status: USER_STATUS.ACTIVE,
         apartment: targetUser.apartment,
         residents: targetUser.residents
       }
-    });
+    }, 'User approved successfully');
   } catch (err) {
     console.error('Approve user error:', err);
     console.error('Error stack:', err.stack);
     console.error('Error name:', err.name);
-    res.status(500).json({
-      message: 'Server error',
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, {
       error: err.message,
       errorName: err.name,
       errorDetails: err.toString()
@@ -917,22 +919,22 @@ app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
   console.log('DELETE /api/users/:userId - User:', req.user?.username, 'Target:', req.params.userId);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can delete users' });
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
     }
 
     const targetUser = await User.findById(req.params.userId);
     if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     // Don't allow deleting yourself
     if (targetUser.username === user.username) {
-      return res.status(400).json({ message: 'Cannot delete yourself' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.CANNOT_DELETE_YOURSELF);
     }
 
     // If deleting a manager, remove them from all buildings
-    if (targetUser.role === 'manager') {
+    if (targetUser.role === USER_ROLES.MANAGER) {
       await Building.updateMany(
         { manager: targetUser._id },
         { $set: { manager: null } }
@@ -942,10 +944,10 @@ app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
 
     await User.findByIdAndDelete(req.params.userId);
     console.log('User deleted:', targetUser.username);
-    res.json({ message: 'User deleted successfully' });
+    return ApiResponse.success(res, null, 'User deleted successfully');
   } catch (err) {
     console.error('Delete user error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -954,8 +956,8 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
   console.log('DELETE /api/users/bulk/test - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can delete users' });
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
     }
 
     // Find all test users (excluding the current user)
@@ -971,7 +973,7 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
     console.log(`Found ${testUsers.length} test users to delete`);
 
     // Remove test managers from buildings
-    const testManagerIds = testUsers.filter(u => u.role === 'manager').map(u => u._id);
+    const testManagerIds = testUsers.filter(u => u.role === USER_ROLES.MANAGER).map(u => u._id);
     if (testManagerIds.length > 0) {
       await Building.updateMany(
         { manager: { $in: testManagerIds } },
@@ -991,13 +993,10 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
     });
 
     console.log(`Deleted ${result.deletedCount} test users`);
-    res.json({
-      message: `Successfully deleted ${result.deletedCount} test users`,
-      deletedCount: result.deletedCount
-    });
+    return ApiResponse.success(res, { deletedCount: result.deletedCount }, `Successfully deleted ${result.deletedCount} test users`);
   } catch (err) {
     console.error('Bulk delete error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1008,19 +1007,19 @@ app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, re
   console.log('POST /api/buildings/:id/apartments/bulk - User:', req.user?.username, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || !['manager', 'director'].includes(user.role)) {
-      return res.status(403).json({ error: 'Only managers and directors can create apartments' });
+    if (!user || ![USER_ROLES.MANAGER, USER_ROLES.DIRECTOR].includes(user.role)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_CREATE_APARTMENTS);
     }
 
     const building = await Building.findById(req.params.id);
     if (!building) {
-      return res.status(404).json({ error: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     // Check if building already has apartments
     const existingCount = await Apartment.countDocuments({ building: building._id });
     if (existingCount > 0) {
-      return res.status(400).json({ error: 'Building already has apartments. Bulk create only works on empty buildings.' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.BUILDING_HAS_APARTMENTS);
     }
 
     const { floors, unitsPerFloor, floorsSpec } = req.body;
@@ -1052,15 +1051,15 @@ app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, re
         }
       }
     } else {
-      return res.status(400).json({ error: 'Either (floors + unitsPerFloor) or floorsSpec is required' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.FLOORS_OR_SPEC_REQUIRED);
     }
 
     const created = await Apartment.insertMany(apartments);
     console.log(`Created ${created.length} apartments`);
-    res.status(201).json({ message: `${created.length} apartments created`, count: created.length });
+    return ApiResponse.created(res, { count: created.length }, `${created.length} apartments created`);
   } catch (err) {
     console.error('Bulk create apartments error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1069,18 +1068,18 @@ app.post('/api/buildings/:id/apartments', authenticateToken, async (req, res) =>
   console.log('POST /api/buildings/:id/apartments - User:', req.user?.username, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || !['manager', 'director'].includes(user.role)) {
-      return res.status(403).json({ error: 'Only managers and directors can create apartments' });
+    if (!user || ![USER_ROLES.MANAGER, USER_ROLES.DIRECTOR].includes(user.role)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_CREATE_APARTMENTS);
     }
 
     const building = await Building.findById(req.params.id);
     if (!building) {
-      return res.status(404).json({ error: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     const { unitNumber, address } = req.body;
     if (!unitNumber) {
-      return res.status(400).json({ error: 'unitNumber is required' });
+      return ApiResponse.badRequest(res, ERROR_MESSAGES.UNIT_NUMBER_REQUIRED);
     }
 
     const apartment = await Apartment.create({
@@ -1090,15 +1089,15 @@ app.post('/api/buildings/:id/apartments', authenticateToken, async (req, res) =>
     });
 
     console.log('Apartment created:', apartment._id);
-    res.status(201).json({
+    return ApiResponse.created(res, {
       _id: apartment._id,
       building: apartment.building.toString(),
       unitNumber: apartment.unitNumber,
       address: apartment.address
-    });
+    }, 'Apartment created successfully');
   } catch (err) {
     console.error('Create apartment error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1108,14 +1107,14 @@ app.get('/api/buildings/:id/apartments', authenticateToken, async (req, res) => 
   try {
     const building = await Building.findById(req.params.id);
     if (!building) {
-      return res.status(404).json({ error: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     const apartments = await Apartment.find({ building: building._id }).sort('unitNumber');
-    res.json(apartments);
+    return ApiResponse.success(res, apartments, 'Apartments retrieved');
   } catch (err) {
     console.error('Get apartments error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1126,28 +1125,28 @@ app.get('/api/buildings/:id/tenants', authenticateToken, async (req, res) => {
   console.log('GET /api/buildings/:id/tenants - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || !['manager', 'director'].includes(user.role)) {
-      return res.status(403).json({ error: 'Only managers and directors can view tenants' });
+    if (!user || ![USER_ROLES.MANAGER, USER_ROLES.DIRECTOR].includes(user.role)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_TENANTS);
     }
 
     const building = await Building.findById(req.params.id);
     if (!building) {
-      return res.status(404).json({ error: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     // Find all tenants assigned to this building
     const tenants = await User.find({
       building: building._id,
-      role: 'tenant'
+      role: USER_ROLES.TENANT
     })
       .populate('apartment', 'unitNumber')
       .populate('building', 'name address')
       .select('username email firstName lastName apartment building createdAt');
 
-    res.json(tenants);
+    return ApiResponse.success(res, tenants, 'Tenants retrieved');
   } catch (err) {
     console.error('Get tenants error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1156,13 +1155,13 @@ app.delete('/api/tenants/:id', authenticateToken, async (req, res) => {
   console.log('DELETE /api/tenants/:id - User:', req.user?.username, 'Tenant:', req.params.id);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || !['manager', 'director'].includes(user.role)) {
-      return res.status(403).json({ error: 'Only managers and directors can delete tenants' });
+    if (!user || ![USER_ROLES.MANAGER, USER_ROLES.DIRECTOR].includes(user.role)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_DELETE_TENANTS);
     }
 
     const tenant = await User.findById(req.params.id);
     if (!tenant) {
-      return res.status(404).json({ error: 'Tenant not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.TENANT_NOT_FOUND);
     }
 
     // If tenant has an apartment, free it
@@ -1173,10 +1172,10 @@ app.delete('/api/tenants/:id', authenticateToken, async (req, res) => {
 
     await User.findByIdAndDelete(req.params.id);
     console.log('Tenant deleted:', tenant.username);
-    res.json({ message: 'Tenant deleted successfully' });
+    return ApiResponse.success(res, null, 'Tenant deleted successfully');
   } catch (err) {
     console.error('Delete tenant error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1188,25 +1187,25 @@ app.post('/api/tenants/:id/approve', authenticateToken, async (req, res) => {
     // Check if user is manager
     const user = await User.findOne({ username: req.user.username });
 
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can approve tenants' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return ApiResponse.forbidden(res, 'Only managers can approve tenants');
     }
 
     // Find tenant
     const tenant = await User.findById(req.params.id);
-    if (!tenant || tenant.role !== 'tenant') {
-      return res.status(404).json({ error: 'Tenant not found' });
+    if (!tenant || tenant.role !== USER_ROLES.TENANT) {
+      return ApiResponse.notFound(res, ERROR_MESSAGES.TENANT_NOT_FOUND);
     }
 
     // Update tenant status to active
-    tenant.status = 'active';
+    tenant.status = USER_STATUS.ACTIVE;
     await tenant.save();
 
     console.log('Tenant approved:', tenant.username);
-    res.json({ message: 'Tenant approved successfully', tenant });
+    return ApiResponse.success(res, { tenant }, 'Tenant approved successfully');
   } catch (err) {
     console.error('Approve tenant error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1219,32 +1218,32 @@ app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
-    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
-      return res.status(403).json({ error: 'Only managers and directors can assign tenants' });
+    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
+      return ApiResponse.forbidden(res, 'Only managers and directors can assign tenants');
     }
 
     const { apartmentId, buildingId, numPeople } = req.body;
 
     // Validate required fields
     if (!apartmentId || !buildingId) {
-      return res.status(400).json({ error: 'apartmentId and buildingId are required' });
+      return ApiResponse.badRequest(res, 'apartmentId and buildingId are required');
     }
 
     // Find tenant
     const tenant = await User.findById(req.params.id);
-    if (!tenant || tenant.role !== 'tenant') {
-      return res.status(404).json({ error: 'Tenant not found' });
+    if (!tenant || tenant.role !== USER_ROLES.TENANT) {
+      return ApiResponse.notFound(res, ERROR_MESSAGES.TENANT_NOT_FOUND);
     }
 
     // Find apartment
     const apartment = await Apartment.findById(apartmentId);
     if (!apartment) {
-      return res.status(404).json({ error: 'Apartment not found' });
+      return ApiResponse.notFound(res, 'Apartment not found');
     }
 
     // Check if apartment is already occupied by another tenant
     if (apartment.tenant && apartment.tenant.toString() !== tenant._id.toString()) {
-      return res.status(400).json({ error: 'Apartment is already occupied by another tenant' });
+      return ApiResponse.badRequest(res, 'Apartment is already occupied by another tenant');
     }
 
     // If tenant is being reassigned to a different apartment, free the old one
@@ -1267,10 +1266,10 @@ app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
     await apartment.save();
 
     console.log('Tenant assigned successfully:', tenant._id, 'to apartment:', apartmentId);
-    res.json({ message: 'Tenant assigned successfully' });
+    return ApiResponse.success(res, null, 'Tenant assigned successfully');
   } catch (err) {
     console.error('Assign tenant error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1283,32 +1282,32 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
-    if (!user || user.role !== 'tenant') {
-      return res.status(403).json({ error: 'Only tenants can view apartment info' });
+    if (!user || user.role !== USER_ROLES.TENANT) {
+      return ApiResponse.forbidden(res, 'Only tenants can view apartment info');
     }
 
     // Check if tenant has an apartment assigned
     if (!user.apartment) {
-      return res.status(404).json({ error: 'You are not assigned to any apartment yet' });
+      return ApiResponse.notFound(res, 'You are not assigned to any apartment yet');
     }
 
     // Fetch apartment with building info
     const apartment = await Apartment.findById(user.apartment);
     if (!apartment) {
-      return res.status(404).json({ error: 'Apartment not found' });
+      return ApiResponse.notFound(res, 'Apartment not found');
     }
 
     const building = await Building.findById(apartment.building)
       .populate('manager', 'firstName lastName email');
     if (!building) {
-      return res.status(404).json({ error: 'Building not found' });
+      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
     // Get apartment count for building
     const apartmentCount = await Apartment.countDocuments({ building: building._id });
 
     console.log('Tenant apartment info retrieved successfully');
-    res.json({
+    return ApiResponse.success(res, {
       apartment: {
         _id: apartment._id,
         unitNumber: apartment.unitNumber,
@@ -1324,10 +1323,10 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
         apartmentCount: apartmentCount,
         manager: building.manager
       }
-    });
+    }, 'Apartment info retrieved');
   } catch (err) {
     console.error('Get tenant apartment error:', err);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
@@ -1342,29 +1341,29 @@ app.post('/api/issues', authenticateToken, async (req, res) => {
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is a tenant
-    if (!user || user.role !== 'tenant') {
-      return res.status(403).json({ error: 'Only tenants can report issues' });
+    if (!user || user.role !== USER_ROLES.TENANT) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only tenants can report issues' });
     }
 
     // Check if tenant is assigned to an apartment
     if (!user.apartment) {
-      return res.status(404).json({ error: 'You are not assigned to any apartment yet' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'You are not assigned to any apartment yet' });
     }
 
     const { title, description, priority } = req.body;
 
     // Validate required fields
     if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Title is required' });
     }
 
     if (!description) {
-      return res.status(400).json({ error: 'Description is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Description is required' });
     }
 
     // Validate priority if provided
-    if (priority && !['low', 'medium', 'high'].includes(priority)) {
-      return res.status(400).json({ error: 'Invalid priority. Must be low, medium, or high' });
+    if (priority && ![PRIORITY_LEVELS.LOW, PRIORITY_LEVELS.MEDIUM, PRIORITY_LEVELS.HIGH].includes(priority)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Invalid priority. Must be low, medium, or high' });
     }
 
     // Fetch apartment to get building
@@ -1377,17 +1376,17 @@ app.post('/api/issues', authenticateToken, async (req, res) => {
       building: apartment.building,
       title: title.trim(),
       description: description.trim(),
-      priority: priority || 'medium',
-      status: 'reported'
+      priority: priority || PRIORITY_LEVELS.MEDIUM,
+      status: ISSUE_STATUS.REPORTED
     });
 
     await issue.save();
     console.log(`Issue created: ${issue._id}`);
 
-    res.status(201).json({ issue });
+    res.status(HTTP_STATUS.CREATED).json({ issue });
   } catch (error) {
     console.error('Error creating issue:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.SERVER_ERROR });
   }
 });
 
@@ -1402,8 +1401,8 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is a tenant
-    if (!user || user.role !== 'tenant') {
-      return res.status(403).json({ error: 'Only tenants can view their issues' });
+    if (!user || user.role !== USER_ROLES.TENANT) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only tenants can view their issues' });
     }
 
     const { status, priority } = req.query;
@@ -1433,10 +1432,10 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
     });
 
     console.log(`Tenant issues retrieved: ${issuesWithBuilding.length}`);
-    res.json(issuesWithBuilding);
+    return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved successfully');
   } catch (error) {
     console.error('Error retrieving tenant issues:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1451,8 +1450,8 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is an associate
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ error: 'Only associates can view their jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can view their jobs' });
     }
 
     const { status, priority } = req.query;
@@ -1483,10 +1482,10 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
     });
 
     console.log(`Associate jobs retrieved: ${jobsWithBuilding.length}`);
-    res.json(jobsWithBuilding);
+    return ApiResponse.success(res, jobsWithBuilding, 'Associate jobs retrieved successfully');
   } catch (error) {
     console.error('Error retrieving associate jobs:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1500,40 +1499,40 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
 
     // Check if user is an associate
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ error: 'Only associates can accept jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT });
     }
 
     // Validate estimatedCost
     const { estimatedCost } = req.body;
     if (estimatedCost === undefined || estimatedCost === null) {
-      return res.status(400).json({ error: 'estimatedCost is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost is required' });
     }
     if (typeof estimatedCost !== 'number' || isNaN(estimatedCost)) {
-      return res.status(400).json({ error: 'estimatedCost must be a valid number' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost must be a valid number' });
     }
     if (estimatedCost < 0) {
-      return res.status(400).json({ error: 'estimatedCost must be a positive number' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost must be a positive number' });
     }
 
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
-      return res.status(404).json({ error: 'Issue not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
     }
 
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
-      return res.status(403).json({ error: 'This issue is not assigned to you' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
     }
 
     // Check if issue is in assigned status
-    if (issue.status !== 'assigned') {
-      return res.status(400).json({ error: 'Issue must be in assigned status to accept' });
+    if (issue.status !== ISSUE_STATUS.ASSIGNED) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Issue must be in assigned status to accept' });
     }
 
     // Update issue
-    issue.status = 'in-progress';
+    issue.status = ISSUE_STATUS.IN_PROGRESS;
     issue.cost = estimatedCost;
     await issue.save();
 
@@ -1557,10 +1556,10 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
     }
 
     console.log(`Issue ${issue._id} accepted with cost $${estimatedCost}`);
-    res.json(issueObj);
+    return ApiResponse.success(res, issueObj, 'Job accepted successfully');
   } catch (error) {
     console.error('Error accepting job:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1573,31 +1572,31 @@ app.post('/api/issues/:id/reject', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
 
     // Check if user is an associate
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ error: 'Only associates can reject jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can reject jobs' });
     }
 
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
-      return res.status(404).json({ error: 'Issue not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
     }
 
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
-      return res.status(403).json({ error: 'This issue is not assigned to you' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
     }
 
     // Update issue - return to director for reassignment
-    issue.status = 'forwarded';
+    issue.status = ISSUE_STATUS.FORWARDED;
     issue.assignedTo = null;
     await issue.save();
 
     console.log(`Issue ${issue._id} rejected by associate`);
-    res.json({ message: 'Job rejected successfully' });
+    return ApiResponse.success(res, null, 'Job rejected successfully');
   } catch (error) {
     console.error('Error rejecting job:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1611,24 +1610,24 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
 
     // Check if user is an associate
-    if (!user || user.role !== 'associate') {
-      return res.status(403).json({ error: 'Only associates can complete jobs' });
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ONLY_ASSOCIATES_COMPLETE });
     }
 
     // Find issue
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
-      return res.status(404).json({ error: 'Issue not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
     }
 
     // Check if issue is assigned to this associate
     if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
-      return res.status(403).json({ error: 'This issue is not assigned to you' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
     }
 
     // Check if issue is in in-progress status
-    if (issue.status !== 'in-progress') {
-      return res.status(400).json({ error: 'Issue must be in in-progress status to complete' });
+    if (issue.status !== ISSUE_STATUS.IN_PROGRESS) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Issue must be in in-progress status to complete' });
     }
 
     // Update issue
@@ -1699,10 +1698,10 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
     }
 
     console.log(`Issue ${issue._id} marked as complete`);
-    res.json(issueObj);
+    return ApiResponse.success(res, issueObj, 'Job completed successfully');
   } catch (error) {
     console.error('Error completing job:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1714,18 +1713,18 @@ app.get('/api/associates', authenticateToken, async (req, res) => {
     console.log('   Requesting user:', user?.firstName, user?.lastName, `(${user?.role})`);
 
     // Only managers and directors can view associates list
-    if (!user || (user.role !== 'manager' && user.role !== 'director')) {
+    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
       console.log('   ❌ Access denied - user role:', user?.role);
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Access denied' });
     }
 
     console.log('   ✅ Access granted - fetching associates...');
     
     // Get all active associates (status 'active' or undefined for existing users)
     const associates = await User.find({
-      role: 'associate',
+      role: USER_ROLES.ASSOCIATE,
       $or: [
-        { status: 'active' },
+        { status: USER_STATUS.ACTIVE },
         { status: { $exists: false } },
         { status: null }
       ]
@@ -1741,10 +1740,10 @@ app.get('/api/associates', authenticateToken, async (req, res) => {
       });
     }
 
-    res.json(associates);
+    return ApiResponse.success(res, associates, 'Associates retrieved successfully');
   } catch (error) {
     console.error('❌ Error fetching associates:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1756,10 +1755,10 @@ app.get('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) 
       .populate('createdBy', 'username firstName lastName')
       .sort({ createdAt: -1 });
 
-    res.json(polls);
+    return ApiResponse.success(res, polls, 'Polls retrieved successfully');
   } catch (error) {
     console.error('Error fetching polls:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1769,14 +1768,14 @@ app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res)
     const user = await User.findOne({ username: req.user.username });
 
     // Only managers can create polls
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can create polls' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can create polls' });
     }
 
     const { question, options } = req.body;
 
     if (!question || !options || options.length < 2) {
-      return res.status(400).json({ error: 'Question and at least 2 options required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Question and at least 2 options required' });
     }
 
     const poll = await Poll.create({
@@ -1790,10 +1789,10 @@ app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res)
     const populated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
 
-    res.status(201).json(populated);
+    res.status(HTTP_STATUS.CREATED).json(populated);
   } catch (error) {
     console.error('Error creating poll:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.SERVER_ERROR });
   }
 });
 
@@ -1804,18 +1803,18 @@ app.post('/api/polls/:pollId/vote', authenticateToken, async (req, res) => {
     const { option } = req.body;
 
     if (!option) {
-      return res.status(400).json({ error: 'Option is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Option is required' });
     }
 
     const poll = await Poll.findById(req.params.pollId);
     if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poll not found' });
     }
 
     // Check if already voted
     const existingVote = poll.votes.find(v => v.voter.toString() === user._id.toString());
     if (existingVote) {
-      return res.status(400).json({ error: 'You have already voted on this poll' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'You have already voted on this poll' });
     }
 
     // Add vote
@@ -1825,10 +1824,10 @@ app.post('/api/polls/:pollId/vote', authenticateToken, async (req, res) => {
     const updated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
 
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Vote recorded successfully');
   } catch (error) {
     console.error('Error voting on poll:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1838,13 +1837,13 @@ app.post('/api/polls/:pollId/close', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
 
     // Only managers can close polls
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can close polls' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can close polls' });
     }
 
     const poll = await Poll.findById(req.params.pollId);
     if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Poll not found' });
     }
 
     poll.closedAt = new Date();
@@ -1853,10 +1852,10 @@ app.post('/api/polls/:pollId/close', authenticateToken, async (req, res) => {
     const updated = await Poll.findById(poll._id)
       .populate('createdBy', 'username firstName lastName');
 
-    res.json(updated);
+    return ApiResponse.success(res, updated, 'Poll closed successfully');
   } catch (error) {
     console.error('Error closing poll:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1868,10 +1867,10 @@ app.get('/api/buildings/:buildingId/notices', authenticateToken, async (req, res
       .populate('author', 'username firstName lastName')
       .sort({ createdAt: -1 });
 
-    res.json(notices);
+    return ApiResponse.success(res, notices, 'Notices retrieved successfully');
   } catch (error) {
     console.error('Error fetching notices:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
@@ -1881,14 +1880,14 @@ app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, re
     const user = await User.findOne({ username: req.user.username });
 
     // Only managers can create notices
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can create notices' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can create notices' });
     }
 
     const { content } = req.body;
 
     if (!content) {
-      return res.status(400).json({ error: 'Content is required' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Content is required' });
     }
 
     const notice = await Notice.create({
@@ -1902,10 +1901,10 @@ app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, re
     const populated = await Notice.findById(notice._id)
       .populate('author', 'username firstName lastName');
 
-    res.status(201).json(populated);
+    res.status(HTTP_STATUS.CREATED).json(populated);
   } catch (error) {
     console.error('Error creating notice:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.SERVER_ERROR });
   }
 });
 
@@ -1915,27 +1914,27 @@ app.delete('/api/notices/:noticeId', authenticateToken, async (req, res) => {
     const user = await User.findOne({ username: req.user.username });
 
     // Only managers can delete notices
-    if (!user || user.role !== 'manager') {
-      return res.status(403).json({ error: 'Only managers can delete notices' });
+    if (!user || user.role !== USER_ROLES.MANAGER) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can delete notices' });
     }
 
     const notice = await Notice.findById(req.params.noticeId);
     if (!notice) {
-      return res.status(404).json({ error: 'Notice not found' });
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Notice not found' });
     }
 
     await Notice.findByIdAndDelete(req.params.noticeId);
 
-    res.json({ message: 'Notice deleted successfully' });
+    return ApiResponse.success(res, null, 'Notice deleted successfully');
   } catch (error) {
     console.error('Error deleting notice:', error);
-    res.status(500).json({ error: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
 // ===== TEST ENDPOINT =====
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'Backend is working!' });
+  return ApiResponse.success(res, null, 'Backend is working!');
 });
 
 // GET /api/test/me - Test authentication
@@ -1943,10 +1942,10 @@ app.get('/api/test/me', authenticateToken, async (req, res) => {
   console.log('GET /api/test/me - User:', req.user);
   try {
     const user = await User.findOne({ username: req.user.username }).select('-password');
-    res.json({ message: 'Authentication working!', user });
+    return ApiResponse.success(res, { user }, 'Authentication working!');
   } catch (err) {
     console.error('Test me error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, err);
   }
 });
 
@@ -1955,27 +1954,27 @@ app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
   console.log('POST /api/test/seed-issues - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can seed data' });
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ message: ERROR_MESSAGES.ONLY_DIRECTORS });
     }
 
     // Find first apartment and tenant
     const apartment = await Apartment.findOne();
-    const tenant = await User.findOne({ role: 'tenant' });
+    const tenant = await User.findOne({ role: USER_ROLES.TENANT });
 
     if (!apartment || !tenant) {
-      return res.status(400).json({ message: 'Need at least one apartment and tenant to create issues' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'Need at least one apartment and tenant to create issues' });
     }
 
     const testIssues = [
-      { title: 'Nema tople vode', description: 'U kupatilu nema tople vode već tri dana', priority: 'high', status: 'forwarded' },
-      { title: 'Lift ne radi', description: 'Lift je zaglavio između spratova', priority: 'high', status: 'forwarded' },
-      { title: 'Curi slavina u kuhinji', description: 'Slavina u kuhinji kaplje celu noć', priority: 'medium', status: 'forwarded' },
-      { title: 'Pukla sijalica u hodniku', description: 'Sijalica na trećem spratu je pregorela', priority: 'low', status: 'forwarded' },
-      { title: 'Nezatvoren prozor na stepeništu', description: 'Prozor na drugom spratu ne može da se zatvori', priority: 'medium', status: 'forwarded' },
-      { title: 'Nema grejanja u stanu', description: 'Radijatori su hladni već dva dana', priority: 'high', status: 'forwarded' },
-      { title: 'Prljav ulaz zgrade', description: 'Ulaz nije čišćen nedelju dana', priority: 'low', status: 'forwarded' },
-      { title: 'Škripi vrata na ulazu', description: 'Glavna vrata jako škripe i teško se otvaraju', priority: 'medium', status: 'forwarded' }
+      { title: 'Nema tople vode', description: 'U kupatilu nema tople vode već tri dana', priority: PRIORITY_LEVELS.HIGH, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Lift ne radi', description: 'Lift je zaglavio između spratova', priority: PRIORITY_LEVELS.HIGH, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Curi slavina u kuhinji', description: 'Slavina u kuhinji kaplje celu noć', priority: PRIORITY_LEVELS.MEDIUM, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Pukla sijalica u hodniku', description: 'Sijalica na trećem spratu je pregorela', priority: PRIORITY_LEVELS.LOW, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Nezatvoren prozor na stepeništu', description: 'Prozor na drugom spratu ne može da se zatvori', priority: PRIORITY_LEVELS.MEDIUM, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Nema grejanja u stanu', description: 'Radijatori su hladni već dva dana', priority: PRIORITY_LEVELS.HIGH, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Prljav ulaz zgrade', description: 'Ulaz nije čišćen nedelju dana', priority: PRIORITY_LEVELS.LOW, status: ISSUE_STATUS.FORWARDED },
+      { title: 'Škripi vrata na ulazu', description: 'Glavna vrata jako škripe i teško se otvaraju', priority: PRIORITY_LEVELS.MEDIUM, status: ISSUE_STATUS.FORWARDED }
     ];
 
     const createdIssues = [];
@@ -1993,13 +1992,10 @@ app.post('/api/test/seed-issues', authenticateToken, async (req, res) => {
     }
 
     console.log(`Created ${createdIssues.length} test issues`);
-    res.json({
-      message: `Created ${createdIssues.length} test issues`,
-      count: createdIssues.length
-    });
+    return ApiResponse.success(res, { count: createdIssues.length }, `Created ${createdIssues.length} test issues`);
   } catch (err) {
     console.error('Seed issues error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, err);
   }
 });
 
@@ -2008,16 +2004,16 @@ app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
   console.log('POST /api/test/seed-notices - User:', req.user?.username);
   try {
     const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== 'director') {
-      return res.status(403).json({ message: 'Only directors can seed data' });
+    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ message: ERROR_MESSAGES.ONLY_DIRECTORS });
     }
 
     // Find first building and manager
     const building = await Building.findOne();
-    const manager = await User.findOne({ role: 'manager' });
+    const manager = await User.findOne({ role: USER_ROLES.MANAGER });
 
     if (!building || !manager) {
-      return res.status(400).json({ message: 'Need at least one building and manager to create notices' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'Need at least one building and manager to create notices' });
     }
 
     const testNotices = [
@@ -2044,13 +2040,10 @@ app.post('/api/test/seed-notices', authenticateToken, async (req, res) => {
     }
 
     console.log(`Created ${createdNotices.length} test notices`);
-    res.json({
-      message: `Created ${createdNotices.length} test notices`,
-      count: createdNotices.length
-    });
+    return ApiResponse.success(res, { count: createdNotices.length }, `Created ${createdNotices.length} test notices`);
   } catch (err) {
     console.error('Seed notices error:', err);
-    res.status(500).json({ message: 'Server error' });
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, err);
   }
 });
 

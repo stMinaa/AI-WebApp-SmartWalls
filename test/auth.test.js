@@ -2,6 +2,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const User = require('../backend/models/User');
+const { getData, assertSuccess, assertError } = require('../backend/test/helpers/responseHelpers');
 
 // We'll need to export the app from index.js for testing
 let app;
@@ -45,10 +46,11 @@ describe('Phase 1: Role Field & Status System', () => {
           lastName: 'User'
         });
 
-      expect(response.status).toBe(201);
-      expect(response.body.user).toBeDefined();
-      expect(response.body.user.role).toBe('tenant');
-      expect(response.body.user.status).toBe('active');
+      assertSuccess(response, 201);
+      const data = getData(response);
+      expect(data.user).toBeDefined();
+      expect(data.user.role).toBe('tenant');
+      expect(data.user.status).toBe('active');
     });
 
     it('should create user with specified role (manager)', async () => {

@@ -9,6 +9,7 @@ const app = require('../index');
 const User = require('../models/User');
 const Building = require('../models/Building');
 const { connectTestDB, disconnectTestDB } = require('./setup');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 // ========================================
 // Test Data Fixtures
@@ -66,7 +67,7 @@ async function createUser(userData) {
   const res = await request(app)
     .post('/api/auth/signup')
     .send(userData);
-  return res.body.user._id;
+  return getData(res).user._id;
 }
 
 /**
@@ -79,7 +80,7 @@ async function loginUser(username, password) {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ username, password });
-  return res.body.token;
+  return getData(res).token;
 }
 
 /**
@@ -93,7 +94,7 @@ async function createBuilding(token, buildingData) {
     .post('/api/buildings')
     .set('Authorization', `Bearer ${token}`)
     .send(buildingData);
-  return res.body._id;
+  return getData(res)._id;
 }
 
 /**
@@ -106,7 +107,7 @@ async function approveUser(token, userId) {
   const res = await request(app)
     .patch(`/api/users/${userId}/approve`)
     .set('Authorization', `Bearer ${token}`);
-  return res.body;
+  return getData(res);
 }
 
 // ========================================
@@ -154,10 +155,11 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send(TEST_BUILDING);
 
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('_id');
-      expect(res.body.name).toBe(TEST_BUILDING.name);
-      expect(res.body.address).toBe(TEST_BUILDING.address);
+      assertSuccess(res, 201);
+      const data = getData(res);
+      expect(data).toHaveProperty('_id');
+      expect(data.name).toBe(TEST_BUILDING.name);
+      expect(data.address).toBe(TEST_BUILDING.address);
     });
 
     test('Should reject building without name', async () => {
@@ -166,7 +168,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ address: TEST_BUILDING.address });
 
-      expect(res.status).toBe(201);
+      assertSuccess(res, 201);
       // Backend creates building even without name (name defaults to empty string)
     });
 
@@ -176,8 +178,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ name: TEST_BUILDING.name });
 
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Address');
+      assertError(res, 400, 'Address');
     });
 
     test('Should reject request without director token', async () => {
@@ -185,7 +186,7 @@ describe('Director Operations', () => {
         .post('/api/buildings')
         .send(TEST_BUILDING);
 
-      expect(res.status).toBe(401);
+      assertError(res, 401);
     });
 
     test('Should reject request from non-director role', async () => {
@@ -196,7 +197,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${tenantToken}`)
         .send(TEST_BUILDING);
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
   });
 
@@ -219,9 +220,10 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ managerId });
 
-      expect(res.status).toBe(200);
-      expect(res.body.manager).toBeDefined();
-      expect(String(res.body.manager._id)).toBe(String(managerId));
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(data.manager).toBeDefined();
+      expect(String(data.manager._id)).toBe(String(managerId));
     });
 
     test('Should reject assignment with invalid building ID', async () => {
@@ -230,7 +232,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ managerId });
 
-      expect(res.status).toBe(500);
+      assertError(res, 500);
     });
 
     test('Should reject assignment with non-existent manager', async () => {
@@ -240,8 +242,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ managerId: fakeId });
 
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Invalid manager');
+      assertError(res, 400, 'Invalid manager');
     });
 
     test('Should reject assignment if user is not manager role', async () => {
@@ -250,8 +251,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ managerId: tenantId });
 
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('Invalid manager');
+      assertError(res, 400, 'Invalid manager');
     });
 
     test('Should reject request from non-director user', async () => {
@@ -262,7 +262,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${tenantToken}`)
         .send({ managerId });
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
   });
 
@@ -276,11 +276,12 @@ describe('Director Operations', () => {
         .get('/api/users/pending')
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      assertSuccess(res, 200);
+      const data = getData(res);
+      expect(Array.isArray(data)).toBe(true);
       
       // Check that all returned users have pending status
-      res.body.forEach(user => {
+      data.forEach(user => {
         expect(user.status).toBe('pending');
       });
     });
@@ -292,7 +293,7 @@ describe('Director Operations', () => {
         .get('/api/users/pending')
         .set('Authorization', `Bearer ${tenantToken}`);
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
   });
 
@@ -322,8 +323,7 @@ describe('Director Operations', () => {
         .patch(`/api/users/${managerId}/approve`)
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(400);
-      expect(res.body.message).toContain('already');
+      assertError(res, 400, 'already');
     });
 
     test('Should reject approval of non-existent user', async () => {
@@ -333,7 +333,7 @@ describe('Director Operations', () => {
         .patch(`/api/users/${fakeId}/approve`)
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(404);
+      assertError(res, 404);
     });
 
     test('Should reject approval from non-director/non-manager', async () => {
@@ -343,7 +343,7 @@ describe('Director Operations', () => {
         .patch(`/api/users/${managerId}/approve`)
         .set('Authorization', `Bearer ${tenantToken}`);
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
 
     test('Should handle invalid user ID gracefully', async () => {
@@ -351,7 +351,7 @@ describe('Director Operations', () => {
         .patch('/api/users/invalid-id/approve')
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(500);
+      assertError(res, 500);
     });
   });
 
@@ -365,7 +365,7 @@ describe('Director Operations', () => {
         .delete(`/api/users/${tenantId}`)
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(200);
+      assertSuccess(res, 200);
       expect(res.body.message).toContain('deleted');
       
       // Verify user is deleted from database
@@ -380,7 +380,7 @@ describe('Director Operations', () => {
         .delete(`/api/users/${fakeId}`)
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(404);
+      assertError(res, 404);
     });
 
     test('Should reject deletion from non-director', async () => {
@@ -390,7 +390,7 @@ describe('Director Operations', () => {
         .delete(`/api/users/${managerId}`)
         .set('Authorization', `Bearer ${tenantToken}`);
 
-      expect(res.status).toBe(403);
+      assertError(res, 403);
     });
 
     test('Should handle invalid user ID', async () => {
@@ -398,7 +398,7 @@ describe('Director Operations', () => {
         .delete('/api/users/invalid-id')
         .set('Authorization', `Bearer ${directorToken}`);
 
-      expect(res.status).toBe(500);
+      assertError(res, 500);
     });
   });
 });

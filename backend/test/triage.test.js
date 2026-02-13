@@ -12,6 +12,7 @@ const {
   createBuilding, assignManager, createApartment,
   assignTenant, createIssue
 } = require('./helpers');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 jest.setTimeout(60000);
 
@@ -52,8 +53,9 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'forward' });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('forwarded');
+    assertSuccess(res, 200);
+    const data = getData(res);
+    expect(data.status).toBe('forwarded');
   });
 
   test('should reject an issue (action=reject)', async () => {
@@ -61,8 +63,9 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'reject' });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('rejected');
+    assertSuccess(res, 200);
+    const data = getData(res);
+    expect(data.status).toBe('rejected');
   });
 
   test('should assign issue to associate (action=assign)', async () => {
@@ -70,9 +73,10 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'assign', associateId: 'triageassoc' });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('assigned');
-    expect(res.body.assignedTo).toBeDefined();
+    assertSuccess(res, 200);
+    const data = getData(res);
+    expect(data.status).toBe('assigned');
+    expect(data.assignedTo).toBeDefined();
   });
 
   test('should return 400 for invalid action', async () => {
@@ -80,13 +84,13 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'invalid_action' });
-    expect(res.status).toBe(400);
+    assertError(res, 400);
   });
 
   test('should return 401 without token', async () => {
     const res = await request(app)
       .patch(`/api/issues/${issueId}/triage`);
-    expect(res.status).toBe(401);
+    assertError(res, 401);
   });
 
   test('should return 403 for non-manager (tenant)', async () => {
@@ -94,7 +98,7 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${tenantToken}`)
       .send({ action: 'forward' });
-    expect(res.status).toBe(403);
+    assertError(res, 403);
   });
 
   test('should return 404 for non-existent issue', async () => {
@@ -103,7 +107,7 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${fakeId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'forward' });
-    expect(res.status).toBe(404);
+    assertError(res, 404);
   });
 
   test('should return 400 when assigning to non-existent associate', async () => {
@@ -111,6 +115,6 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
       .send({ action: 'assign', associateId: 'nonexistent_user' });
-    expect(res.status).toBe(400);
+    assertError(res, 400);
   });
 });
