@@ -9,6 +9,7 @@ const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const Issue = require('../models/Issue');
+const { getData } = require('./helpers/responseHelpers');
 
 /**
  * Clean all test collections
@@ -33,8 +34,8 @@ async function signupUser(data) {
     .post('/api/auth/login')
     .send({ username: data.username, password: data.password });
   return {
-    _id: res.body.user?._id,
-    token: login.body.token
+    _id: getData(res).user?._id,
+    token: getData(login).token
   };
 }
 
@@ -55,7 +56,7 @@ async function createBuilding(directorToken, data) {
     .post('/api/buildings')
     .set('Authorization', `Bearer ${directorToken}`)
     .send(data);
-  return res.body._id;
+  return getData(res)._id;
 }
 
 /**
@@ -76,7 +77,7 @@ async function createApartment(token, buildingId, unitNumber) {
     .post(`/api/buildings/${buildingId}/apartments`)
     .set('Authorization', `Bearer ${token}`)
     .send({ unitNumber });
-  return res.body._id;
+  return getData(res)._id;
 }
 
 /**
@@ -100,7 +101,8 @@ async function createIssue(tenantToken, data) {
     .post('/api/issues')
     .set('Authorization', `Bearer ${tenantToken}`)
     .send(data);
-  return res.body.issue?._id;
+  const d = getData(res);
+  return d.issue ? d.issue._id : d._id;
 }
 
 module.exports = {

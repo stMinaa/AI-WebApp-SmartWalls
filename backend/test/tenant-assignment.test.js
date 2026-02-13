@@ -234,7 +234,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
           lastName: 'Two',
           role: 'tenant'
         });
-      const tenant2Id = tenant2Res.body.user._id;
+      const tenant2Id = getData(tenant2Res).user._id;
 
       // Assign first tenant to apartment
       await request(app)
@@ -257,7 +257,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('already occupied');
+      expect(res.body.message).toContain('already occupied');
     });
 
     it('should return 400 if apartmentId or buildingId missing', async () => {
@@ -270,7 +270,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('apartmentId and buildingId are required');
+      expect(res.body.message).toContain('apartmentId and buildingId are required');
     });
 
     it('should return 404 if tenant not found', async () => {
@@ -285,7 +285,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         });
 
       expect(res.status).toBe(404);
-      expect(res.body.error).toContain('Tenant not found');
+      expect(res.body.message).toContain('Tenant not found');
     });
 
     it('should return 404 if apartment not found', async () => {
@@ -300,7 +300,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
         });
 
       expect(res.status).toBe(404);
-      expect(res.body.error).toContain('Apartment not found');
+      expect(res.body.message).toContain('Apartment not found');
     });
 
     it('should return 401 if not authenticated', async () => {

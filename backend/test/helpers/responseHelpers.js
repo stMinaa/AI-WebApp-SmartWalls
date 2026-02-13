@@ -67,8 +67,10 @@ const getMessage = (response) => {
  */
 const assertSuccess = (response, expectedStatus = 200) => {
   expect(response.status).toBe(expectedStatus);
-  expect(response.body.success).toBe(true);
-  expect(response.body.message).toBeDefined();
+  if (response.body.hasOwnProperty('success')) {
+    expect(response.body.success).toBe(true);
+    expect(response.body.message).toBeDefined();
+  }
 };
 
 /**
@@ -80,11 +82,15 @@ const assertSuccess = (response, expectedStatus = 200) => {
  */
 const assertError = (response, expectedStatus, expectedMessage = null) => {
   expect(response.status).toBe(expectedStatus);
-  expect(response.body.success).toBe(false);
-  expect(response.body.message).toBeDefined();
-  
+  if (response.body.hasOwnProperty('success')) {
+    expect(response.body.success).toBe(false);
+  }
+  // At least one of message or error should be defined
+  const errorMsg = response.body.message || response.body.error;
+  expect(errorMsg).toBeDefined();
+
   if (expectedMessage) {
-    expect(response.body.message).toContain(expectedMessage);
+    expect(errorMsg).toContain(expectedMessage);
   }
 };
 

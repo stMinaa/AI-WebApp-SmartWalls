@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Building = require('../models/Building');
 const Apartment = require('../models/Apartment');
 const { connectTestDB, disconnectTestDB } = require('./setup');
+const { getData, getErrorMessage } = require('./helpers/responseHelpers');
 
 beforeAll(async () => {
   await connectTestDB();
@@ -35,7 +36,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         lastName: 'One',
         role: 'director'
       });
-    directorId = directorRes.body.user._id;
+    directorId = getData(directorRes).user._id;
 
     const directorLogin = await request(app)
       .post('/api/auth/login')
@@ -43,7 +44,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         username: 'director1',
         password: 'password123'
       });
-    directorToken = directorLogin.body.token;
+    directorToken = getData(directorLogin).token;
 
     // Create and approve manager
     const managerRes = await request(app)
@@ -56,7 +57,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         lastName: 'One',
         role: 'manager'
       });
-    managerId = managerRes.body.user._id;
+    managerId = getData(managerRes).user._id;
 
     await request(app)
       .patch(`/api/users/${managerId}/approve`)
@@ -68,7 +69,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         username: 'manager1',
         password: 'password123'
       });
-    managerToken = managerLogin.body.token;
+    managerToken = getData(managerLogin).token;
 
     // Create building and assign manager
     const buildingRes = await request(app)
@@ -78,7 +79,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         name: 'Test Building',
         address: '123 Main St'
       });
-    buildingId = buildingRes.body._id;
+    buildingId = getData(buildingRes)._id;
 
     await request(app)
       .patch(`/api/buildings/${buildingId}/assign-manager`)
@@ -93,7 +94,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         unitNumber: '101',
         address: '123 Main St, Unit 101'
       });
-    apartmentId = apartment1Res.body._id;
+    apartmentId = getData(apartment1Res)._id;
 
     const apartment2Res = await request(app)
       .post(`/api/buildings/${buildingId}/apartments`)
@@ -102,7 +103,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         unitNumber: '102',
         address: '123 Main St, Unit 102'
       });
-    apartment2Id = apartment2Res.body._id;
+    apartment2Id = getData(apartment2Res)._id;
 
     // Create tenants
     const tenant1Res = await request(app)
@@ -115,7 +116,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         lastName: 'One',
         role: 'tenant'
       });
-    tenantId = tenant1Res.body.user._id;
+    tenantId = getData(tenant1Res).user._id;
 
     const tenant1Login = await request(app)
       .post('/api/auth/login')
@@ -123,7 +124,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         username: 'tenant1',
         password: 'password123'
       });
-    tenantToken = tenant1Login.body.token;
+    tenantToken = getData(tenant1Login).token;
 
     const tenant2Res = await request(app)
       .post('/api/auth/signup')
@@ -135,7 +136,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         lastName: 'Two',
         role: 'tenant'
       });
-    tenant2Id = tenant2Res.body.user._id;
+    tenant2Id = getData(tenant2Res).user._id;
 
     const tenant2Login = await request(app)
       .post('/api/auth/login')
@@ -143,7 +144,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         username: 'tenant2',
         password: 'password123'
       });
-    tenant2Token = tenant2Login.body.token;
+    tenant2Token = getData(tenant2Login).token;
 
     // Assign tenant1 to apartment
     await request(app)
@@ -163,18 +164,19 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         .set('Authorization', `Bearer ${tenantToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.apartment).toBeDefined();
-      expect(res.body.apartment.unitNumber).toBe('101');
-      expect(res.body.apartment.address).toBe('123 Main St, Unit 101');
-      expect(res.body.apartment.numPeople).toBe(3);
-      
-      expect(res.body.building).toBeDefined();
-      expect(res.body.building.name).toBe('Test Building');
-      expect(res.body.building.address).toBe('123 Main St');
-      
-      expect(res.body.building.manager).toBeDefined();
-      expect(res.body.building.manager.firstName).toBe('Manager');
-      expect(res.body.building.manager.lastName).toBe('One');
+      const data = getData(res);
+      expect(data.apartment).toBeDefined();
+      expect(data.apartment.unitNumber).toBe('101');
+      expect(data.apartment.address).toBe('123 Main St, Unit 101');
+      expect(data.apartment.numPeople).toBe(3);
+
+      expect(data.building).toBeDefined();
+      expect(data.building.name).toBe('Test Building');
+      expect(data.building.address).toBe('123 Main St');
+
+      expect(data.building.manager).toBeDefined();
+      expect(data.building.manager.firstName).toBe('Manager');
+      expect(data.building.manager.lastName).toBe('One');
     });
 
     it('should return 404 if tenant not assigned to any apartment', async () => {
@@ -183,7 +185,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         .set('Authorization', `Bearer ${tenant2Token}`);
 
       expect(res.status).toBe(404);
-      expect(res.body.error).toContain('not assigned');
+      expect(getErrorMessage(res)).toContain('not assigned');
     });
 
     it('should return 401 if not authenticated', async () => {
@@ -199,7 +201,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         .set('Authorization', `Bearer ${managerToken}`);
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toContain('Only tenants');
+      expect(getErrorMessage(res)).toContain('Only tenants');
     });
 
     it('should include apartment count in building info', async () => {
@@ -208,8 +210,9 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         .set('Authorization', `Bearer ${tenantToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.building.apartmentCount).toBeDefined();
-      expect(res.body.building.apartmentCount).toBeGreaterThan(0);
+      const data = getData(res);
+      expect(data.building.apartmentCount).toBeDefined();
+      expect(data.building.apartmentCount).toBeGreaterThan(0);
     });
 
     it('should not expose sensitive manager information', async () => {
@@ -218,8 +221,9 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
         .set('Authorization', `Bearer ${tenantToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.building.manager.password).toBeUndefined();
-      expect(res.body.building.manager.email).toBeDefined(); // Email should be included for contact
+      const data = getData(res);
+      expect(data.building.manager.password).toBeUndefined();
+      expect(data.building.manager.email).toBeDefined(); // Email should be included for contact
     });
   });
 });

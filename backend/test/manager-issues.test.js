@@ -160,7 +160,7 @@ describe('Phase 2.5: Manager Views Tenant-Reported Issues', () => {
         .set('Authorization', `Bearer ${ctx.tenant1Token}`);
 
       assertError(res, 403);
-      expect(res.body.error).toMatch(/Only managers and directors/i);
+      expect(res.body.message).toMatch(/Only managers and directors/i);
     });
 
     it('should include issue count in response', async () => {

@@ -42,6 +42,14 @@ describe('Phase 2.3: Manager Views & Manages Tenants', () => {
       });
     directorToken = getData(directorRes).token;
     directorId = getData(directorRes).user._id;
+
+    // Create manager
+    const managerRes = await request(app)
+      .post('/api/auth/signup')
+      .send({
+        username: 'manager1',
+        email: 'manager1@test.com',
+        password: 'pass123',
         firstName: 'Man',
         lastName: 'Ager',
         role: 'manager'
@@ -110,15 +118,39 @@ describe('Phase 2.3: Manager Views & Manages Tenants', () => {
         role: 'tenant'
       });
     tenant1Id = getData(tenant1Res).user._id;
+
+    const tenant2Res = await request(app)
+      .post('/api/auth/signup')
+      .send({
+        username: 'tenant2',
+        email: 'tenant2@test.com',
+        password: 'pass123',
+        firstName: 'Tenant',
         lastName: 'Two',
         role: 'tenant'
       });
     tenant2Id = getData(tenant2Res).user._id;
+
+    const tenant3Res = await request(app)
+      .post('/api/auth/signup')
+      .send({
+        username: 'tenant3',
+        email: 'tenant3@test.com',
+        password: 'pass123',
+        firstName: 'Tenant',
         lastName: 'Three',
         role: 'tenant'
       });
     tenant3Id = getData(tenant3Res).user._id;
     tenantToken = getData(tenant3Res).token;
+
+    // Assign tenant1 to apartment (sets both building and apartment)
+    await request(app)
+      .post(`/api/tenants/${tenant1Id}/assign`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ apartmentId, buildingId, numPeople: 2 });
+
+    // Assign tenant2 to building only (no apartment)
     await User.findByIdAndUpdate(tenant2Id, {
       building: new mongoose.Types.ObjectId(buildingId)
     });
@@ -141,7 +173,7 @@ describe('Phase 2.3: Manager Views & Manages Tenants', () => {
       expect(usernames).toEqual(['tenant1', 'tenant2']);
 
       // Check populated apartment
-      const tenant1 = res.body.find(t => t.username === 'tenant1');
+      const tenant1 = data.find(t => t.username === 'tenant1');
       expect(tenant1.apartment).toBeTruthy();
       expect(tenant1.apartment.unitNumber).toBe('101');
 

@@ -42,12 +42,28 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
       });
     directorToken = getData(directorRes).token;
     directorId = getData(directorRes).user._id;
+
+    // Create manager
+    const managerRes = await request(app)
+      .post('/api/auth/signup')
+      .send({
+        username: 'manager1',
+        email: 'manager1@test.com',
+        password: 'pass123',
         firstName: 'Man',
         lastName: 'Ager',
         role: 'manager'
       });
     managerToken = getData(managerRes).token;
     managerId = getData(managerRes).user._id;
+
+    // Approve manager
+    await request(app)
+      .patch(`/api/users/${managerId}/approve`)
+      .set('Authorization', `Bearer ${directorToken}`);
+
+    // Create tenant
+    const tenantRes = await request(app)
       .post('/api/auth/signup')
       .send({
         username: 'tenant1',
@@ -58,6 +74,14 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         role: 'tenant'
       });
     tenantToken = getData(tenantRes).token;
+
+    // Create building
+    const buildingRes = await request(app)
+      .post('/api/buildings')
+      .set('Authorization', `Bearer ${directorToken}`)
+      .send({ name: 'Test Building', address: '123 Main St' });
+    buildingId = getData(buildingRes)._id;
+
     // Assign manager to building
     await request(app)
       .patch(`/api/buildings/${buildingId}/assign-manager`)
@@ -74,7 +98,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
 
       assertSuccess(res, 201);
       const data = getData(res);
-      expect(data.message).toMatch(/created/i);
+      expect(res.body.message).toMatch(/created/i);
       expect(data.count).toBe(12); // 3 floors × 4 units
 
       // Verify in database
@@ -125,7 +149,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .send({ floors: 1, unitsPerFloor: 1 });
 
       assertError(res, 400);
-      expect(res.body.error).toMatch(/already has apartments/i);
+      expect(res.body.message).toMatch(/already has apartments/i);
     });
 
     it('should return 401 if not authenticated', async () => {
@@ -182,7 +206,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .send({ address: '123 Main St' });
 
       assertError(res, 400);
-      expect(res.body.error).toMatch(/unitNumber.*required/i);
+      expect(res.body.message).toMatch(/unitNumber.*required/i);
     });
 
     it('should return 401 if not authenticated', async () => {

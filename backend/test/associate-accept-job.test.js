@@ -14,6 +14,7 @@ const Apartment = require('../models/Apartment');
 const Issue = require('../models/Issue');
 const bcrypt = require('bcryptjs');
 const { connectTestDB, disconnectTestDB } = require('./setup');
+const { getData } = require('./helpers/responseHelpers');
 
 let director, associate1, associate2, manager, tenant;
 let directorToken, associate1Token, associate2Token, managerToken, tenantToken;
@@ -46,7 +47,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
           firstName: 'Director',
           lastName: 'One'
         });
-      directorToken = directorRes.body.token;
+      directorToken = getData(directorRes).token;
       director = await User.findOne({ username: 'director1' });
 
       const associate1Res = await request(app)
@@ -60,7 +61,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
           lastName: 'One',
           company: 'Plumbing Co'
         });
-      associate1Token = associate1Res.body.token;
+      associate1Token = getData(associate1Res).token;
       associate1 = await User.findOne({ username: 'associate1' });
 
       const associate2Res = await request(app)
@@ -74,7 +75,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
           lastName: 'Two',
           company: 'Electric Co'
         });
-      associate2Token = associate2Res.body.token;
+      associate2Token = getData(associate2Res).token;
       associate2 = await User.findOne({ username: 'associate2' });
 
       const managerRes = await request(app)
@@ -88,7 +89,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
           lastName: 'One',
           company: 'Management Co'
         });
-      managerToken = managerRes.body.token;
+      managerToken = getData(managerRes).token;
       manager = await User.findOne({ username: 'manager1' });
 
       const tenantRes = await request(app)
@@ -101,20 +102,20 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
           firstName: 'Tenant',
           lastName: 'One'
         });
-      tenantToken = tenantRes.body.token;
+      tenantToken = getData(tenantRes).token;
       tenant = await User.findOne({ username: 'tenant1' });
 
       // Approve manager and associates
       await request(app)
-        .post(`/api/users/${manager._id}/approve`)
+        .patch(`/api/users/${manager._id}/approve`)
         .set('Authorization', 'Bearer ' + directorToken);
       
       await request(app)
-        .post(`/api/users/${associate1._id}/approve`)
+        .patch(`/api/users/${associate1._id}/approve`)
         .set('Authorization', 'Bearer ' + directorToken);
 
       await request(app)
-        .post(`/api/users/${associate2._id}/approve`)
+        .patch(`/api/users/${associate2._id}/approve`)
         .set('Authorization', 'Bearer ' + directorToken);
 
       // Create building, apartment
@@ -162,9 +163,10 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
         .send({ estimatedCost: 150 });
 
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe('in-progress');
-      expect(res.body.cost).toBe(150);
-      expect(res.body._id).toBe(assignedIssue._id.toString());
+      const data = getData(res);
+      expect(data.status).toBe('in-progress');
+      expect(data.cost).toBe(150);
+      expect(data._id).toBe(assignedIssue._id.toString());
 
       // Verify in database
       const updated = await Issue.findById(assignedIssue._id);
@@ -179,13 +181,14 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
         .send({ estimatedCost: 200 });
 
       expect(res.status).toBe(200);
-      expect(res.body.apartment).toBeDefined();
-      expect(res.body.apartment.unitNumber).toBe('101');
-      expect(res.body.building).toBeDefined();
-      expect(res.body.building.name).toBe('Test Building');
-      expect(res.body.createdBy).toBeDefined();
-      expect(res.body.createdBy.email).toBe('tenant1@test.com');
-      expect(res.body.createdBy.password).toBeUndefined();
+      const data = getData(res);
+      expect(data.apartment).toBeDefined();
+      expect(data.apartment.unitNumber).toBe('101');
+      expect(data.building).toBeDefined();
+      expect(data.building.name).toBe('Test Building');
+      expect(data.createdBy).toBeDefined();
+      expect(data.createdBy.email).toBe('tenant1@test.com');
+      expect(data.createdBy.password).toBeUndefined();
     });
 
     it('should reject if estimatedCost is missing', async () => {
