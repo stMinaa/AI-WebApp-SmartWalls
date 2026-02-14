@@ -22,18 +22,28 @@ cd frontend && npm start
 
 ## Documentation Map
 
-| Category | Document | What's Inside |
-|----------|----------|---------------|
-| **Standards** | [CODE_QUALITY.md](docs/standards/CODE_QUALITY.md) | Code health rules, CodeScene CLI, pre-commit hooks, targets (score ≥ 9.0) |
-| **Standards** | [REFACTORING.md](docs/standards/REFACTORING.md) | Hexagonal architecture migration plan, SOLID principles, automated quality gates |
-| **Standards** | [UI_UX.md](docs/standards/UI_UX.md) | Full design system: colors, typography, role themes, components, accessibility |
-| **Workflow** | [DEVELOPMENT.md](docs/workflow/DEVELOPMENT.md) | TDD process (RED → GREEN → BLUE), commit rules, connectivity checks |
-| **Workflow** | [TESTING.md](docs/workflow/TESTING.md) | Phase-by-phase test specs, manual testing checklists |
-| **Specs** | [ROLES.md](docs/specs/ROLES.md) | Role system, phase breakdown, data flows, schemas, authorization matrix |
-| **Reference** | [QUICK_REF.md](docs/reference/QUICK_REF.md) | Commands, API format, curl examples, troubleshooting, common errors |
-| **Reference** | [IMPLEMENTATION.md](docs/reference/IMPLEMENTATION.md) | Component structure, auth flow, state management, server config |
-| **Reference** | [QUALITY_QUICK_REF.md](docs/reference/QUALITY_QUICK_REF.md) | Architecture test commands, quality gates, quick quality checks |
-| **Logs** | [PROJECT_LOG.md](docs/logs/PROJECT_LOG.md) | Development history, commits, problems & fixes |
+### 🤖 AI Context (Primary for Claude)
+
+| Document | What's Inside |
+|----------|---------------|
+| [tdd-mandatory.md](.claude/context/tdd-mandatory.md) | TDD process (RED → GREEN → BLUE), commit rules, connectivity checks, autonomous commit rules |
+| [code-quality.md](.claude/context/code-quality.md) | Code health targets, CodeScene commands, complexity limits, JavaScript/React/MongoDB standards |
+| [ui-rules.md](.claude/context/ui-rules.md) | Complete design system: colors, fonts, layouts, role-specific styling, Serbian language |
+| [role-permissions.md](.claude/context/role-permissions.md) | Authorization matrix, workflows, issue lifecycle, navigation tabs, API endpoints by role |
+| [api-endpoints.md](.claude/context/api-endpoints.md) | All API endpoints with request/response examples, status codes, authentication |
+| [testing-checklist.md](.claude/context/testing-checklist.md) | Pre-commit checklist, test coverage requirements, system connectivity, manual testing |
+| [architecture.md](.claude/context/architecture.md) | Hexagonal architecture, SOLID principles, refactoring plan, complexity reduction |
+
+### 📋 Project Specs
+
+| Document | What's Inside |
+|----------|---------------|
+| [ROLES.md](docs/specs/ROLES.md) | Role system specification, phase breakdown, data flows, authorization matrix |
+| [PROJECT_LOG.md](docs/logs/PROJECT_LOG.md) | Development history, commits, problems & fixes |
+
+### 📦 Archive (Historical)
+
+Original documentation files archived in `docs/archive/` after extraction into AI-optimized context files.
 
 ---
 
@@ -45,22 +55,25 @@ cd frontend && npm start
 
 | Agent | Fajl | Uloga | Pise kod? |
 |-------|------|-------|-----------|
-| **nodejs-coder** | `.claude/commands/agents/nodejs-coder.md` | Backend implementacija, striktni TDD | **DA - JEDINI za backend** |
-| **react-coder** | `.claude/commands/agents/react-coder.md` | Frontend implementacija, TDD | **DA - JEDINI za frontend** |
-| **backend-architect** | `.claude/commands/agents/backend-architect.md` | Hexagonalna arhitektura, konsultant | NE - samo preporuke |
-| **code-quality-reviewer** | `.claude/commands/agents/code-quality-reviewer.md` | SOLID, kompleksnost, code smells | NE - samo review |
-| **database-architect** | `.claude/commands/agents/database-architect.md` | Sheme, migracije, rollback | NE - samo plan |
+| **nodejs-coder** | `.claude/agents/nodejs-coder.md` | Backend implementacija, striktni TDD | **DA - JEDINI za backend** |
+| **react-coder** | `.claude/agents/react-coder.md` | Frontend implementacija, TDD | **DA - JEDINI za frontend** |
+| **backend-architect** | `.claude/agents/backend-architect.md` | Hexagonalna arhitektura, konsultant | NE - samo preporuke |
+| **code-quality-reviewer** | `.claude/agents/code-quality-reviewer.md` | SOLID, kompleksnost, code smells | NE - samo review |
+| **database-architect** | `.claude/agents/database-architect.md` | Sheme, migracije, rollback | NE - samo plan |
 
 ### Skillovi (orkestriraju agente)
 
-| Skill | Komanda | Poziva agenta | Kada se koristi |
-|-------|---------|---------------|-----------------|
-| **TDD Workflow** | `/tdd` | nodejs-coder ILI react-coder | Bug fix, novi feature |
-| **API Design** | `/api-design` | backend-architect → nodejs-coder | Novi/promenjen endpoint |
-| **Code Quality** | `/quality` | code-quality-reviewer | Refaktoring, review, pre-commit |
-| **DB Migration** | `/db-migration` | database-architect → nodejs-coder | Promena sheme (RETKO) |
-| **Documentation** | `/documenting` | - | Novi modul, feature, arhitektura |
-| **Feature Spec** | `/spec` | - | Pregled specifikacije rola |
+| Skill | Komanda | Koristi agent | Poziva agenta | Kada se koristi |
+|-------|---------|---------------|---------------|-----------------|
+| **TDD Workflow** | `/tdd` | nodejs-coder, react-coder | - | Bug fix, novi feature (GLAVNI workflow) |
+| **API Design** | `/api-design` | nodejs-coder | backend-architect | Novi/promenjen endpoint |
+| **Code Quality** | `/quality` | nodejs-coder, react-coder | code-quality-reviewer | Pre-commit, refaktoring, review |
+| **DB Migration** | `/db-migration` | nodejs-coder | database-architect | Promena sheme (RETKO) |
+| **Documentation** | `/documenting` | react-coder, backend-architect | - | Novi modul, komponenta, arhitektura |
+| **Feature Spec** | `/spec` | backend-architect, database-architect | - | Pregled ROLES.md specifikacije |
+| **Quality Check** | `/quality-check` | code-quality-reviewer | - | Brza CodeScene provera |
+
+**Kako funkcioniše:** Agenti koriste skillove da pozovu druge agente za konsultacije ili da orkestriraju kompleksne procese.
 
 ### Rutiranje (OBAVEZNO)
 
@@ -73,6 +86,58 @@ DB shema promena                               → database-architect (samo plan
 ```
 
 **ZLATNO PRAVILO:** nodejs-coder i react-coder NE SMEJU da pisu produkcijski kod dok ne napisu testove koji PADAJU (RED faza).
+
+---
+
+## Agent-Skill Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     USER ZAHTEV                                 │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+        ▼                             ▼
+  ┌──────────┐                  ┌──────────┐
+  │ Backend  │                  │ Frontend │
+  │ Feature  │                  │ Feature  │
+  └─────┬────┘                  └─────┬────┘
+        │                             │
+        ▼                             ▼
+  ┌──────────────┐            ┌───────────────┐
+  │ nodejs-coder │            │ react-coder   │
+  │   (TDD)      │            │     (TDD)     │
+  └──────┬───────┘            └───────┬───────┘
+         │                            │
+         │ koristi /tdd               │ koristi /tdd
+         │ koristi /quality           │ koristi /quality
+         │ koristi /api-design        │ koristi /documenting
+         │                            │
+         ├─────────┐                  │
+         │         │                  │
+         ▼         ▼                  │
+  ┌──────────┐ ┌──────────────┐      │
+  │backend-  │ │code-quality- │      │
+  │architect │ │reviewer      │◄─────┘
+  │(consult) │ │(review)      │
+  └──────────┘ └──────────────┘
+         ▲
+         │
+         │ koristi /db-migration
+         │
+  ┌──────────────┐
+  │database-     │
+  │architect     │
+  │(db design)   │
+  └──────────────┘
+```
+
+**Flow:**
+1. **Koder agenti** (`nodejs-coder`, `react-coder`) → Pišu kod, koriste `/tdd` uvek
+2. **Koder poziva `/quality`** → Aktivira `code-quality-reviewer`
+3. **Koder poziva `/api-design`** → Aktivira `backend-architect` za konsultaciju
+4. **Koder poziva `/db-migration`** → Aktivira `database-architect` za plan
 
 ---
 
@@ -119,14 +184,9 @@ project/
 │   ├── logs/              - PROJECT_LOG
 │   └── archive/           - Historical docs
 └── .claude/
-    └── commands/
-        ├── agents/        - Agent instrukcije (nodejs-coder, react-coder, backend-architect, code-quality-reviewer, database-architect)
-        ├── tdd.md         - TDD Workflow skill
-        ├── api-design.md  - API Design skill
-        ├── quality.md     - Code Quality skill
-        ├── db-migration.md - DB Migration skill
-        ├── documenting.md - Documentation skill
-        └── spec.md        - Feature Specification skill
+    ├── agents/            - Agent instrukcije (nodejs-coder, react-coder, backend-architect, code-quality-reviewer, database-architect)
+    ├── skills/            - Skillovi (tdd, quality, api-design, db-migration, documenting, spec, quality-check)
+    └── commands/          - Specifične komande (codescene-check, codescene-hotspots)
 ```
 
 ---

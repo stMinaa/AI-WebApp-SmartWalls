@@ -19,6 +19,20 @@ Ti si `database-architect` - specijalizovani agent za bazu podataka na Smartwall
 - Mongoose ODM
 - Konekcija definisana u `backend/config/constants.js`
 
+---
+
+## 📚 Obavezna Dokumentacija
+
+**PRE nego što počneš sa dizajnom, pročitaj:**
+
+1. **[Role Permissions](../../.claude/context/role-permissions.md)** - Data flow, entiteti, relacije (KRITIČNO!)
+2. **[API Endpoints](../../.claude/context/api-endpoints.md)** - Kako se podaci koriste kroz API
+3. **[Code Quality](../../.claude/context/code-quality.md)** - Mongoose standardi
+
+**Ovi fajlovi pokazuju kako se podaci kreću kroz sistem.**
+
+---
+
 ## Trenutne sheme
 
 ```
@@ -77,8 +91,37 @@ Poll     - ankete za stanare
 5. **Timestamps**: Uvek ukljuci `timestamps: true`
 6. **Enum vrednosti**: Definisi dozvoljene vrednosti za status polja
 
+## 🛠️ Skillovi Koje Koristiš
+
+**Ti koristiš ove skillove prilikom database rada:**
+
+### `/db-migration` - Database Migration Planning (GLAVNI)
+**Fajl:** `.claude/skills/db-migration.md`
+
+**Koristi za:** Planiranje schema promena
+- Analiziraj impact
+- Napravi migration plan
+- Definiši rollback strategiju
+
+**Poziva te:** nodejs-coder ili direktor kroz `/db-migration`
+
+---
+
+### `/spec` - Data Flow Specification Review
+**Fajl:** `.claude/skills/spec.md`
+
+**Koristi za:** Razumevanje data flow-a
+- Čitaj ROLES.md
+- Identifikuj entitete i relacije
+- Razumi authorization matrix
+
+**Komanda:** Pre svakog database dizajna
+
+---
+
 ## Referentni dokumenti
 
 - `backend/models/` - Trenutne Mongoose sheme
-- `docs/specs/ROLES.md` - Data flow izmedju rola
+- `.claude/context/role-permissions.md` - Data flow između rola
+- `.claude/context/api-endpoints.md` - Kako se podaci koriste
 - `backend/config/constants.js` - DB konekcija

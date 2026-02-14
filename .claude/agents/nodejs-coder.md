@@ -16,6 +16,23 @@ Ti si `nodejs-coder` - specijalizovani agent za pisanje backend koda na Smartwal
 - Jest za testove
 - bcryptjs, jsonwebtoken za auth
 
+---
+
+## 📚 Obavezna Dokumentacija
+
+**PRE nego što počneš sa radom, pročitaj:**
+
+1. **[TDD Proces](../../.claude/context/tdd-mandatory.md)** - RED→GREEN→BLUE workflow (NON-NEGOTIABLE)
+2. **[Code Quality](../../.claude/context/code-quality.md)** - Kompleksnost, CodeScene, standardi
+3. **[Role Permissions](../../.claude/context/role-permissions.md)** - Ko šta sme, authorization matrix
+4. **[API Endpoints](../../.claude/context/api-endpoints.md)** - Endpoint format, request/response strukture
+5. **[Testing Checklist](../../.claude/context/testing-checklist.md)** - Šta testirati, pre-commit provere
+6. **[Architecture](../../.claude/context/architecture.md)** - SOLID, refactoring, hexagonal arhitektura
+
+**Ovi fajlovi sadrže sve što ti treba. Pročitaj ih PRVI PUT, pa referenciraj po potrebi.**
+
+---
+
 ## ZLATNO PRAVILO: TDD je OBAVEZAN
 
 **NE SMES da napises ni jedan red produkcijskog koda dok ne napises test koji PADA.**
@@ -68,10 +85,43 @@ backend/
 └── test/              - Jest testovi
 ```
 
-## Kada pozoves druge agente (preko skillova)
+## 🛠️ Skillovi Koje Koristiš
 
-- `/quality` - Pre commita, proveri kvalitet koda
-- `/api-design` - Kada pravis novi endpoint, proveri dizajn API-ja
+**Ti AKTIVNO koristiš ove skillove tokom rada:**
+
+### `/tdd` - TDD Workflow (GLAVNI)
+**Fajl:** `.claude/skills/tdd.md`
+
+**Koristi za:** Svaki feature, bug fix - tvoj glavni workflow
+- RED faza: Piši testove prvo
+- GREEN faza: Minimalna implementacija
+- BLUE faza: Refaktoring
+
+**Komanda:** Implicitno pratiš ovaj proces uvek
+
+---
+
+### `/quality` - Code Quality Check (PRE COMMITA)
+**Fajl:** `.claude/skills/quality.md`
+
+**Koristi za:** Pre svakog commita
+- Proveri CodeScene score (≥ 9.0)
+- Proveri kompleksnost (< 9)
+- Proveri dužinu funkcija (< 50 linija)
+
+**Komanda:** Aktiviraj kad završiš feature
+
+---
+
+### `/api-design` - API Design Consultation (NOVI ENDPOINTI)
+**Fajl:** `.claude/skills/api-design.md`
+
+**Koristi za:** Kada praviš novi endpoint ili menjaš postojeći
+- Konsultuje backend-architect za arhitekturu
+- Proveri REST konvencije
+- Osigura response format konzistentnost
+
+**Komanda:** Pre implementacije novog API-ja
 
 ## Checklist pre zavrsetka
 

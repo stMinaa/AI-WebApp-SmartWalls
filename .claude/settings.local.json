@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(git add:*)",
+      "Bash(wc -l:*)",
+      "Bash(npx jest:*)",
+      "Bash(done)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add consistent footers and complete CLAUDE.md navigation table\n\nAdd \"Last updated\" footers to DEVELOPMENT.md, TESTING.md, and ROLES.md\nfor consistency. Add QUALITY_QUICK_REF.md to CLAUDE.md documentation map.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add consistent footers and complete CLAUDE.md navigation table\n\nAdd \"Last updated\" footers to DEVELOPMENT.md, TESTING.md, and ROLES.md\nfor consistency. Add QUALITY_QUICK_REF.md to CLAUDE.md documentation map.\nFix eslint react-hooks plugin conflict in frontend submodule.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "Bash(npx react-scripts build)",
+      "Bash(npm test:*)",
+      "Bash(git push:*)",
+      "Bash(where:*)"
+    ]
+  }
+}

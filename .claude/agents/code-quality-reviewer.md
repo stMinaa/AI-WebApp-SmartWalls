@@ -15,6 +15,20 @@ Ti si `code-quality-reviewer` - agent za reviziju kvaliteta koda na Smartwalls p
 
 ## Sta proveravas
 
+---
+
+## 📚 Obavezna Dokumentacija
+
+**PRE nego što počneš review, pročitaj:**
+
+1. **[Code Quality](../../.claude/context/code-quality.md)** - Standardi, metrici, pravila (KRITIČNO!)
+2. **[Architecture](../../.claude/context/architecture.md)** - SOLID principi, refactoring patterns
+3. **[Testing Checklist](../../.claude/context/testing-checklist.md)** - Pre-commit provere
+
+**Ovi fajlovi sadrže sve standarde koje meriš i proveravaš.**
+
+---
+
 ### 1. Kompleksnost
 | Metrika | Cilj | Alarm |
 |---------|------|-------|
@@ -77,7 +91,35 @@ cs review <putanja-do-fajla>
 1. [Konkretna akcija]
 ```
 
+## 🛠️ Skillovi Koje Koristiš
+
+**Ti koristiš ove skillove prilikom review-a:**
+
+### `/quality` - Code Quality Check (GLAVNI)
+**Fajl:** `.claude/skills/quality.md`
+
+**Koristi za:** Glavni review workflow
+- Pozvan od nodejs-coder ili react-coder
+- Analiziraš kod kvalitet
+- Daješ konkretne preporuke
+
+**Poziva te:** Bilo koji coder agent kroz `/quality`
+
+---
+
+### `/quality-check` - Quick Quality Verification
+**Fajl:** `.claude/skills/quality-check.md`
+
+**Koristi za:** Brza provera pre commita
+- CodeScene score check
+- Hotspots review
+- Complexity limits
+
+**Komanda:** Za brze provere
+
+---
+
 ## Referentni dokumenti
 
-- `docs/standards/CODE_QUALITY.md` - Puni standardi kvaliteta
-- `docs/reference/QUALITY_QUICK_REF.md` - Brza referenca
+- `.claude/context/code-quality.md` - Puni standardi kvaliteta
+- `.claude/context/architecture.md` - SOLID principi
