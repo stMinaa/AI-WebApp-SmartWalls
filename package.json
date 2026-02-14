@@ -16,6 +16,8 @@
     "deps:graph": "cd backend && depcruise --config .dependency-cruiser.js --output-type dot src | dot -T svg > ../dependency-graph.svg",
     "quality": "npm run lint && npm run test:arch",
     "quality:full": "npm run lint && npm run deps:check && npm run test:arch && npm test",
+    "format": "prettier --write \"backend/**/*.js\" \"frontend/src/**/*.{js,jsx}\"",
+    "format:check": "prettier --check \"backend/**/*.js\" \"frontend/src/**/*.{js,jsx}\"",
     "prepare": "husky"
   },
   "keywords": [],
@@ -38,6 +40,18 @@
     "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1",
     "supertest": "^7.2.2"
+  },
+  "lint-staged": {
+    "backend/**/*.js": [
+      "prettier --write",
+      "eslint --fix --max-warnings 0"
+    ],
+    "frontend/src/**/*.{js,jsx}": [
+      "prettier --write",
+      "eslint --fix --max-warnings 0"
+    ]
   }
 }

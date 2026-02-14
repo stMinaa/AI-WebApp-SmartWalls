@@ -1,27 +1,28 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
-echo "🔍 Running quality checks..."
+echo "Running pre-commit checks..."
 echo ""
 
-# Frontend build check
-echo "📦 Checking frontend build..."
-node .husky/pre-commit-check.js || exit 1
+# Step 1: lint-staged (prettier + eslint on staged files)
+echo "Step 1/3: Running lint-staged (prettier + eslint)..."
+npx lint-staged || exit 1
+echo "lint-staged passed."
+echo ""
 
-# ═══════════════════════════════════════════════════════════════
-# ARCHITECTURAL CHECKS (Optional during pre-refactoring phase)
-# Uncomment these when starting hexagonal architecture migration
-# ═══════════════════════════════════════════════════════════════
+# Step 2: Backend tests
+echo "Step 2/3: Running backend tests..."
+npx jest backend/test/ --bail --forceExit --runInBand || exit 1
+echo "Backend tests passed."
+echo ""
 
-# echo ""
-# echo "🏛️  Running architectural tests..."
-# npm run test:arch || exit 1
-
-# echo ""
-# echo "✨ Linting backend code..."
-# npm run lint || exit 1
+# Step 3: CodeScene delta (optional - only if cs is available)
+if command -v cs >/dev/null 2>&1; then
+  echo "Step 3/3: Running CodeScene delta analysis..."
+  cs delta --staged || exit 1
+  echo "CodeScene check passed."
+else
+  echo "Step 3/3: CodeScene not found, skipping."
+fi
 
 echo ""
-echo "✅ All checks passed!"
-echo ""
-echo "💡 Tip: Run 'npm run quality' manually to check architecture"
+echo "All pre-commit checks passed!"
