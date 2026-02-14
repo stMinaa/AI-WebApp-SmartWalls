@@ -9,7 +9,7 @@ const { JWT_SECRET, TOKEN_EXPIRY, BCRYPT_ROUNDS, HTTP_STATUS, ERROR_MESSAGES } =
 
 /**
  * Generate JWT token for user
- * @param {Object} user - { _id, username, role }
+ * @param {Object} user - { _id, username, email, role }
  * @returns {string} JWT token
  */
 function generateToken(user) {
@@ -19,8 +19,9 @@ function generateToken(user) {
 
   return jwt.sign(
     { 
-      userId: user._id, 
-      username: user.username, 
+      userId: user._id.toString(), 
+      username: user.username,
+      email: user.email || '',
       role: user.role 
     },
     JWT_SECRET,

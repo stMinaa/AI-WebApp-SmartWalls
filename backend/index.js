@@ -17,6 +17,14 @@ const {
   ERROR_MESSAGES,
 } = require('./config/constants');
 
+// Validation middleware and validators
+const { validate } = require('./middleware/validate');
+const UserValidator = require('./validators/UserValidator');
+const IssueValidator = require('./validators/IssueValidator');
+const BuildingValidator = require('./validators/BuildingValidator');
+const ApartmentValidator = require('./validators/ApartmentValidator');
+const NoticeValidator = require('./validators/NoticeValidator');
+
 const app = express();
 
 // MongoDB connection string (hardcoded for simplicity)
@@ -62,6 +70,269 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// ===== DATABASE LOOKUP HELPERS =====
+/**
+ * Find user by username or throw 404 error
+ * @param {string} username - Username to search for
+ * @returns {Promise<User>} User document
+ * @throws {Error} 404 if user not found
+ */
+async function findUserByUsername(username) {
+  const user = await User.findOne({ username });
+  if (!user) {
+    const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    error.status = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+  return user;
+}
+
+/**
+ * Find user by ID or throw 404 error
+ * @param {string} userId - User ID to search for
+ * @param {string} selectFields - Optional: fields to select/exclude (e.g., '-password')
+ * @returns {Promise<User>} User document
+ * @throws {Error} 404 if user not found
+ */
+async function findUserById(userId, selectFields = '') {
+  let query = User.findById(userId);
+  if (selectFields) {
+    query = query.select(selectFields);
+  }
+  const user = await query;
+  if (!user) {
+    const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    error.status = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+  return user;
+}
+
+/**
+ * Find current authenticated user from request
+ * @param {Request} req - Express request object with req.user.username
+ * @param {string} selectFields - Optional: fields to select/exclude (e.g., '-password')
+ * @returns {Promise<User>} Current user document
+ * @throws {Error} 404 if user not found
+ */
+async function getCurrentUser(req, selectFields = '-password') {
+  return findUserByUsername(req.user.username, selectFields);
+}
+
+/**
+ * Find building by ID or throw 404 error
+ * @param {string} buildingId - Building ID to search for
+ * @returns {Promise<Building>} Building document
+ * @throws {Error} 404 if building not found
+ */
+async function findBuildingById(buildingId) {
+  const building = await Building.findById(buildingId);
+  if (!building) {
+    const error = new Error('Building not found');
+    error.status = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+  return building;
+}
+
+/**
+ * Find issue by ID or throw 404 error
+ * @param {string} issueId - Issue ID to search for
+ * @returns {Promise<Issue>} Issue document
+ * @throws {Error} 404 if issue not found
+ */
+async function findIssueById(issueId) {
+  const issue = await Issue.findById(issueId);
+  if (!issue) {
+    const error = new Error('Issue not found');
+    error.status = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+  return issue;
+}
+
+/**
+ * Find apartment by ID or throw 404 error
+ * @param {string} apartmentId - Apartment ID to search for
+ * @returns {Promise<Apartment>} Apartment document
+ * @throws {Error} 404 if apartment not found
+ */
+async function findApartmentById(apartmentId) {
+  const apartment = await Apartment.findById(apartmentId);
+  if (!apartment) {
+    const error = new Error('Apartment not found');
+    error.status = HTTP_STATUS.NOT_FOUND;
+    throw error;
+  }
+  return apartment;
+}
+
+// ===== PERMISSION CHECK HELPERS =====
+/**
+ * Require user to have specific role, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} requiredRole - Required role from USER_ROLES
+ * @param {string} errorMessage - Custom error message from ERROR_MESSAGES
+ * @throws {Error} 403 Forbidden if user doesn't have required role
+ */
+function requireRole(user, requiredRole, errorMessage) {
+  if (user.role !== requiredRole) {
+    const error = new Error(errorMessage || `Only ${requiredRole}s can perform this action`);
+    error.status = HTTP_STATUS.FORBIDDEN;
+    throw error;
+  }
+}
+
+/**
+ * Require user to have one of specified roles (OR logic), throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string[]} allowedRoles - Array of allowed roles from USER_ROLES
+ * @param {string} errorMessage - Custom error message from ERROR_MESSAGES
+ * @throws {Error} 403 Forbidden if user doesn't have any of the allowed roles
+ */
+function requireOneOfRoles(user, allowedRoles, errorMessage) {
+  if (!allowedRoles.includes(user.role)) {
+    const error = new Error(errorMessage || `Insufficient permissions`);
+    error.status = HTTP_STATUS.FORBIDDEN;
+    throw error;
+  }
+}
+
+/**
+ * Require user to be director, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} errorMessage - Optional custom error message
+ * @throws {Error} 403 Forbidden if user is not director
+ */
+function requireDirector(user, errorMessage = ERROR_MESSAGES.ONLY_DIRECTORS) {
+  requireRole(user, USER_ROLES.DIRECTOR, errorMessage);
+}
+
+/**
+ * Require user to be manager, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} errorMessage - Optional custom error message
+ * @throws {Error} 403 Forbidden if user is not manager
+ */
+function requireManager(user, errorMessage = ERROR_MESSAGES.ONLY_MANAGERS_VIEW_BUILDINGS) {
+  requireRole(user, USER_ROLES.MANAGER, errorMessage);
+}
+
+/**
+ * Require user to be associate, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} errorMessage - Optional custom error message
+ * @throws {Error} 403 Forbidden if user is not associate
+ */
+function requireAssociate(user, errorMessage = ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT) {
+  requireRole(user, USER_ROLES.ASSOCIATE, errorMessage);
+}
+
+/**
+ * Require user to be tenant, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} errorMessage - Optional custom error message
+ * @throws {Error} 403 Forbidden if user is not tenant
+ */
+function requireTenant(user, errorMessage) {
+  requireRole(user, USER_ROLES.TENANT, errorMessage || 'Only tenants can perform this action');
+}
+
+/**
+ * Require user to be director or manager, throw 403 if not
+ * @param {User} user - User document to check
+ * @param {string} errorMessage - Optional custom error message
+ * @throws {Error} 403 Forbidden if user is neither director nor manager
+ */
+function requireDirectorOrManager(user, errorMessage = ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_ISSUES) {
+  requireOneOfRoles(user, [USER_ROLES.DIRECTOR, USER_ROLES.MANAGER], errorMessage);
+}
+
+// ===== RESPONSE FORMATTING HELPERS =====
+/**
+ * Add apartment count to building object
+ * @param {Building} building - Building document
+ * @returns {Promise<Object>} Building object with apartmentCount field
+ */
+async function addApartmentCount(building) {
+  const apartmentCount = await Apartment.countDocuments({ building: building._id });
+  return {
+    ...building.toObject(),
+    apartmentCount
+  };
+}
+
+/**
+ * Add apartment counts to multiple buildings
+ * @param {Building[]} buildings - Array of building documents
+ * @returns {Promise<Object[]>} Buildings with apartmentCount fields
+ */
+async function addApartmentCounts(buildings) {
+  return Promise.all(buildings.map(building => addApartmentCount(building)));
+}
+
+/**
+ * Flatten issue apartment.building to top-level building field
+ * Used when issues are populated with apartment → building relationships
+ * @param {Issue} issue - Issue document with populated apartment.building
+ * @returns {Object} Issue object with flattened building field
+ */
+function flattenIssueBuilding(issue) {
+  const issueObj = issue.toObject();
+  if (issueObj.apartment && issueObj.apartment.building) {
+    issueObj.building = issueObj.apartment.building;
+  }
+  return issueObj;
+}
+
+/**
+ * Flatten multiple issues' apartment.building to top-level building field
+ * @param {Issue[]} issues - Array of issue documents
+ * @returns {Object[]} Issues with flattened building fields
+ */
+function flattenIssueBuildings(issues) {
+  return issues.map(issue => flattenIssueBuilding(issue));
+}
+
+/**
+ * Standard issue population query (apartment, building, users)
+ * Use with Issue.find() or Issue.findById()
+ * @param {Query} query - Mongoose query object
+ * @returns {Query} Query with standard population
+ */
+function populateIssue(query) {
+  return query
+    .populate('apartment', 'unitNumber address')
+    .populate({
+      path: 'apartment',
+      populate: {
+        path: 'building',
+        select: 'name address'
+      }
+    })
+    .populate('createdBy', 'firstName lastName email')
+    .populate('assignedTo', 'firstName lastName email');
+}
+
+/**
+ * Standard issue population with company field for associates
+ * @param {Query} query - Mongoose query object
+ * @returns {Query} Query with standard population including company
+ */
+function populateIssueWithCompany(query) {
+  return query
+    .populate('apartment', 'unitNumber address')
+    .populate({
+      path: 'apartment',
+      populate: {
+        path: 'building',
+        select: 'name address'
+      }
+    })
+    .populate('createdBy', 'firstName lastName email')
+    .populate('assignedTo', 'username firstName lastName email company');
+}
 
 // ===== SIGNUP HELPERS =====
 /**
@@ -129,14 +400,8 @@ function createUserResponse(user, token) {
 }
 
 // ===== SIGNUP =====
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', validate(UserValidator.validateSignup), async (req, res) => {
   const { username, email, password, firstName, lastName, role } = req.body;
-
-  // Validate input
-  const validation = validateSignupInput(username, email, password, role);
-  if (!validation.valid) {
-    return ApiResponse.error(res, validation.message, validation.status, validation.error);
-  }
 
   try {
     // Check if user exists
@@ -166,9 +431,14 @@ app.post('/api/auth/signup', async (req, res) => {
 
     await user.save();
 
-    // Create token
+    // Create token with standardized payload: { userId, username, email, role }
     const token = jwt.sign(
-      { username: user.username, email: user.email },
+      { 
+        userId: user._id.toString(),
+        username: user.username, 
+        email: user.email,
+        role: user.role 
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -181,12 +451,8 @@ app.post('/api/auth/signup', async (req, res) => {
 });
 
 // ===== LOGIN =====
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', validate(UserValidator.validateLogin), async (req, res) => {
   const { username, password } = req.body;
-
-  if (!username || !password) {
-    return ApiResponse.badRequest(res, ERROR_MESSAGES.USERNAME_PASSWORD_REQUIRED);
-  }
 
   try {
     // Find user by username or email
@@ -201,9 +467,14 @@ app.post('/api/auth/login', async (req, res) => {
       return ApiResponse.unauthorized(res, ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
-    // Create token
+    // Create token with standardized payload: { userId, username, email, role }
     const token = jwt.sign(
-      { username: user.username, email: user.email },
+      { 
+        userId: user._id.toString(),
+        username: user.username, 
+        email: user.email,
+        role: user.role 
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -228,10 +499,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ===== GET CURRENT USER =====
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.user.username }).select('-password');
-    if (!user) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const user = await getCurrentUser(req);
     return ApiResponse.success(res, user, 'User retrieved');
   } catch (err) {
     return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
@@ -239,14 +507,10 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 });
 
 // ===== UPDATE CURRENT USER =====
-app.patch('/api/auth/me', authenticateToken, async (req, res) => {
+app.patch('/api/auth/me', authenticateToken, validate(UserValidator.validateProfileUpdate), async (req, res) => {
   console.log('PATCH /api/auth/me - User:', req.user?.username, 'Body:', req.body);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user) {
-      console.log('User not found:', req.user.username);
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const user = await findUserByUsername(req.user.username);
 
     const { firstName, lastName, mobile, company } = req.body;
     console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile, company });
@@ -273,7 +537,7 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
 
     await user.save();
     console.log('User saved successfully:', user.username);
-    const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
+    const updatedUser = await getCurrentUser(req);
     return ApiResponse.success(res, updatedUser, 'Profile updated');
   } catch (err) {
     console.error('Error updating profile:', err);
@@ -284,10 +548,7 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
 // ===== PAYMENT - Tenant pays debt =====
 app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const user = await findUserByUsername(req.user.username);
 
     const { amount } = req.body;
 
@@ -303,7 +564,7 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
     user.debt = Math.max(0, user.debt - amount);
     await user.save();
 
-    const updatedUser = await User.findOne({ username: req.user.username }).select('-password');
+    const updatedUser = await getCurrentUser(req);
     return ApiResponse.success(res, { user: updatedUser, remainingDebt: user.debt }, 'Payment successful');
   } catch (err) {
     console.error('Error processing payment:', err);
@@ -314,15 +575,10 @@ app.post('/api/auth/pay-debt', authenticateToken, async (req, res) => {
 // ===== UPDATE DEBT - Director/Manager adds or adjusts tenant debt =====
 app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
   try {
-    const currentUser = await User.findOne({ username: req.user.username });
-    if (!currentUser || (currentUser.role !== USER_ROLES.DIRECTOR && currentUser.role !== USER_ROLES.MANAGER)) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_ADJUST_DEBT);
-    }
+    const currentUser = await findUserByUsername(req.user.username);
+    requireDirectorOrManager(currentUser, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_ADJUST_DEBT);
 
-    const targetUser = await User.findById(req.params.id);
-    if (!targetUser) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const targetUser = await findUserById(req.params.id);
 
     const { debt, reason } = req.body;
 
@@ -343,10 +599,8 @@ app.patch('/api/users/:id/debt', authenticateToken, async (req, res) => {
 // ===== GET PENDING USERS (for managers/directors) =====
 app.get('/api/users/pending', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_PENDING);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireDirectorOrManager(user, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_PENDING);
 
     const query = { status: USER_STATUS.PENDING };
 
@@ -372,15 +626,12 @@ app.get('/api/users/pending', authenticateToken, async (req, res) => {
 // ===== BUILDING ENDPOINTS =====
 
 // POST /api/buildings - Director creates a building
-app.post('/api/buildings', authenticateToken, async (req, res) => {
+app.post('/api/buildings', authenticateToken, validate(BuildingValidator.validateCreate), async (req, res) => {
   console.log('POST /api/buildings - User:', req.user?.username, 'Body:', req.body);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      console.log('Authorization failed - user role:', user?.role);
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_CREATE_BUILDINGS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    console.log('Found user:', user.username, 'Role:', user.role);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_CREATE_BUILDINGS);
 
     const { name, address, imageUrl } = req.body;
     if (!address) {
@@ -408,12 +659,9 @@ app.post('/api/buildings', authenticateToken, async (req, res) => {
 app.get('/api/buildings', authenticateToken, async (req, res) => {
   console.log('GET /api/buildings - User:', req.user?.username, 'Query:', req.query);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      console.log('Authorization failed - user role:', user?.role);
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_BUILDINGS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    console.log('Found user:', user.username, 'Role:', user.role);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_BUILDINGS);
 
     // Support filtering by managerId
     const filter = {};
@@ -429,15 +677,7 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
     console.log('Found buildings:', buildings.length);
 
     // Add apartment count for each building
-    const buildingsWithCount = await Promise.all(
-      buildings.map(async (building) => {
-        const apartmentCount = await Apartment.countDocuments({ building: building._id });
-        return {
-          ...building.toObject(),
-          apartmentCount
-        };
-      })
-    );
+    const buildingsWithCount = await addApartmentCounts(buildings);
 
     console.log('Returning buildings with counts');
     return ApiResponse.success(res, buildingsWithCount, 'Buildings retrieved');
@@ -450,10 +690,8 @@ app.get('/api/buildings', authenticateToken, async (req, res) => {
 // GET /api/buildings/managed - Manager views their assigned buildings
 app.get('/api/buildings/managed', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.MANAGER) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_VIEW_BUILDINGS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireManager(user, ERROR_MESSAGES.ONLY_MANAGERS_VIEW_BUILDINGS);
 
     const buildings = await Building.find({ manager: user._id })
       .populate('manager', 'firstName lastName email')
@@ -461,15 +699,7 @@ app.get('/api/buildings/managed', authenticateToken, async (req, res) => {
       .sort({ createdAt: -1 });
 
     // Add apartment count for each building
-    const buildingsWithCount = await Promise.all(
-      buildings.map(async (building) => {
-        const apartmentCount = await Apartment.countDocuments({ building: building._id });
-        return {
-          ...building.toObject(),
-          apartmentCount
-        };
-      })
-    );
+    const buildingsWithCount = await addApartmentCounts(buildings);
 
     return ApiResponse.success(res, buildingsWithCount, 'Managed buildings retrieved');
   } catch (err) {
@@ -506,27 +736,10 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
     }
     // For directors, no filter on apartments - they see all
 
-    const issues = await Issue.find(filter)
-      .populate('apartment', 'unitNumber address')
-      .populate({
-        path: 'apartment',
-        populate: {
-          path: 'building',
-          select: 'name address'
-        }
-      })
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'firstName lastName email')
-      .sort({ createdAt: -1 });
+    const issues = await populateIssue(Issue.find(filter)).sort({ createdAt: -1 });
 
     // Flatten building from apartment.building to building for easier access
-    const issuesWithBuilding = issues.map(issue => {
-      const issueObj = issue.toObject();
-      if (issueObj.apartment && issueObj.apartment.building) {
-        issueObj.building = issueObj.apartment.building;
-      }
-      return issueObj;
-    });
+    const issuesWithBuilding = flattenIssueBuildings(issues);
 
     console.log('Returning issues:', issuesWithBuilding.length);
     return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved');
@@ -537,24 +750,16 @@ app.get('/api/issues', authenticateToken, async (req, res) => {
 });
 
 // PATCH /api/issues/:issueId/triage - Manager triages issue (forward/reject/assign)
-app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => {
+app.patch('/api/issues/:issueId/triage', authenticateToken, validate(IssueValidator.validateTriage), async (req, res) => {
   console.log('🔍 TRIAGE REQUEST - User:', req.user?.username, 'Issue:', req.params.issueId, 'Body:', req.body);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.MANAGER) {
-      console.log('❌ Access denied - user role:', user?.role);
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_TRIAGE);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireManager(user, ERROR_MESSAGES.ONLY_MANAGERS_TRIAGE);
 
-    const issue = await Issue.findById(req.params.issueId);
-    if (!issue) {
-      console.log('❌ Issue not found:', req.params.issueId);
-      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
-    }
+    const issue = await findIssueById(req.params.issueId);
 
-    const { action, associateId, assignedTo } = req.body;
-    // Support both associateId and assignedTo for backwards compatibility
-    const targetAssociate = associateId || assignedTo;
+    const { action, assignedTo } = req.body;
+    const targetAssociate = assignedTo;
 
     const updateData = { updatedAt: new Date() };
 
@@ -597,36 +802,31 @@ app.patch('/api/issues/:issueId/triage', authenticateToken, async (req, res) => 
 });
 
 // PATCH /api/issues/:issueId/assign - Director assigns forwarded issue (or rejects)
-app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => {
+app.patch('/api/issues/:issueId/assign', authenticateToken, validate(IssueValidator.validateAssign), async (req, res) => {
   console.log('PATCH /api/issues/:issueId/assign - User:', req.user?.username, 'Body:', req.body);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS);
 
-    const issue = await Issue.findById(req.params.issueId);
-    if (!issue) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
-    }
+    const issue = await findIssueById(req.params.issueId);
 
     // Allow assigning any issue for testing (in production, check: issue.status !== 'forwarded')
     // if (issue.status !== 'forwarded') {
     //   return res.status(400).json({ message: 'Only forwarded issues can be assigned by director' });
     // }
 
-    const { action, associateId } = req.body;
+    const { action, assignedTo } = req.body;
 
     const updateData = { updatedAt: new Date() };
 
     if (action === 'reject') {
       updateData.status = ISSUE_STATUS.REJECTED;
-    } else if (action === 'assign' && associateId) {
-      const associate = await User.findById(associateId);
-      if (!associate || associate.role !== USER_ROLES.ASSOCIATE || associate.status !== USER_STATUS.ACTIVE) {
+    } else if (action === 'assign' && assignedTo) {
+      const associate = await findUserById(assignedTo);
+      if (associate.role !== USER_ROLES.ASSOCIATE || associate.status !== USER_STATUS.ACTIVE) {
         return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ASSOCIATE);
       }
-      updateData.assignedTo = associateId;
+      updateData.assignedTo = assignedTo;
       updateData.status = ISSUE_STATUS.ASSIGNED;
     } else {
       return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
@@ -650,18 +850,15 @@ app.patch('/api/issues/:issueId/assign', authenticateToken, async (req, res) => 
 });
 
 // PATCH /api/issues/:issueId/accept - Associate accepts assigned job
-app.patch('/api/issues/:issueId/accept', authenticateToken, async (req, res) => {
+app.patch('/api/issues/:issueId/accept', authenticateToken, validate(IssueValidator.validateAccept), async (req, res) => {
   console.log('PATCH /api/issues/:issueId/accept - User:', req.user?.username);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+    const user = await findUserByUsername(req.user.username);
+    if (user.role !== USER_ROLES.ASSOCIATE) {
       return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT);
     }
 
-    const issue = await Issue.findById(req.params.issueId);
-    if (!issue) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
-    }
+    const issue = await findIssueById(req.params.issueId);
 
     if (issue.assignedTo?.toString() !== user._id.toString()) {
       return ApiResponse.forbidden(res, ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU);
@@ -689,18 +886,15 @@ app.patch('/api/issues/:issueId/accept', authenticateToken, async (req, res) => 
 });
 
 // PATCH /api/issues/:issueId/complete - Associate completes job
-app.patch('/api/issues/:issueId/complete', authenticateToken, async (req, res) => {
+app.patch('/api/issues/:issueId/complete', authenticateToken, validate(IssueValidator.validateComplete), async (req, res) => {
   console.log('PATCH /api/issues/:issueId/complete - User:', req.user?.username);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+    const user = await findUserByUsername(req.user.username);
+    if (user.role !== USER_ROLES.ASSOCIATE) {
       return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_ASSOCIATES_COMPLETE);
     }
 
-    const issue = await Issue.findById(req.params.issueId);
-    if (!issue) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.ISSUE_NOT_FOUND);
-    }
+    const issue = await findIssueById(req.params.issueId);
 
     if (issue.assignedTo?.toString() !== user._id.toString()) {
       return ApiResponse.forbidden(res, ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU);
@@ -740,24 +934,17 @@ app.patch('/api/issues/:issueId/complete', authenticateToken, async (req, res) =
 app.patch('/api/buildings/:buildingId/assign-manager', authenticateToken, async (req, res) => {
   console.log('PATCH /api/buildings/:buildingId/assign-manager - User:', req.user?.username, 'Body:', req.body);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      console.log('Authorization failed - user role:', user?.role);
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_ASSIGN_MANAGERS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    console.log('Found user:', user.username, 'Role:', user.role);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_ASSIGN_MANAGERS);
 
     const { managerId } = req.body;
-    const building = await Building.findById(req.params.buildingId);
-
-    if (!building) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
-    }
+    const building = await findBuildingById(req.params.buildingId);
 
     // Validate manager exists and is active (if managerId provided)
     if (managerId) {
-      const manager = await User.findById(managerId);
-      if (!manager || manager.role !== USER_ROLES.MANAGER) {
+      const manager = await findUserById(managerId);
+      if (manager.role !== USER_ROLES.MANAGER) {
         return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_MANAGER);
       }
       if (manager.status !== USER_STATUS.ACTIVE) {
@@ -786,9 +973,9 @@ app.patch('/api/buildings/:buildingId/assign-manager', authenticateToken, async 
 app.get('/api/users', authenticateToken, async (req, res) => {
   console.log('GET /api/users - User:', req.user?.username, 'Query:', req.query);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    console.log('Found user:', user?.username, 'Role:', user?.role);
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
+    const user = await findUserByUsername(req.user.username);
+    console.log('Found user:', user.username, 'Role:', user.role);
+    if (user.role !== USER_ROLES.DIRECTOR) {
       console.log('Authorization failed - user role:', user?.role);
       return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_USERS);
     }
@@ -849,17 +1036,11 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
   console.log('Target UserID:', req.params.userId);
   console.log('='.repeat(60) + '\n');
   try {
-    const user = await User.findOne({ username: req.user.username });
-    console.log('Approving user found:', user?.username, 'Role:', user?.role);
-    if (!user || (user.role !== USER_ROLES.DIRECTOR && user.role !== USER_ROLES.MANAGER)) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_APPROVE_MANAGERS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    console.log('Approving user found:', user.username, 'Role:', user.role);
+    requireDirectorOrManager(user, ERROR_MESSAGES.ONLY_DIRECTORS_APPROVE_MANAGERS);
 
-    const targetUser = await User.findById(req.params.userId);
-    console.log('Target user found:', targetUser?.username, 'Role:', targetUser?.role, 'Status:', targetUser?.status);
-    if (!targetUser) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const targetUser = await findUserById(req.params.userId);
 
     if (targetUser.status === USER_STATUS.ACTIVE) {
       return ApiResponse.badRequest(res, ERROR_MESSAGES.USER_ALREADY_ACTIVE);
@@ -918,15 +1099,10 @@ app.patch('/api/users/:userId/approve', authenticateToken, async (req, res) => {
 app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
   console.log('DELETE /api/users/:userId - User:', req.user?.username, 'Target:', req.params.userId);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
 
-    const targetUser = await User.findById(req.params.userId);
-    if (!targetUser) {
-      return ApiResponse.notFound(res, ERROR_MESSAGES.USER_NOT_FOUND);
-    }
+    const targetUser = await findUserById(req.params.userId);
 
     // Don't allow deleting yourself
     if (targetUser.username === user.username) {
@@ -955,10 +1131,8 @@ app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
 app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
   console.log('DELETE /api/users/bulk/test - User:', req.user?.username);
   try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user || user.role !== USER_ROLES.DIRECTOR) {
-      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
-    }
+    const user = await findUserByUsername(req.user.username);
+    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_DELETE_USERS);
 
     // Find all test users (excluding the current user)
     const testUsers = await User.find({
@@ -1003,7 +1177,7 @@ app.delete('/api/users/bulk/test', authenticateToken, async (req, res) => {
 // ===== APARTMENT ENDPOINTS =====
 
 // POST /api/buildings/:id/apartments/bulk - Bulk create apartments (manager/director)
-app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, res) => {
+app.post('/api/buildings/:id/apartments/bulk', authenticateToken, validate(BuildingValidator.validateBulkApartments), async (req, res) => {
   console.log('POST /api/buildings/:id/apartments/bulk - User:', req.user?.username, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
@@ -1064,7 +1238,7 @@ app.post('/api/buildings/:id/apartments/bulk', authenticateToken, async (req, re
 });
 
 // POST /api/buildings/:id/apartments - Create single apartment (manager/director)
-app.post('/api/buildings/:id/apartments', authenticateToken, async (req, res) => {
+app.post('/api/buildings/:id/apartments', authenticateToken, validate(ApartmentValidator.validateCreate), async (req, res) => {
   console.log('POST /api/buildings/:id/apartments - User:', req.user?.username, 'Body:', req.body);
   try {
     const user = await User.findOne({ username: req.user.username });
@@ -1078,9 +1252,6 @@ app.post('/api/buildings/:id/apartments', authenticateToken, async (req, res) =>
     }
 
     const { unitNumber, address } = req.body;
-    if (!unitNumber) {
-      return ApiResponse.badRequest(res, ERROR_MESSAGES.UNIT_NUMBER_REQUIRED);
-    }
 
     const apartment = await Apartment.create({
       building: building._id,
@@ -1215,12 +1386,10 @@ app.post('/api/tenants/:id/assign', authenticateToken, async (req, res) => {
 
   try {
     // Check if user is manager or director
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
-    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
-      return ApiResponse.forbidden(res, 'Only managers and directors can assign tenants');
-    }
+    requireDirectorOrManager(user, 'Only managers and directors can assign tenants');
 
     const { apartmentId, buildingId, numPeople } = req.body;
 
@@ -1279,12 +1448,10 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
 
   try {
     // Check if user is tenant
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
-    if (!user || user.role !== USER_ROLES.TENANT) {
-      return ApiResponse.forbidden(res, 'Only tenants can view apartment info');
-    }
+    requireTenant(user, 'Only tenants can view apartment info');
 
     // Check if tenant has an apartment assigned
     if (!user.apartment) {
@@ -1304,7 +1471,7 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
     }
 
     // Get apartment count for building
-    const apartmentCount = await Apartment.countDocuments({ building: building._id });
+    const buildingWithCount = await addApartmentCount(building);
 
     console.log('Tenant apartment info retrieved successfully');
     return ApiResponse.success(res, {
@@ -1315,14 +1482,7 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
         numPeople: apartment.numPeople,
         floor: apartment.floor
       },
-      building: {
-        _id: building._id,
-        name: building.name,
-        address: building.address,
-        imageUrl: building.imageUrl,
-        apartmentCount: apartmentCount,
-        manager: building.manager
-      }
+      building: buildingWithCount
     }, 'Apartment info retrieved');
   } catch (err) {
     console.error('Get tenant apartment error:', err);
@@ -1332,25 +1492,16 @@ app.get('/api/tenants/me/apartment', authenticateToken, async (req, res) => {
 
 // ===== PHASE 3.2: TENANT REPORTS ISSUES =====
 // POST /api/issues - Tenant creates an issue
-app.post('/api/issues', authenticateToken, async (req, res) => {
+app.post('/api/issues', authenticateToken, validate(IssueValidator.validateReport), async (req, res) => {
   try {
     console.log(`POST /api/issues - User: ${req.user.username} Body:`, req.body);
 
     // Fetch user
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is a tenant
-    if (!user || user.role !== USER_ROLES.TENANT) {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only tenants can report issues' });
-    }
-
-    // Check if tenant is assigned to an apartment
-    if (!user.apartment) {
-      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'You are not assigned to any apartment yet' });
-    }
-
-    const { title, description, priority } = req.body;
+    requireTenant(user, 'Only tenants can report issues');
 
     // Validate required fields
     if (!title) {
@@ -1397,39 +1548,21 @@ app.get('/api/issues/my', authenticateToken, async (req, res) => {
     console.log(`GET /api/issues/my - User: ${req.user.username} Query:`, req.query);
 
     // Fetch user
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is a tenant
-    if (!user || user.role !== USER_ROLES.TENANT) {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only tenants can view their issues' });
-    }
+    requireTenant(user, 'Only tenants can view their issues');
 
     const { status, priority } = req.query;
     const filter = { createdBy: user._id };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-    const issues = await Issue.find(filter)
-      .populate('apartment', 'unitNumber address')
-      .populate({
-        path: 'apartment',
-        populate: {
-          path: 'building',
-          select: 'name address'
-        }
-      })
-      .populate('createdBy', 'firstName lastName email')
-      .sort({ createdAt: -1 });
+    const issues = await populateIssue(Issue.find(filter)).sort({ createdAt: -1 });
 
     // Flatten building from apartment.building to building for easier access
-    const issuesWithBuilding = issues.map(issue => {
-      const issueObj = issue.toObject();
-      if (issueObj.apartment && issueObj.apartment.building) {
-        issueObj.building = issueObj.apartment.building;
-      }
-      return issueObj;
-    });
+    const issuesWithBuilding = flattenIssueBuildings(issues);
 
     console.log(`Tenant issues retrieved: ${issuesWithBuilding.length}`);
     return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved successfully');
@@ -1446,40 +1579,21 @@ app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
     console.log(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);
 
     // Fetch user
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
     console.log(`Found user: ${user.username} Role: ${user.role}`);
 
     // Check if user is an associate
-    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can view their jobs' });
-    }
+    requireAssociate(user, 'Only associates can view their jobs');
 
     const { status, priority } = req.query;
     const filter = { assignedTo: user._id };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-    const jobs = await Issue.find(filter)
-      .populate('apartment', 'unitNumber address')
-      .populate({
-        path: 'apartment',
-        populate: {
-          path: 'building',
-          select: 'name address'
-        }
-      })
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'username firstName lastName email company')
-      .sort({ createdAt: -1 });
+    const jobs = await populateIssueWithCompany(Issue.find(filter)).sort({ createdAt: -1 });
 
     // Flatten building from apartment.building to building for easier access
-    const jobsWithBuilding = jobs.map(job => {
-      const jobObj = job.toObject();
-      if (jobObj.apartment && jobObj.apartment.building) {
-        jobObj.building = jobObj.apartment.building;
-      }
-      return jobObj;
-    });
+    const jobsWithBuilding = flattenIssueBuildings(jobs);
 
     console.log(`Associate jobs retrieved: ${jobsWithBuilding.length}`);
     return ApiResponse.success(res, jobsWithBuilding, 'Associate jobs retrieved successfully');
@@ -1496,12 +1610,10 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
     console.log(`POST /api/issues/${req.params.id}/accept - User: ${req.user.username}`);
 
     // Fetch user
-    const user = await User.findOne({ username: req.user.username });
+    const user = await findUserByUsername(req.user.username);
 
     // Check if user is an associate
-    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT });
-    }
+    requireAssociate(user, ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT);
 
     // Validate estimatedCost
     const { estimatedCost } = req.body;
@@ -1537,23 +1649,10 @@ app.post('/api/issues/:id/accept', authenticateToken, async (req, res) => {
     await issue.save();
 
     // Populate and return
-    const updated = await Issue.findById(issue._id)
-      .populate('apartment', 'unitNumber address')
-      .populate({
-        path: 'apartment',
-        populate: {
-          path: 'building',
-          select: 'name address'
-        }
-      })
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'username firstName lastName email company');
+    const updated = await populateIssueWithCompany(Issue.findById(issue._id));
 
     // Flatten building
-    const issueObj = updated.toObject();
-    if (issueObj.apartment && issueObj.apartment.building) {
-      issueObj.building = issueObj.apartment.building;
-    }
+    const issueObj = flattenIssueBuilding(updated);
 
     console.log(`Issue ${issue._id} accepted with cost $${estimatedCost}`);
     return ApiResponse.success(res, issueObj, 'Job accepted successfully');
@@ -1679,23 +1778,10 @@ app.post('/api/issues/:id/complete', authenticateToken, async (req, res) => {
     }
 
     // Populate and return
-    const updated = await Issue.findById(issue._id)
-      .populate('apartment', 'unitNumber address')
-      .populate({
-        path: 'apartment',
-        populate: {
-          path: 'building',
-          select: 'name address'
-        }
-      })
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'username firstName lastName email company');
+    const updated = await populateIssueWithCompany(Issue.findById(issue._id));
 
     // Flatten building
-    const issueObj = updated.toObject();
-    if (issueObj.apartment && issueObj.apartment.building) {
-      issueObj.building = issueObj.apartment.building;
-    }
+    const issueObj = flattenIssueBuilding(updated);
 
     console.log(`Issue ${issue._id} marked as complete`);
     return ApiResponse.success(res, issueObj, 'Job completed successfully');
@@ -1763,7 +1849,7 @@ app.get('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) 
 });
 
 // POST /api/buildings/:buildingId/polls - Create a poll
-app.post('/api/buildings/:buildingId/polls', authenticateToken, async (req, res) => {
+app.post('/api/buildings/:buildingId/polls', authenticateToken, validate(NoticeValidator.validatePoll), async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
 
@@ -1875,7 +1961,7 @@ app.get('/api/buildings/:buildingId/notices', authenticateToken, async (req, res
 });
 
 // POST /api/buildings/:buildingId/notices - Create a notice
-app.post('/api/buildings/:buildingId/notices', authenticateToken, async (req, res) => {
+app.post('/api/buildings/:buildingId/notices', authenticateToken, validate(NoticeValidator.validateCreate), async (req, res) => {
   try {
     const user = await User.findOne({ username: req.user.username });
 

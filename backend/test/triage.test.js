@@ -72,7 +72,7 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
     const res = await request(app)
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ action: 'assign', associateId: 'triageassoc' });
+      .send({ action: 'assign', assignedTo: 'triageassoc' });
     assertSuccess(res, 200);
     const data = getData(res);
     expect(data.status).toBe('assigned');
@@ -114,7 +114,7 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
     const res = await request(app)
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ action: 'assign', associateId: 'nonexistent_user' });
+      .send({ action: 'assign', assignedTo: 'nonexistent_user' });
     assertError(res, 400);
   });
 });

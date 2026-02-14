@@ -126,7 +126,7 @@ describe('Director Operations', () => {
   let directorToken;
   let directorId;
   let managerId;
-  let associateId;
+  let associateUserId;
   let tenantId;
 
   beforeEach(async () => {
@@ -137,7 +137,7 @@ describe('Director Operations', () => {
     // Create test users
     directorId = await createUser(TEST_USERS.director);
     managerId = await createUser(TEST_USERS.manager);
-    associateId = await createUser(TEST_USERS.associate);
+    associateUserId = await createUser(TEST_USERS.associate);
     tenantId = await createUser(TEST_USERS.tenant);
 
     // Login as director
@@ -309,7 +309,7 @@ describe('Director Operations', () => {
     });
 
     test('Should approve pending associate', async () => {
-      const result = await approveUser(directorToken, associateId);
+      const result = await approveUser(directorToken, associateUserId);
 
       expect(result.user.status).toBe('active');
     });

@@ -84,11 +84,12 @@ async function registerUser(data) {
   // Save user
   await user.save();
 
-  // Generate token with consistent payload format
+  // Generate token with standardized payload: { userId, username, email, role }
   const token = jwt.sign(
     { 
-      userId: user._id,
-      username: user.username, 
+      userId: user._id.toString(),
+      username: user.username,
+      email: user.email,
       role: user.role 
     },
     JWT_SECRET,
@@ -250,11 +251,12 @@ async function loginUser(data) {
     throw createError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
-  // Generate token with consistent payload format
+  // Generate token with standardized payload: { userId, username, email, role }
   const token = jwt.sign(
     { 
-      userId: user._id,
-      username: user.username, 
+      userId: user._id.toString(),
+      username: user.username,
+      email: user.email,
       role: user.role 
     },
     JWT_SECRET,

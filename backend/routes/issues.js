@@ -123,15 +123,12 @@ router.post('/:id/acknowledge-eta', authMiddleware, requireRole('tenant'), async
  * Manager triages issue - assign, forward, or reject
  */
 router.patch('/:id/triage', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
-  const { action, assignedTo, associateId, note } = req.body;
+  const { action, assignedTo, note } = req.body;
   
   if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
   if (!action) return sendError(res, 400, 'Action required');
   
-  // Support both assignedTo and associateId for compatibility
-  const targetAssociate = assignedTo || associateId;
-  
-  console.log(`🎯 TRIAGE REQUEST: Issue ${req.params.id}, Action: ${action}, AssignedTo: ${targetAssociate}`);
+  console.log(`🎯 TRIAGE REQUEST: Issue ${req.params.id}, Action: ${action}, AssignedTo: ${assignedTo}`);
   
   const Issue = require('../models/Issue');
   const User = require('../models/User');
@@ -146,9 +143,9 @@ router.patch('/:id/triage', authMiddleware, requireRole('manager', 'director', '
     triageBy: req.user.username
   };
   
-  if (action === 'assign' && targetAssociate) {
+  if (action === 'assign' && assignedTo) {
     // Verify associate exists
-    const associate = await User.findOne({ username: targetAssociate, role: 'associate' });
+    const associate = await User.findOne({ username: assignedTo, role: 'associate' });
     if (!associate) return sendError(res, 400, 'Associate not found');
     
     updateData.status = 'assigned';
