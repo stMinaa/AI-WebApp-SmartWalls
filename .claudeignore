@@ -1,0 +1,175 @@
+# ============================================
+# .claudeignore - Smartwalls Project
+# Prevents Claude CLI OOM crash by scoping
+# indexing to only relevant source files
+# ============================================
+
+# ===========================================
+# 1. DEPENDENCIES (biggest offender, ~500MB+)
+# ===========================================
+node_modules/
+**/node_modules/
+
+# ===========================================
+# 2. BUILD & COMPILED OUTPUT
+# ===========================================
+build/
+**/build/
+dist/
+**/dist/
+out/
+.next/
+
+# ===========================================
+# 3. GIT INTERNALS
+# ===========================================
+.git/
+**/.git/
+
+# ===========================================
+# 4. LOCK FILES (large JSON, no AI value)
+# ===========================================
+package-lock.json
+**/package-lock.json
+yarn.lock
+**/yarn.lock
+
+# ===========================================
+# 5. TEST COVERAGE (generated reports)
+# ===========================================
+coverage/
+**/coverage/
+.nyc_output/
+
+# ===========================================
+# 6. CACHE & TEMP
+# ===========================================
+.cache/
+**/.cache/
+.eslintcache
+*.tmp
+*.temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===========================================
+# 7. SOURCE MAPS (large generated files)
+# ===========================================
+*.map
+**/*.map
+
+# ===========================================
+# 8. GENERATED FILES
+# ===========================================
+*.generated.*
+
+# ===========================================
+# 9. ENVIRONMENT / SECRETS
+# ===========================================
+.env
+.env.*
+**/.env
+**/.env.*
+
+# ===========================================
+# 10. OS & IDE JUNK
+# ===========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# 11. C#/.NET ARTIFACTS (legacy .sln remains)
+# ===========================================
+bin/
+**/bin/
+obj/
+**/obj/
+backend/obj/
+*.user
+*.suo
+*.csproj
+*.sln
+*.cache
+Properties/
+**/Properties/
+
+# ===========================================
+# 12. PROFILES (binary/config data)
+# ===========================================
+profiles/
+**/profiles/
+
+# ===========================================
+# 13. BACKEND UTILITY/SEED/DEBUG SCRIPTS
+# 57 loose scripts in backend/ root that
+# are NOT part of the production codebase.
+# Claude should only index the structured
+# source folders (models/, routes/, services/,
+# utils/, validators/, middleware/, config/, test/)
+# ===========================================
+backend/check-*.js
+backend/create-*.js
+backend/seed-*.js
+backend/debug-*.js
+backend/find-*.js
+backend/fix-*.js
+backend/force-*.js
+backend/reset-*.js
+backend/update-*.js
+backend/try-*.js
+backend/setup-*.js
+backend/direct-*.js
+backend/minimal-*.js
+backend/super-*.js
+backend/full-*.js
+backend/quick-*.js
+backend/perf-*.js
+backend/notices-endpoints.js
+backend/users.js
+backend/index_complex.js
+backend/index-refactored.js
+backend/test-*.js
+backend/complete-setup.js
+backend/backend.http
+backend/appsettings*.json
+backend/Program.cs
+
+# Root-level one-off scripts (not source code)
+test-auth-routes.js
+test-director-api.js
+test-part3-refactoring.js
+simple-test-part3.js
+validate-refactoring.js
+auto-cpu-prof.js
+auto-inspector-prof.js
+REFACTORING_PLAN.js
+create-test-users.ps1
+run-e2e-tests.ps1
+setup-codescene.ps1
+install-cs-tool.ps1
+analyze-code.ps1
+AI aplikacija.sln
+
+# ===========================================
+# 14. DOCS/ARCHIVE (5,796 lines of historical
+# docs already extracted into .claude/context/)
+# ===========================================
+docs/archive/
+
+# ===========================================
+# 15. GITHUB WORKFLOWS (CI config, not code)
+# ===========================================
+.github/
+
+# ===========================================
+# 16. HUSKY INTERNALS
+# ===========================================
+.husky/_/
