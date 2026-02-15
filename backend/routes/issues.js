@@ -1,166 +1,159 @@
-/**
- * Issues Routes
- * Report, fetch, and manage maintenance issues
- */
-
 const express = require('express');
 const router = express.Router();
-const issueService = require('../services/issueService');
-const { asyncHandler, sendSuccess, sendError } = require('../middleware/errorHandler');
-const { authMiddleware, requireRole } = require('../middleware/authHelper');
-const { isValidObjectId, isValidUrgency } = require('../middleware/validationHelper');
 
-/**
- * POST /api/issues
- * Report a new issue (tenant)
- */
-router.post('/', authMiddleware, requireRole('tenant'), asyncHandler(async (req, res) => {
-  const { title, description, urgency } = req.body;
+// Models
+const Issue = require('../models/Issue');
+const Apartment = require('../models/Apartment');
+const Building = require('../models/Building');
+const User = require('../models/User');
 
-  if (!title?.trim()) return sendError(res, 400, 'Title required');
-  if (!description?.trim()) return sendError(res, 400, 'Description required');
-  if (urgency && !isValidUrgency(urgency)) return sendError(res, 400, 'Invalid urgency');
+// Middleware
+const { authMiddleware: authenticateToken } = require('../middleware/authHelper');
+const { validate } = require('../middleware/validate');
 
-  const result = await issueService.reportIssue(req.user.username, { title, description, urgency });
-  sendSuccess(res, 201, result.message);
-}));
+// Validators
+const IssueValidator = require('../validators/IssueValidator');
 
-/**
- * GET /api/issues
- * Get all issues (manager/director/admin view)
- */
-router.get('/', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
-  const issues = await issueService.getAllIssues();
-  res.json(issues);
-}));
+// Utils
+const ApiResponse = require('../utils/ApiResponse');
+const { ERROR_MESSAGES, USER_ROLES, ISSUE_STATUS, PRIORITY_LEVELS, HTTP_STATUS } = require('../config/constants');
 
-/**
- * GET /api/issues/my
- * Get tenant's own issues
- */
-router.get('/my', authMiddleware, requireRole('tenant'), asyncHandler(async (req, res) => {
-  const issues = await issueService.getTenantIssues(req.user.username);
-  sendSuccess(res, 200, 'Your issues retrieved', issues);
-}));
+// Helpers
+const { findUserByUsername } = require('../utils/authHelpers');
+const { requireTenant } = require('../middleware/roleHelper');
+const { populateIssue, flattenIssueBuildings } = require('../utils/responseHelpers');
 
-/**
- * GET /api/issues/assigned-to-me
- * Get issues assigned to associate
- */
-router.get('/assigned-to-me', authMiddleware, requireRole('associate'), asyncHandler(async (req, res) => {
-  const issues = await issueService.getAssociateIssues(req.user.username);
-  sendSuccess(res, 200, 'Assigned issues retrieved', issues);
-}));
+// ===== BASIC ISSUE OPERATIONS (Part 3A) =====
 
-/**
- * POST /api/issues/:id/assign
- * Director/Manager assigns issue to associate
- */
-router.post('/:id/assign', authMiddleware, requireRole('director', 'manager', 'admin'), asyncHandler(async (req, res) => {
-  const { assignee } = req.body;
+// GET / - List all issues (manager/director only, role-based filtering)
+router.get('/', authenticateToken, async (req, res) => {
+  console.log('GET /api/issues - User:', req.user?.username, 'Query:', req.query);
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    console.log('Found user:', user?.username, 'Role:', user?.role);
 
-  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
-  if (!assignee?.trim()) return sendError(res, 400, 'Assignee required');
+    // Phase 2.5: Only managers and directors can view issues via this endpoint
+    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
+      return ApiResponse.forbidden(res, ERROR_MESSAGES.ONLY_MANAGERS_DIRECTORS_VIEW_ISSUES);
+    }
 
-  const result = await issueService.updateIssueStatus(
-    req.params.id,
-    req.user.role,
-    req.user.username,
-    { status: 'assigned', assignee: assignee.trim() }
-  );
+    const { status, priority } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
 
-  sendSuccess(res, 200, result.message, result.issue);
-}));
+    // Managers see issues from their buildings only
+    // Directors see ALL issues
+    if (user.role === USER_ROLES.MANAGER) {
+      const buildings = await Building.find({ manager: user._id });
+      const buildingIds = buildings.map(b => b._id);
+      const apartments = await Apartment.find({ building: { $in: buildingIds } });
+      const apartmentIds = apartments.map(a => a._id);
+      filter.apartment = { $in: apartmentIds };
+    }
+    // For directors, no filter on apartments - they see all
 
-/**
- * PATCH /api/issues/:id/status
- * Update issue status
- * Role-aware: associate can accept/resolve, manager can forward, director can assign/resolve
- */
-router.patch('/:id/status', authMiddleware, asyncHandler(async (req, res) => {
-  const { status, note, cost, assignee } = req.body;
+    const issues = await populateIssue(Issue.find(filter)).sort({ createdAt: -1 });
 
-  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
-  if (!status?.trim()) return sendError(res, 400, 'Status required');
+    // Flatten building from apartment.building to building for easier access
+    const issuesWithBuilding = flattenIssueBuildings(issues);
 
-  const result = await issueService.updateIssueStatus(
-    req.params.id,
-    req.user.role,
-    req.user.username,
-    { status: status.trim(), note, cost, assignee }
-  );
-
-  sendSuccess(res, 200, result.message, result.issue);
-}));
-
-/**
- * POST /api/issues/:id/eta
- * Set ETA for issue (associate)
- */
-router.post('/:id/eta', authMiddleware, requireRole('associate'), asyncHandler(async (req, res) => {
-  const { eta } = req.body;
-
-  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
-  if (!eta) return sendError(res, 400, 'ETA required');
-
-  const result = await issueService.setETA(req.params.id, req.user.username, eta);
-  sendSuccess(res, 200, result.message, result.issue);
-}));
-
-/**
- * POST /api/issues/:id/acknowledge-eta
- * Tenant acknowledges ETA
- */
-router.post('/:id/acknowledge-eta', authMiddleware, requireRole('tenant'), asyncHandler(async (req, res) => {
-  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
-
-  const result = await issueService.acknowledgeETA(req.params.id, req.user.username);
-  sendSuccess(res, 200, result.message, result.issue);
-}));
-
-/**
- * PATCH /api/issues/:id/triage
- * Manager triages issue - assign, forward, or reject
- */
-router.patch('/:id/triage', authMiddleware, requireRole('manager', 'director', 'admin'), asyncHandler(async (req, res) => {
-  const { action, assignedTo, note } = req.body;
-  
-  if (!isValidObjectId(req.params.id)) return sendError(res, 400, 'Invalid issue ID');
-  if (!action) return sendError(res, 400, 'Action required');
-  
-  console.log(`🎯 TRIAGE REQUEST: Issue ${req.params.id}, Action: ${action}, AssignedTo: ${assignedTo}`);
-  
-  const Issue = require('../models/Issue');
-  const User = require('../models/User');
-  
-  const issue = await Issue.findById(req.params.id);
-  if (!issue) return sendError(res, 404, 'Issue not found');
-  
-  let updateData = {
-    triageAction: action,
-    triageNote: note || '',
-    triageDate: new Date(),
-    triageBy: req.user.username
-  };
-  
-  if (action === 'assign' && assignedTo) {
-    // Verify associate exists
-    const associate = await User.findOne({ username: assignedTo, role: 'associate' });
-    if (!associate) return sendError(res, 400, 'Associate not found');
-    
-    updateData.status = 'assigned';
-    updateData.assignedTo = associate._id;  // Use ObjectId, not username
-    updateData.assignedDate = new Date();
-  } else if (action === 'forward') {
-    updateData.status = 'forwarded';
-  } else if (action === 'reject') {
-    updateData.status = 'rejected';
+    console.log('Returning issues:', issuesWithBuilding.length);
+    return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved');
+  } catch (err) {
+    console.error('Get issues error:', err);
+    if (err.status) return ApiResponse.error(res, err.message, err.status);
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
-  
-  const updatedIssue = await Issue.findByIdAndUpdate(req.params.id, updateData, { new: true });
-  
-  console.log(`✅ TRIAGE SUCCESS: Issue ${req.params.id} ${action}ed`);
-  sendSuccess(res, 200, `Issue ${action}ed successfully`, updatedIssue);
-}));
+});
+
+// POST / - Report new issue (tenant only)
+router.post('/', authenticateToken, validate(IssueValidator.validateReport), async (req, res) => {
+  try {
+    console.log(`POST /api/issues - User: ${req.user.username} Body:`, req.body);
+
+    const { title, description, priority } = req.body;
+
+    // Fetch user
+    const user = await findUserByUsername(req.user.username);
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+
+    // Check if user is a tenant
+    requireTenant(user, 'Only tenants can report issues');
+
+    // Validate required fields
+    if (!title) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Title is required' });
+    }
+
+    if (!description) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Description is required' });
+    }
+
+    // Validate priority if provided
+    if (priority && ![PRIORITY_LEVELS.LOW, PRIORITY_LEVELS.MEDIUM, PRIORITY_LEVELS.HIGH].includes(priority)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Invalid priority. Must be low, medium, or high' });
+    }
+
+    // Check tenant is assigned to an apartment
+    if (!user.apartment) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: 'Tenant is not assigned to an apartment' });
+    }
+
+    // Fetch apartment to get building
+    const apartment = await Apartment.findById(user.apartment);
+
+    // Create issue
+    const issue = new Issue({
+      createdBy: user._id,
+      apartment: user.apartment,
+      building: apartment.building,
+      title: title.trim(),
+      description: description.trim(),
+      priority: priority || PRIORITY_LEVELS.MEDIUM,
+      status: ISSUE_STATUS.REPORTED
+    });
+
+    await issue.save();
+    console.log(`Issue created: ${issue._id}`);
+
+    res.status(HTTP_STATUS.CREATED).json({ issue });
+  } catch (error) {
+    console.error('Error creating issue:', error);
+    if (error.status) return ApiResponse.error(res, error.message, error.status);
+    res.status(HTTP_STATUS.INTERNAL_ERROR).json({ error: ERROR_MESSAGES.SERVER_ERROR });
+  }
+});
+
+// GET /my - Tenant views their reported issues
+router.get('/my', authenticateToken, async (req, res) => {
+  try {
+    console.log(`GET /api/issues/my - User: ${req.user.username} Query:`, req.query);
+
+    // Fetch user
+    const user = await findUserByUsername(req.user.username);
+    console.log(`Found user: ${user.username} Role: ${user.role}`);
+
+    // Check if user is a tenant
+    requireTenant(user, 'Only tenants can view their issues');
+
+    const { status, priority } = req.query;
+    const filter = { createdBy: user._id };
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+
+    const issues = await populateIssue(Issue.find(filter)).sort({ createdAt: -1 });
+
+    // Flatten building from apartment.building to building for easier access
+    const issuesWithBuilding = flattenIssueBuildings(issues);
+
+    console.log(`Tenant issues retrieved: ${issuesWithBuilding.length}`);
+    return ApiResponse.success(res, issuesWithBuilding, 'Issues retrieved successfully');
+  } catch (error) {
+    console.error('Error retrieving tenant issues:', error);
+    if (error.status) return ApiResponse.error(res, error.message, error.status);
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
+  }
+});
 
 module.exports = router;

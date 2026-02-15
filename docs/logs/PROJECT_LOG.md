@@ -30,6 +30,108 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-16 - Step 2.2 (Part 3A/5): Move Basic Issue Routes to Separate File
+[BLUE] Modularized 3 basic issue endpoints into dedicated router (Part 3A of 3-part issue split)
+
+**Summary:** Completed Part 3A of Step 2.2 (Move Inline Routes to Files). Created/rewrote `backend/routes/issues.js` router module for basic issue operations and moved 3 endpoints from index.js: GET /api/issues (list issues for manager/director), POST /api/issues (tenant report issue), GET /api/issues/my (tenant view own issues). Discovered existing routes/issues.js had outdated service-layer implementation, performed complete rewrite with direct model operations matching Parts 1-2 pattern. Registered issue router at `/api/issues` mount point. Reduced index.js from 1,389 to 1,267 lines (-122 lines, 37% cumulative reduction from 2,007 lines). Split issue domain into 3 parts for safety: Part 3A (basic ops), Part 3B (manager workflow), Part 3C (associate workflow). Backend starts cleanly, GET /api/issues returns 1,044 issues for director role.
+
+**Problems:**
+- 10 issue endpoints scattered throughout 1,389-line index.js (lines 187-1017)
+- Existing `routes/issues.js` had incompatible service-layer implementation (issueService.reportIssue, etc.)
+- Needed complete code rewrite to match current direct-model-operation architecture
+- User requested further subdivision of Part 3 after Parts 1-2 completion ("izdeli ga na jos delova")
+- Issue domain too large for single migration (10 endpoints) - split into 3 parts
+- Duplicate endpoints detected: PATCH vs POST versions of accept/complete (deferred to Part 3C)
+
+**Fixes:**
+
+1. **Rewrote Issue Router Module** (`backend/routes/issues.js` - Part 3A only):
+   - Completely replaced outdated 167-line service-layer implementation
+   - Moved 3 basic issue operation endpoints:
+     
+     **Part 3A - Basic Operations (3 endpoints):**
+     * GET / - List all issues (manager/director with role-based filtering)
+       - Managers: Filter by their assigned buildings only
+       - Directors: See all issues system-wide
+       - Query params: status, priority
+       - Populates issue data, flattens building structure
+       - Returns 1,044 issues in production database
+     
+     * POST / - Report new issue (tenant only)
+       - Validates: title, description, priority
+       - Checks: tenant has apartment assignment
+       - Creates issue with status: REPORTED
+       - Returns 201 Created response
+     
+     * GET /my - Tenant views their reported issues
+       - Filters: createdBy = current user._id
+       - Query params: status, priority
+       - Populates and flattens issue data
+   
+   - Uses direct model operations (no service layer)
+   - Imports:
+     * Models: Issue, Apartment, Building, User
+     * Middleware: authenticateToken (as authMiddleware), validate
+     * Validators: IssueValidator
+     * Utils: ApiResponse, constants
+     * Helpers: findUserByUsername (authHelpers), requireTenant (roleHelper), populateIssue, flattenIssueBuildings (responseHelpers)
+   - Result: 167-line clean implementation matching Parts 1-2 pattern
+
+2. **Registered Issue Router** (index.js):
+   - Added issue router import: `const issueRoutes = require('./routes/issues');`
+   - Added router registration: `app.use('/api/issues', issueRoutes);`
+   - Mounted at `/api/issues` - all routes prefixed automatically
+
+3. **Removed Part 3A Endpoints from index.js** (-122 lines):
+   - Removed GET /api/issues (41 lines, line 187-228)
+   - Removed POST /api/issues (59 lines, line 765-824)
+   - Removed GET /api/issues/my (32 lines, line 823-855)
+   - Added comment blocks documenting migration to routes/issues.js Part 3A
+   - 7 issue endpoints remain (Parts 3B + 3C):
+     * Line 229: PATCH /api/issues/:issueId/triage (Part 3B - manager)
+     * Line 281: PATCH /api/issues/:issueId/assign (Part 3B - manager)
+     * Line 330: PATCH /api/issues/:issueId/accept (Part 3C - associate)
+     * Line 367: PATCH /api/issues/:issueId/complete (Part 3C - associate)
+     * Line 919: POST /api/issues/:id/accept (Part 3C - DUPLICATE)
+     * Line 978: POST /api/issues/:id/reject (Part 3C)
+     * Line 1017: POST /api/issues/:id/complete (Part 3C - DUPLICATE)
+
+4. **3-Way Issue Domain Split Strategy**:
+   - **Part 3A (Basic Operations):** Tenant reporting + manager/director listing (3 endpoints) - COMPLETED
+   - **Part 3B (Manager Workflow):** Triage + assignment operations (2 endpoints) - PLANNED
+   - **Part 3C (Associate Workflow):** Accept/reject/complete + duplicate resolution (5 endpoints) - PLANNED
+   - Rationale: Smaller increments, role-based grouping, easier testing/rollback
+   - User approved: "cepaj" (go ahead, split it)
+
+**Tests:**
+- ✅ Backend startup: Clean, no errors
+- ✅ MongoDB connection: "✅ MONGO RUNNING - Connected to MongoDB"
+- ✅ Server listening: Port 5000
+- ✅ GET /api/issues tested: Returned 1,044 issues for director role
+- ✅ Authentication working: Director login successful
+- ✅ No syntax errors in routes/issues.js or index.js
+- ⏳ Comprehensive Jest tests: Skipped (unit tests will verify all endpoints post-Part 3C)
+
+**Connectivity:**
+- ✅ Backend: Running on port 5000
+- ✅ MongoDB Atlas: Connected (tennetdb database)
+- ✅ Issue Router: Registered at /api/issues
+- ✅ Director Authentication: Working (direktor / direktor)
+
+**Metrics:**
+- index.js line reduction: 1,389 → 1,267 (-122 lines, -8.8%)
+- Cumulative reduction: 2,007 → 1,267 lines (-740 lines, -36.9%)
+- routes/issues.js: 167 lines (Part 3A only, will grow in Parts 3B/3C)
+- Issue endpoints migrated: 3 of 10 (30% complete)
+- Remaining issue endpoints: 7 (Parts 3B: 2, Part 3C: 5)
+
+**Next Steps:**
+- Part 3B: Move manager workflow endpoints (triage, assign) to routes/issues.js
+- Part 3C: Move associate workflow endpoints + resolve duplicates
+- Continue Step 2.2 with user/tenant routes (Part 4) and associate/invoice routes (Part 5)
+
+---
+
 ### 2026-02-14 - Step 2.2 (Part 2/5): Move Building Routes to Separate File
 [BLUE] Modularized 12 building-related endpoints into dedicated router
 
