@@ -188,112 +188,15 @@ app.get('/api/users/pending', authenticateToken, async (req, res) => {
 // - GET /api/buildings/:buildingId/notices - Get notices
 // - POST /api/buildings/:buildingId/notices - Create notice
 
-// ===== ISSUE ENDPOINTS (Part 3A - NOW IN routes/issues.js) =====
-// The following endpoints have been moved to routes/issues.js Part 3A:
+// ===== ISSUE ENDPOINTS (Part 3A-3B - NOW IN routes/issues.js) =====
+// The following endpoints have been moved to routes/issues.js:
+// Part 3A (Basic Operations):
 // - GET /api/issues - List issues (manager/director, role-based filtering)
 // - POST /api/issues - Report issue (tenant)
 // - GET /api/issues/my - Get tenant's issues
-
-// PATCH /api/issues/:issueId/triage - Manager triages issue (forward/reject/assign)
-app.patch('/api/issues/:issueId/triage', authenticateToken, validate(IssueValidator.validateTriage), async (req, res) => {
-  console.log('🔍 TRIAGE REQUEST - User:', req.user?.username, 'Issue:', req.params.issueId, 'Body:', req.body);
-  try {
-    const user = await findUserByUsername(req.user.username);
-    requireManager(user, ERROR_MESSAGES.ONLY_MANAGERS_TRIAGE);
-
-    const issue = await findIssueById(req.params.issueId);
-
-    const { action, assignedTo } = req.body;
-    const targetAssociate = assignedTo;
-
-    const updateData = { updatedAt: new Date() };
-
-    if (action === 'forward') {
-      updateData.status = ISSUE_STATUS.FORWARDED;
-    } else if (action === 'reject') {
-      updateData.status = ISSUE_STATUS.REJECTED;
-    } else if (action === 'assign' && targetAssociate) {
-      // Manager assigns to associate directly - targetAssociate is username
-      const associate = await User.findOne({
-        username: targetAssociate,
-        role: USER_ROLES.ASSOCIATE
-      });
-      if (!associate) {
-        console.log('❌ Associate not found:', targetAssociate);
-        return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ASSOCIATE);
-      }
-      updateData.assignedTo = associate._id;
-      updateData.status = ISSUE_STATUS.ASSIGNED;
-      console.log('✅ Assigning to associate:', associate.username, associate._id);
-    } else {
-      console.log('❌ Invalid action or missing associate:', action, targetAssociate);
-      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
-    }
-
-    // Simply update and return without populate to avoid errors
-    const updated = await Issue.findByIdAndUpdate(
-      req.params.issueId,
-      updateData,
-      { new: true }
-    );
-
-    console.log('✅ Issue triaged successfully:', req.params.issueId, 'Action:', action);
-    return ApiResponse.success(res, updated, 'Issue triaged successfully');
-  } catch (err) {
-    console.error('❌ Triage issue error:', err.message);
-    if (err.status) return ApiResponse.error(res, err.message, err.status);
-    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, err.message);
-  }
-});
-
-// PATCH /api/issues/:issueId/assign - Director assigns forwarded issue (or rejects)
-app.patch('/api/issues/:issueId/assign', authenticateToken, validate(IssueValidator.validateAssign), async (req, res) => {
-  console.log('PATCH /api/issues/:issueId/assign - User:', req.user?.username, 'Body:', req.body);
-  try {
-    const user = await findUserByUsername(req.user.username);
-    requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS);
-
-    const issue = await findIssueById(req.params.issueId);
-
-    // Allow assigning any issue for testing (in production, check: issue.status !== 'forwarded')
-    // if (issue.status !== 'forwarded') {
-    //   return res.status(400).json({ message: 'Only forwarded issues can be assigned by director' });
-    // }
-
-    const { action, assignedTo } = req.body;
-
-    const updateData = { updatedAt: new Date() };
-
-    if (action === 'reject') {
-      updateData.status = ISSUE_STATUS.REJECTED;
-    } else if (action === 'assign' && assignedTo) {
-      const associate = await findUserById(assignedTo);
-      if (associate.role !== USER_ROLES.ASSOCIATE || associate.status !== USER_STATUS.ACTIVE) {
-        return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ASSOCIATE);
-      }
-      updateData.assignedTo = assignedTo;
-      updateData.status = ISSUE_STATUS.ASSIGNED;
-    } else {
-      return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
-    }
-
-    const updated = await Issue.findByIdAndUpdate(
-      req.params.issueId,
-      updateData,
-      { new: true, runValidators: false }
-    )
-      .populate('apartment', 'unitNumber building')
-      .populate('createdBy', 'firstName lastName email')
-      .populate('assignedTo', 'firstName lastName email');
-
-    console.log('Issue assigned by director:', action);
-    return ApiResponse.success(res, updated, 'Issue assigned successfully');
-  } catch (err) {
-    console.error('Assign issue error:', err);
-    if (err.status) return ApiResponse.error(res, err.message, err.status);
-    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
-  }
-});
+// Part 3B (Manager Workflow):
+// - PATCH /api/issues/:issueId/triage - Manager triages issue (forward/reject/assign)
+// - PATCH /api/issues/:issueId/assign - Director assigns forwarded issue (or rejects)
 
 // PATCH /api/issues/:issueId/accept - Associate accepts assigned job
 app.patch('/api/issues/:issueId/accept', authenticateToken, validate(IssueValidator.validateAccept), async (req, res) => {

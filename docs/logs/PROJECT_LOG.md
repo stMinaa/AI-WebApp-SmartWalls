@@ -30,6 +30,86 @@ Connectivity: [Backend+MongoDB+Frontend status]
 
 ---
 
+### 2026-02-16 - Step 2.2 (Part 3B/5): Move Manager Workflow Routes to Separate File
+[BLUE] Added 2 manager workflow endpoints to issue router (Part 3B of 3-part issue split)
+
+**Summary:** Completed Part 3B of Step 2.2 (Move Inline Routes to Files). Extended `backend/routes/issues.js` with manager workflow endpoints: PATCH /api/issues/:issueId/triage (manager triages issue with forward/reject/assign actions) and PATCH /api/issues/:issueId/assign (director assigns forwarded issue to associate or rejects). Added required helper imports: findUserById, findIssueById, requireManager, requireDirector, USER_STATUS. Removed both endpoints from index.js. Reduced index.js from 1,267 to 1,170 lines (-97 lines, 41.7% cumulative reduction from 2,007 lines). Backend starts cleanly with no errors. Part 3C (associate workflow with 5 endpoints including duplicates) remains.
+
+**Problems:**
+- 2 manager workflow endpoints remained in index.js after Part 3A (lines 197-298)
+- PATCH /api/issues/:issueId/triage required username-based associate lookup (not ID)
+- PATCH /api/issues/:issueId/assign required director-level authorization check
+- Missing helper imports in routes/issues.js: requireManager, requireDirector, findIssueById, findUserById, USER_STATUS
+- Triage endpoint handles 3 actions: forward (to director), reject, assign (direct to associate)
+- Assign endpoint allows directors to assign forwarded issues or reject them
+
+**Fixes:**
+
+1. **Extended Issue Router Module** (`backend/routes/issues.js` - Added Part 3B):
+   - Added Part 3B section: Manager Workflow (2 endpoints)
+   
+   **Part 3B - Manager Workflow (2 endpoints):**
+   * PATCH /:issueId/triage - Manager triages issue
+     - Actions: 'forward' (status → FORWARDED), 'reject' (status → REJECTED), 'assign' (status → ASSIGNED)
+     - Assign action: Accepts associate username, looks up associate by username, validates role
+     - Updates issue status and assignedTo field
+     - Returns updated issue without population to avoid errors
+     - Authorization: requireManager check
+   
+   * PATCH /:issueId/assign - Director assigns forwarded issue
+     - Actions: 'reject' (status → REJECTED), 'assign' (status → ASSIGNED)
+     - Assign action: Accepts associate ID, validates associate role and active status
+     - Updates issue status and assignedTo field
+     - Populates apartment, createdBy, assignedTo on return
+     - Authorization: requireDirector check
+     - Note: Production should check issue.status === 'forwarded', currently allows any status for testing
+   
+   - Extended helper imports:
+     * Added findUserById (authHelpers) - for director assign endpoint
+     * Added findIssueById (lookupHelpers) - for both endpoints
+     * Added requireManager, requireDirector (roleHelper) - for authorization
+     * Added USER_STATUS (constants) - for associate status validation
+   - Result: 263 lines (from 160 lines, +103 lines for Part 3B)
+
+2. **Removed Part 3B Endpoints from index.js** (-97 lines):
+   - Removed PATCH /api/issues/:issueId/triage (52 lines, line 197-248)
+   - Removed PATCH /api/issues/:issueId/assign (50 lines, line 249-298)
+   - Updated comment block to document Parts 3A and 3B migration
+   - 5 issue endpoints remain for Part 3C (associate workflow):
+     * Line ~298: PATCH /api/issues/:issueId/accept
+     * Line ~X: PATCH /api/issues/:issueId/complete
+     * Line ~919: POST /api/issues/:id/accept (DUPLICATE)
+     * Line ~978: POST /api/issues/:id/reject
+     * Line ~1017: POST /api/issues/:id/complete (DUPLICATE)
+
+**Tests:**
+- ✅ Backend startup: Clean, no errors
+- ✅ MongoDB connection: "✅ MONGO RUNNING - Connected to MongoDB"
+- ✅ Server listening: Port 5000
+- ✅ No syntax errors in routes/issues.js or index.js
+- ✅ Issue router registered at /api/issues with Part 3B endpoints
+- ⏳ Functional testing: Will verify triage/assign endpoints post-Part 3C
+
+**Connectivity:**
+- ✅ Backend: Running on port 5000
+- ✅ MongoDB Atlas: Connected (tennetdb database)
+- ✅ Issue Router: Parts 3A + 3B endpoints operational
+- ✅ Authorization: requireManager, requireDirector checks in place
+
+**Metrics:**
+- index.js line reduction: 1,267 → 1,170 (-97 lines, -7.7%)
+- Cumulative reduction: 2,007 → 1,170 lines (-837 lines, -41.7%)
+- routes/issues.js growth: 160 → 263 lines (+103 lines for Part 3B)
+- Issue endpoints migrated: 5 of 10 (50% complete)
+- Remaining issue endpoints: 5 (Part 3C)
+
+**Next Steps:**
+- Part 3C: Move associate workflow endpoints (accept, reject, complete) to routes/issues.js
+- Part 3C: Resolve duplicate endpoints (PATCH vs POST versions) - keep POST versions (include invoice creation)
+- Continue Step 2.2 with user/tenant routes (Part 4) and associate/invoice routes (Part 5)
+
+---
+
 ### 2026-02-16 - Step 2.2 (Part 3A/5): Move Basic Issue Routes to Separate File
 [BLUE] Modularized 3 basic issue endpoints into dedicated router (Part 3A of 3-part issue split)
 
