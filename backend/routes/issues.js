@@ -6,6 +6,7 @@ const Issue = require('../models/Issue');
 const Apartment = require('../models/Apartment');
 const Building = require('../models/Building');
 const User = require('../models/User');
+const Invoice = require('../models/Invoice');
 
 // Middleware
 const { authMiddleware: authenticateToken } = require('../middleware/authHelper');
@@ -21,8 +22,8 @@ const { ERROR_MESSAGES, USER_ROLES, ISSUE_STATUS, PRIORITY_LEVELS, HTTP_STATUS, 
 // Helpers
 const { findUserByUsername, findUserById } = require('../utils/authHelpers');
 const { findIssueById } = require('../utils/lookupHelpers');
-const { requireTenant, requireManager, requireDirector } = require('../middleware/roleHelper');
-const { populateIssue, flattenIssueBuildings } = require('../utils/responseHelpers');
+const { requireTenant, requireManager, requireDirector, requireAssociate } = require('../middleware/roleHelper');
+const { populateIssue, flattenIssueBuildings, populateIssueWithCompany, flattenIssueBuilding } = require('../utils/responseHelpers');
 
 // ===== BASIC ISSUE OPERATIONS (Part 3A) =====
 
@@ -257,6 +258,191 @@ router.patch('/:issueId/assign', authenticateToken, validate(IssueValidator.vali
     console.error('Assign issue error:', err);
     if (err.status) return ApiResponse.error(res, err.message, err.status);
     return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
+  }
+});
+
+// ===== ASSOCIATE WORKFLOW (Part 3C) =====
+
+// POST /:id/accept - Associate accepts assigned job with cost estimate
+router.post('/:id/accept', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/accept - User: ${req.user.username}`);
+
+    // Fetch user
+    const user = await findUserByUsername(req.user.username);
+
+    // Check if user is an associate
+    requireAssociate(user, ERROR_MESSAGES.ONLY_ASSOCIATES_ACCEPT);
+
+    // Validate estimatedCost
+    const { estimatedCost } = req.body;
+    if (estimatedCost === undefined || estimatedCost === null) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost is required' });
+    }
+    if (typeof estimatedCost !== 'number' || isNaN(estimatedCost)) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost must be a valid number' });
+    }
+    if (estimatedCost < 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'estimatedCost must be a positive number' });
+    }
+
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
+    }
+
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
+    }
+
+    // Check if issue is in assigned status
+    if (issue.status !== ISSUE_STATUS.ASSIGNED) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Issue must be in assigned status to accept' });
+    }
+
+    // Update issue
+    issue.status = ISSUE_STATUS.IN_PROGRESS;
+    issue.cost = estimatedCost;
+    await issue.save();
+
+    // Populate and return
+    const updated = await populateIssueWithCompany(Issue.findById(issue._id));
+
+    // Flatten building
+    const issueObj = flattenIssueBuilding(updated);
+
+    console.log(`Issue ${issue._id} accepted with cost $${estimatedCost}`);
+    return ApiResponse.success(res, issueObj, 'Job accepted successfully');
+  } catch (error) {
+    console.error('Error accepting job:', error);
+    if (error.status) return ApiResponse.error(res, error.message, error.status);
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
+  }
+});
+
+// POST /:id/reject - Associate rejects assigned job
+router.post('/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/reject - User: ${req.user.username}`);
+
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+
+    // Check if user is an associate
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can reject jobs' });
+    }
+
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
+    }
+
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
+    }
+
+    // Update issue - return to director for reassignment
+    issue.status = ISSUE_STATUS.FORWARDED;
+    issue.assignedTo = null;
+    await issue.save();
+
+    console.log(`Issue ${issue._id} rejected by associate`);
+    return ApiResponse.success(res, null, 'Job rejected successfully');
+  } catch (error) {
+    console.error('Error rejecting job:', error);
+    if (error.status) return ApiResponse.error(res, error.message, error.status);
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
+  }
+});
+
+// POST /:id/complete - Associate marks in-progress job as complete
+router.post('/:id/complete', authenticateToken, async (req, res) => {
+  try {
+    console.log(`POST /api/issues/${req.params.id}/complete - User: ${req.user.username}`);
+
+    // Fetch user
+    const user = await User.findOne({ username: req.user.username });
+
+    // Check if user is an associate
+    if (!user || user.role !== USER_ROLES.ASSOCIATE) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ONLY_ASSOCIATES_COMPLETE });
+    }
+
+    // Find issue
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
+    }
+
+    // Check if issue is assigned to this associate
+    if (!issue.assignedTo || issue.assignedTo.toString() !== user._id.toString()) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
+    }
+
+    // Check if issue is in in-progress status
+    if (issue.status !== ISSUE_STATUS.IN_PROGRESS) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Issue must be in in-progress status to complete' });
+    }
+
+    // Update issue
+    issue.status = 'resolved';
+    issue.completionDate = new Date();
+    if (req.body.completionNotes) {
+      issue.completionNotes = req.body.completionNotes;
+    }
+    await issue.save();
+
+    // Create invoice for the completed work
+    console.log(`Attempting to create invoice for issue ${issue._id}`);
+    console.log(`Issue cost: ${issue.cost}`);
+    console.log(`User company: ${user.company}`);
+    
+    if (issue.cost && issue.cost > 0) {
+      console.log(`Creating invoice with amount: ${issue.cost}`);
+      
+      const invoice = new Invoice({
+        company: user.company || 'N/A',
+        associate: user._id,
+        associateName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+        title: issue.title,
+        reason: `Rešavanje kvara: ${issue.description?.substring(0, 100) || 'Servisni rad'}`,
+        amount: issue.cost,
+        date: new Date(),
+        building: issue.apartment?.building || null,
+        issue: issue._id,
+        paid: false
+      });
+      
+      console.log(`Invoice data:`, {
+        company: invoice.company,
+        associate: invoice.associate,
+        associateName: invoice.associateName,
+        title: invoice.title,
+        amount: invoice.amount
+      });
+      
+      try {
+        await invoice.save();
+        console.log(`✅ Invoice created successfully for issue ${issue._id}, Amount: ${issue.cost}`);
+      } catch (invoiceError) {
+        console.error('❌ Error creating invoice:', invoiceError);
+        // Don't fail the whole request if invoice creation fails
+      }
+    } else {
+      console.log(`⚠️ No invoice created - issue cost is ${issue.cost}`);
+    }
+
+    console.log(`Issue ${issue._id} marked as complete`);
+    return ApiResponse.success(res, null, 'Job completed successfully');
+  } catch (error) {
+    console.error('Error completing job:', error);
+    if (error.status) return ApiResponse.error(res, error.message, error.status);
+    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
   }
 });
 
