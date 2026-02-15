@@ -31,6 +31,7 @@ const authRoutes = require('./routes/auth');
 const buildingRoutes = require('./routes/buildings');
 const issueRoutes = require('./routes/issues');
 const userRoutes = require('./routes/users');
+const associateRoutes = require('./routes/associates');
 
 // Import auth helper functions
 const { findUserByUsername } = require('./utils/authHelpers');
@@ -73,6 +74,10 @@ app.use('/api/issues', issueRoutes);
 // ===== REGISTER USER/TENANT ROUTER =====
 // Register user and tenant routes at /api (handles both /api/users and /api/tenants)
 app.use('/api', userRoutes);
+
+// ===== REGISTER ASSOCIATES ROUTER =====
+// Register associate routes at /api (handles /api/associates/*)
+app.use('/api', associateRoutes);
 
 // ===== OLD INLINE AUTH ENDPOINTS (NOW IN routes/auth.js) =====
 // The following endpoints have been moved to routes/auth.js:
@@ -127,86 +132,10 @@ app.use('/api', userRoutes);
 // - POST /api/tenants/:id/assign - Assign tenant to apartment (manager/director)
 // - GET /api/tenants/me/apartment - Tenant views their apartment info
 
-// ===== PHASE 3.2: TENANT REPORTS ISSUES =====
-// POST /api/issues - Tenant creates an issue (NOW IN routes/issues.js Part 3A)
-
-// ===== PHASE 3.3: TENANT VIEWS THEIR OWN ISSUES =====
-// GET /api/issues/my - Tenant views their reported issues (NOW IN routes/issues.js Part 3A)
-
-// ===== PHASE 4.1: ASSOCIATE VIEWS ASSIGNED JOBS =====
-// GET /api/associates/me/jobs - Associate views their assigned jobs
-app.get('/api/associates/me/jobs', authenticateToken, async (req, res) => {
-  try {
-    console.log(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);
-
-    // Fetch user
-    const user = await findUserByUsername(req.user.username);
-    console.log(`Found user: ${user.username} Role: ${user.role}`);
-
-    // Check if user is an associate
-    requireAssociate(user, 'Only associates can view their jobs');
-
-    const { status, priority } = req.query;
-    const filter = { assignedTo: user._id };
-    if (status) filter.status = status;
-    if (priority) filter.priority = priority;
-
-    const jobs = await populateIssueWithCompany(Issue.find(filter)).sort({ createdAt: -1 });
-
-    // Flatten building from apartment.building to building for easier access
-    const jobsWithBuilding = flattenIssueBuildings(jobs);
-
-    console.log(`Associate jobs retrieved: ${jobsWithBuilding.length}`);
-    return ApiResponse.success(res, jobsWithBuilding, 'Associate jobs retrieved successfully');
-  } catch (error) {
-    console.error('Error retrieving associate jobs:', error);
-    if (error.status) return ApiResponse.error(res, error.message, error.status);
-    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
-  }
-});
-
-// ===== GET ALL ASSOCIATES (for manager/director dropdowns) =====
-app.get('/api/associates', authenticateToken, async (req, res) => {
-  try {
-    console.log('\n🔍 GET /api/associates - DEBUG');
-    const user = await User.findOne({ username: req.user.username });
-    console.log('   Requesting user:', user?.firstName, user?.lastName, `(${user?.role})`);
-
-    // Only managers and directors can view associates list
-    if (!user || (user.role !== USER_ROLES.MANAGER && user.role !== USER_ROLES.DIRECTOR)) {
-      console.log('   ❌ Access denied - user role:', user?.role);
-      return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Access denied' });
-    }
-
-    console.log('   ✅ Access granted - fetching associates...');
-    
-    // Get all active associates (status 'active' or undefined for existing users)
-    const associates = await User.find({
-      role: USER_ROLES.ASSOCIATE,
-      $or: [
-        { status: USER_STATUS.ACTIVE },
-        { status: { $exists: false } },
-        { status: null }
-      ]
-    }).select('_id username firstName lastName email company status');
-
-    console.log(`   📊 Query result: ${associates.length} associates found`);
-    
-    if (associates.length > 0) {
-      console.log('   Sample results:');
-      associates.slice(0, 3).forEach((assoc, index) => {
-        const name = `${assoc.firstName || ''} ${assoc.lastName || ''}`.trim();
-        console.log(`      ${index + 1}. ${name} (@${assoc.username}) - status: ${assoc.status}`);
-      });
-    }
-
-    return ApiResponse.success(res, associates, 'Associates retrieved successfully');
-  } catch (error) {
-    console.error('❌ Error fetching associates:', error);
-    if (error.status) return ApiResponse.error(res, error.message, error.status);
-    return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR, error);
-  }
-});
+// ===== OLD INLINE ASSOCIATE ENDPOINTS (NOW IN routes/associates.js) =====
+// The following endpoints have been moved to routes/associates.js:
+// - GET /api/associates/me/jobs - Associate views their assigned jobs (with status/priority filters)
+// - GET /api/associates - Get all associates list (for manager/director dropdowns)
 
 // ===== POLLS ENDPOINTS =====
 
