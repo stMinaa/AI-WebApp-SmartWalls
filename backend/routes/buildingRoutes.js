@@ -1,35 +1,20 @@
 const express = require('express');
 const router = express.Router();
-
-// Models
-const Building = require('../models/Building');
-const Apartment = require('../models/Apartment');
-const User = require('../models/User');
-const Poll = require('../models/Poll');
-const Notice = require('../models/Notice');
-
-// Middleware
-const { authMiddleware: authenticateToken } = require('../middleware/authHelper');
+const ApiResponse = require('../utils/ApiResponse');
+const { USER_ROLES, USER_STATUS, ERROR_MESSAGES, HTTP_STATUS } = require('../config/constants');
 const { validate } = require('../middleware/validate');
-
-// Validators
 const BuildingValidator = require('../validators/BuildingValidator');
 const ApartmentValidator = require('../validators/ApartmentValidator');
-const NoticeValidator = require('../validators/NoticeValidator');
-
-// Utils
-const ApiResponse = require('../utils/ApiResponse');
-const { ERROR_MESSAGES, USER_ROLES, USER_STATUS, HTTP_STATUS } = require('../config/constants');
-
-// Helpers
+const { authenticateToken } = require('../middleware/authHelper');
+const { requireDirector, requireManager, requireDirectorOrManager } = require('../middleware/roleHelper');
 const { findUserByUsername, findUserById } = require('../utils/authHelpers');
 const { findBuildingById } = require('../utils/lookupHelpers');
 const { addApartmentCounts } = require('../utils/responseHelpers');
-const { requireDirector, requireManager } = require('../middleware/roleHelper');
+const User = require('../models/User');
+const Building = require('../models/Building');
+const Apartment = require('../models/Apartment');
 
-// ===== BUILDING ENDPOINTS =====
-
-// POST / - Create building (director only)
+// POST /api/buildings - Director creates a building
 router.post('/', authenticateToken, validate(BuildingValidator.validateCreate), async (req, res) => {
   console.log('POST /api/buildings - User:', req.user?.username, 'Body:', req.body);
   try {
@@ -60,7 +45,7 @@ router.post('/', authenticateToken, validate(BuildingValidator.validateCreate), 
   }
 });
 
-// GET / - Director views all buildings with apartment count
+// GET /api/buildings - Director views all buildings with apartment count
 router.get('/', authenticateToken, async (req, res) => {
   console.log('GET /api/buildings - User:', req.user?.username, 'Query:', req.query);
   try {
@@ -68,7 +53,6 @@ router.get('/', authenticateToken, async (req, res) => {
     console.log('Found user:', user.username, 'Role:', user.role);
     requireDirector(user, ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_BUILDINGS);
 
-    // Support filtering by managerId
     const filter = {};
     if (req.query.managerId) {
       filter.manager = req.query.managerId;
@@ -80,8 +64,6 @@ router.get('/', authenticateToken, async (req, res) => {
       .sort({ createdAt: -1 });
 
     console.log('Found buildings:', buildings.length);
-
-    // Add apartment count for each building
     const buildingsWithCount = await addApartmentCounts(buildings);
 
     console.log('Returning buildings with counts');
@@ -93,7 +75,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /managed - Manager views their assigned buildings
+// GET /api/buildings/managed - Manager views their assigned buildings
 router.get('/managed', authenticateToken, async (req, res) => {
   try {
     const user = await findUserByUsername(req.user.username);
@@ -104,7 +86,6 @@ router.get('/managed', authenticateToken, async (req, res) => {
       .populate('director', 'firstName lastName email')
       .sort({ createdAt: -1 });
 
-    // Add apartment count for each building
     const buildingsWithCount = await addApartmentCounts(buildings);
 
     return ApiResponse.success(res, buildingsWithCount, 'Managed buildings retrieved');
@@ -115,7 +96,7 @@ router.get('/managed', authenticateToken, async (req, res) => {
   }
 });
 
-// PATCH /:buildingId/assign-manager - Assign manager to building (director only)
+// PATCH /api/buildings/:buildingId/assign-manager - Assign manager to building
 router.patch('/:buildingId/assign-manager', authenticateToken, async (req, res) => {
   console.log('PATCH /api/buildings/:buildingId/assign-manager - User:', req.user?.username, 'Body:', req.body);
   try {
@@ -126,7 +107,6 @@ router.patch('/:buildingId/assign-manager', authenticateToken, async (req, res) 
     const { managerId } = req.body;
     const building = await findBuildingById(req.params.buildingId);
 
-    // Validate manager exists and is active (if managerId provided)
     if (managerId) {
       const manager = await findUserById(managerId);
       if (manager.role !== USER_ROLES.MANAGER) {
@@ -137,11 +117,9 @@ router.patch('/:buildingId/assign-manager', authenticateToken, async (req, res) 
       }
     }
 
-    // Update building manager (null to unassign)
     building.manager = managerId || null;
     await building.save();
 
-    // Populate and return
     const updated = await Building.findById(building._id)
       .populate('manager', 'firstName lastName email')
       .populate('director', 'firstName lastName email');
@@ -155,9 +133,7 @@ router.patch('/:buildingId/assign-manager', authenticateToken, async (req, res) 
   }
 });
 
-// ===== APARTMENT ENDPOINTS =====
-
-// POST /:id/apartments/bulk - Bulk create apartments (manager/director)
+// POST /api/buildings/:id/apartments/bulk - Bulk create apartments
 router.post('/:id/apartments/bulk', authenticateToken, async (req, res) => {
   console.log('POST /api/buildings/:id/apartments/bulk - User:', req.user?.username, 'Body:', req.body);
   try {
@@ -171,7 +147,6 @@ router.post('/:id/apartments/bulk', authenticateToken, async (req, res) => {
       return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
-    // Check if building already has apartments
     const existingCount = await Apartment.countDocuments({ building: building._id });
     if (existingCount > 0) {
       return ApiResponse.badRequest(res, ERROR_MESSAGES.BUILDING_HAS_APARTMENTS);
@@ -181,13 +156,9 @@ router.post('/:id/apartments/bulk', authenticateToken, async (req, res) => {
     const apartments = [];
 
     if (floorsSpec) {
-      // Advanced spec: custom floors (e.g., "2,3,5")
       const floorNumbers = floorsSpec.split(',').map(f => parseInt(f.trim()));
-
       for (const floorNum of floorNumbers) {
-        // Floor 5 has 2 units, others have 4 units (as per test spec)
         const unitsOnFloor = (floorNum === 5) ? 2 : 4;
-
         for (let unit = 1; unit <= unitsOnFloor; unit++) {
           apartments.push({
             building: building._id,
@@ -196,7 +167,6 @@ router.post('/:id/apartments/bulk', authenticateToken, async (req, res) => {
         }
       }
     } else if (floors && unitsPerFloor) {
-      // Simple replication: same units per floor
       for (let floor = 1; floor <= floors; floor++) {
         for (let unit = 1; unit <= unitsPerFloor; unit++) {
           apartments.push({
@@ -219,7 +189,7 @@ router.post('/:id/apartments/bulk', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /:id/apartments - Create single apartment (manager/director)
+// POST /api/buildings/:id/apartments - Create single apartment
 router.post('/:id/apartments', authenticateToken, validate(ApartmentValidator.validateCreate), async (req, res) => {
   console.log('POST /api/buildings/:id/apartments - User:', req.user?.username, 'Body:', req.body);
   try {
@@ -255,7 +225,7 @@ router.post('/:id/apartments', authenticateToken, validate(ApartmentValidator.va
   }
 });
 
-// GET /:id/apartments - Get all apartments for building (authenticated)
+// GET /api/buildings/:id/apartments - Get all apartments for building
 router.get('/:id/apartments', authenticateToken, async (req, res) => {
   console.log('GET /api/buildings/:id/apartments - User:', req.user?.username);
   try {
@@ -273,9 +243,7 @@ router.get('/:id/apartments', authenticateToken, async (req, res) => {
   }
 });
 
-// ===== TENANT ENDPOINTS =====
-
-// GET /:id/tenants - Get all tenants for building (manager/director)
+// GET /api/buildings/:id/tenants - Get all tenants for building
 router.get('/:id/tenants', authenticateToken, async (req, res) => {
   console.log('GET /api/buildings/:id/tenants - User:', req.user?.username);
   try {
@@ -289,7 +257,6 @@ router.get('/:id/tenants', authenticateToken, async (req, res) => {
       return ApiResponse.notFound(res, ERROR_MESSAGES.BUILDING_NOT_FOUND);
     }
 
-    // Find all tenants assigned to this building
     const tenants = await User.find({
       building: building._id,
       role: USER_ROLES.TENANT
@@ -306,11 +273,10 @@ router.get('/:id/tenants', authenticateToken, async (req, res) => {
   }
 });
 
-// ===== POLL ENDPOINTS =====
-
-// GET /:buildingId/polls - Get all polls for a building
+// GET /api/buildings/:buildingId/polls - Get all polls for a building
 router.get('/:buildingId/polls', authenticateToken, async (req, res) => {
   try {
+    const Poll = require('../models/Poll');
     const polls = await Poll.find({ building: req.params.buildingId })
       .populate('createdBy', 'username firstName lastName')
       .sort({ createdAt: -1 });
@@ -323,12 +289,12 @@ router.get('/:buildingId/polls', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /:buildingId/polls - Create a poll (manager only)
-router.post('/:buildingId/polls', authenticateToken, validate(NoticeValidator.validatePoll), async (req, res) => {
+// POST /api/buildings/:buildingId/polls - Create a poll
+router.post('/:buildingId/polls', authenticateToken, validate(require('../validators/NoticeValidator').validatePoll), async (req, res) => {
   try {
+    const Poll = require('../models/Poll');
     const user = await User.findOne({ username: req.user.username });
 
-    // Only managers can create polls
     if (!user || user.role !== USER_ROLES.MANAGER) {
       return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can create polls' });
     }
@@ -358,11 +324,10 @@ router.post('/:buildingId/polls', authenticateToken, validate(NoticeValidator.va
   }
 });
 
-// ===== NOTICE ENDPOINTS =====
-
-// GET /:buildingId/notices - Get all notices for a building
+// GET /api/buildings/:buildingId/notices - Get all notices for a building
 router.get('/:buildingId/notices', authenticateToken, async (req, res) => {
   try {
+    const Notice = require('../models/Notice');
     const notices = await Notice.find({ building: req.params.buildingId })
       .populate('author', 'username firstName lastName')
       .sort({ createdAt: -1 });
@@ -375,12 +340,12 @@ router.get('/:buildingId/notices', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /:buildingId/notices - Create a notice (manager only)
-router.post('/:buildingId/notices', authenticateToken, validate(NoticeValidator.validateCreate), async (req, res) => {
+// POST /api/buildings/:buildingId/notices - Create a notice
+router.post('/:buildingId/notices', authenticateToken, validate(require('../validators/NoticeValidator').validateCreate), async (req, res) => {
   try {
+    const Notice = require('../models/Notice');
     const user = await User.findOne({ username: req.user.username });
 
-    // Only managers can create notices
     if (!user || user.role !== USER_ROLES.MANAGER) {
       return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only managers can create notices' });
     }

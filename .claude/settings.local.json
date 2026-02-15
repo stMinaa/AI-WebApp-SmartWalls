@@ -14,7 +14,31 @@
       "Bash(npx react-scripts build)",
       "Bash(npm test:*)",
       "Bash(git push:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(git -C \"C:/Users/Milan/Desktop/AI aplikacija\" count-objects -vH)",
+      "Bash(git gc:*)",
+      "Bash(git count-objects:*)",
+      "Bash(ls:*)",
+      "WebSearch",
+      "Bash(cs:*)",
+      "WebFetch(domain:codescene.io)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npx eslint:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prettier --check backend/utils/ApiResponse.js)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=512\" npx jest:*)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=1024\" npx jest:*)",
+      "Bash(timeout 15 node:*)",
+      "Bash(timeout 30 npm start:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(node index.js)",
+      "Bash(ESLINT_USE_FLAT_CONFIG=false npx eslint:*)",
+      "Bash(node -e:*)",
+      "Bash(ESLINT_USE_FLAT_CONFIG=false frontend/node_modules/.bin/eslint:*)",
+      "Bash(ESLINT_USE_FLAT_CONFIG=false npx lint-staged:*)",
+      "Bash(grep:*)",
+      "Bash(cd:*)"
     ]
   }
 }

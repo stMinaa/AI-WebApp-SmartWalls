@@ -260,7 +260,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
         .send({ estimatedCost: 100 });
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toContain('associate');
+      expect(res.body.message).toMatch(/associate/i);
     });
 
     it('should return 404 if issue does not exist', async () => {

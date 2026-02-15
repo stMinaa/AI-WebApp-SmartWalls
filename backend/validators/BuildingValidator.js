@@ -7,21 +7,18 @@ const { validateRequired } = require('../utils/validation');
 
 /**
  * Validate building creation data
- * @param {Object} data - Building data (name, address, city)
+ * @param {Object} data - Building data (name, address)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
 function validateCreate(data) {
   const errors = [];
-  
+
   const nameCheck = validateRequired(data.name, 'Building name');
   if (!nameCheck.valid) errors.push(nameCheck.message);
-  
+
   const addressCheck = validateRequired(data.address, 'Address');
   if (!addressCheck.valid) errors.push(addressCheck.message);
-  
-  const cityCheck = validateRequired(data.city, 'City');
-  if (!cityCheck.valid) errors.push(cityCheck.message);
-  
+
   return errors.length === 0 
     ? { valid: true } 
     : { valid: false, errors };

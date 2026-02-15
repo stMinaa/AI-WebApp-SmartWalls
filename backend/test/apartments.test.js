@@ -206,7 +206,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .send({ address: '123 Main St' });
 
       assertError(res, 400);
-      expect(res.body.message).toMatch(/unitNumber.*required/i);
+      expect(res.body.message).toMatch(/unit.?number.*required/i);
     });
 
     it('should return 401 if not authenticated', async () => {

@@ -168,8 +168,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ address: TEST_BUILDING.address });
 
-      assertSuccess(res, 201);
-      // Backend creates building even without name (name defaults to empty string)
+      assertError(res, 400, 'Building name');
     });
 
     test('Should reject building without address', async () => {
@@ -242,7 +241,7 @@ describe('Director Operations', () => {
         .set('Authorization', `Bearer ${directorToken}`)
         .send({ managerId: fakeId });
 
-      assertError(res, 400, 'Invalid manager');
+      assertError(res, 404);
     });
 
     test('Should reject assignment if user is not manager role', async () => {

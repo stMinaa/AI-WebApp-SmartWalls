@@ -149,7 +149,7 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
         .set('Authorization', `Bearer ${ctx.managerToken}`);
 
       assertError(res, 403);
-      expect(res.body.error).toMatch(/Only tenants/i);
+      expect(res.body.message).toMatch(/Only tenants/i);
     });
 
     it('should include all issue fields', async () => {

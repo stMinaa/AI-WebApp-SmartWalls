@@ -91,7 +91,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .send({ description: 'Some description' });
 
       assertError(res, 400);
-      expect(res.body.error).toContain('Title');
+      expect(res.body.message).toContain('Title');
     });
 
     it('should return 400 if description is missing', async () => {
@@ -101,7 +101,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .send({ title: 'Some title' });
 
       assertError(res, 400);
-      expect(res.body.error).toContain('Description');
+      expect(res.body.message).toContain('Description');
     });
 
     it('should return 400 if priority is invalid', async () => {
@@ -139,7 +139,7 @@ describe('Phase 3.2: Tenant Reports Issues', () => {
         .send({ title: 'Test issue', description: 'Test description' });
 
       assertError(res, 403);
-      expect(res.body.error).toMatch(/Only tenants/i);
+      expect(res.body.message).toMatch(/Only tenants/i);
     });
 
     it('should create multiple issues for same tenant', async () => {

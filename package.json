@@ -10,8 +10,10 @@
     "frontend": "cd frontend && npm start",
     "test": "jest backend/test/ --detectOpenHandles --forceExit --runInBand",
     "test:arch": "jest backend/test/architecture/ --verbose",
-    "lint": "cd backend && eslint . --ext .js",
-    "lint:fix": "cd backend && eslint . --ext .js --fix",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint backend/ --ext .js",
+    "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint backend/ --ext .js --fix",
+    "lint:frontend": "frontend/node_modules/.bin/eslint frontend/src/ --ext .js,.jsx",
+    "lint:frontend:fix": "frontend/node_modules/.bin/eslint frontend/src/ --ext .js,.jsx --fix",
     "deps:check": "cd backend && depcruise --config .dependency-cruiser.js src",
     "deps:graph": "cd backend && depcruise --config .dependency-cruiser.js --output-type dot src | dot -T svg > ../dependency-graph.svg",
     "quality": "npm run lint && npm run test:arch",
@@ -24,6 +26,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -51,7 +54,7 @@
     ],
     "frontend/src/**/*.{js,jsx}": [
       "prettier --write",
-      "eslint --fix --max-warnings 0"
+      "frontend/node_modules/.bin/eslint --fix --max-warnings 0"
     ]
   }
 }

@@ -30,12 +30,16 @@ async function signupUser(data) {
   const res = await request(app)
     .post('/api/auth/signup')
     .send(data);
+  const signupData = getData(res);
+  if (!signupData) throw new Error(`signupUser failed: ${JSON.stringify(res.body)}`);
   const login = await request(app)
     .post('/api/auth/login')
     .send({ username: data.username, password: data.password });
+  const loginData = getData(login);
+  if (!loginData) throw new Error(`signupUser login failed: ${JSON.stringify(login.body)}`);
   return {
-    _id: getData(res).user?._id,
-    token: getData(login).token
+    _id: signupData.user?._id,
+    token: loginData.token
   };
 }
 
@@ -56,7 +60,9 @@ async function createBuilding(directorToken, data) {
     .post('/api/buildings')
     .set('Authorization', `Bearer ${directorToken}`)
     .send(data);
-  return getData(res)._id;
+  const d = getData(res);
+  if (!d) throw new Error(`createBuilding failed: ${JSON.stringify(res.body)}`);
+  return d._id;
 }
 
 /**
@@ -77,7 +83,9 @@ async function createApartment(token, buildingId, unitNumber) {
     .post(`/api/buildings/${buildingId}/apartments`)
     .set('Authorization', `Bearer ${token}`)
     .send({ unitNumber });
-  return getData(res)._id;
+  const d = getData(res);
+  if (!d) throw new Error(`createApartment failed: ${JSON.stringify(res.body)}`);
+  return d._id;
 }
 
 /**

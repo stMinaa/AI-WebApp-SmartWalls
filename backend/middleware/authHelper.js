@@ -98,27 +98,18 @@ function extractToken(authHeader) {
  * @param {Function} next - Next middleware
  */
 function authMiddleware(req, res, next) {
-  const token = extractToken(req.headers.authorization);
-
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
   if (!token) {
-    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-      success: false,
-      message: ERROR_MESSAGES.TOKEN_REQUIRED,
-      status: HTTP_STATUS.UNAUTHORIZED
-    });
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({ message: ERROR_MESSAGES.TOKEN_REQUIRED });
   }
-
-  try {
-    const decoded = verifyToken(token);
-    req.user = decoded;
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ message: ERROR_MESSAGES.TOKEN_INVALID });
+    }
+    req.user = user;
     next();
-  } catch (err) {
-    return res.status(err.status || HTTP_STATUS.UNAUTHORIZED).json({
-      success: false,
-      message: err.message || ERROR_MESSAGES.TOKEN_INVALID,
-      status: err.status || HTTP_STATUS.UNAUTHORIZED
-    });
-  }
+  });
 }
 
 /**
@@ -154,6 +145,9 @@ function requireRole(...allowedRoles) {
   };
 }
 
+// Alias for backward compatibility
+const authenticateToken = authMiddleware;
+
 module.exports = {
   generateToken,
   verifyToken,
@@ -161,6 +155,7 @@ module.exports = {
   comparePassword,
   extractToken,
   authMiddleware,
+  authenticateToken,
   requireRole,
   JWT_SECRET,
   TOKEN_EXPIRY

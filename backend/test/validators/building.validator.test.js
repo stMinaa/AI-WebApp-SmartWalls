@@ -9,8 +9,7 @@ describe('BuildingValidator - Create', () => {
   test('valid building data should pass', () => {
     const data = {
       name: 'Zgrada A',
-      address: 'Bulevar kralja Aleksandra 73',
-      city: 'Beograd'
+      address: 'Bulevar kralja Aleksandra 73'
     };
     
     const result = BuildingValidator.validateCreate(data);
@@ -20,8 +19,7 @@ describe('BuildingValidator - Create', () => {
 
   test('missing name should fail', () => {
     const data = {
-      address: 'Bulevar kralja Aleksandra 73',
-      city: 'Beograd'
+      address: 'Bulevar kralja Aleksandra 73'
     };
     
     const result = BuildingValidator.validateCreate(data);
@@ -32,8 +30,7 @@ describe('BuildingValidator - Create', () => {
   test('empty name should fail', () => {
     const data = {
       name: '   ',
-      address: 'Bulevar kralja Aleksandra 73',
-      city: 'Beograd'
+      address: 'Bulevar kralja Aleksandra 73'
     };
     
     const result = BuildingValidator.validateCreate(data);
@@ -43,8 +40,7 @@ describe('BuildingValidator - Create', () => {
 
   test('missing address should fail', () => {
     const data = {
-      name: 'Zgrada A',
-      city: 'Beograd'
+      name: 'Zgrada A'
     };
     
     const result = BuildingValidator.validateCreate(data);
@@ -55,8 +51,7 @@ describe('BuildingValidator - Create', () => {
   test('empty address should fail', () => {
     const data = {
       name: 'Zgrada A',
-      address: '   ',
-      city: 'Beograd'
+      address: '   '
     };
     
     const result = BuildingValidator.validateCreate(data);
@@ -64,28 +59,6 @@ describe('BuildingValidator - Create', () => {
     expect(result.errors).toContain('Address is required');
   });
 
-  test('missing city should fail', () => {
-    const data = {
-      name: 'Zgrada A',
-      address: 'Bulevar kralja Aleksandra 73'
-    };
-    
-    const result = BuildingValidator.validateCreate(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('City is required');
-  });
-
-  test('empty city should fail', () => {
-    const data = {
-      name: 'Zgrada A',
-      address: 'Bulevar kralja Aleksandra 73',
-      city: '   '
-    };
-    
-    const result = BuildingValidator.validateCreate(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('City is required');
-  });
 });
 
 describe('BuildingValidator - Bulk Apartments', () => {
