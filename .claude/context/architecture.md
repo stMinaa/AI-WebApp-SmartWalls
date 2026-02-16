@@ -184,6 +184,122 @@ backend/
 
 ---
 
+### Layer Details & Responsibilities
+
+#### Adapters Layer (Infrastructure)
+**External world integration - frameworks, databases, APIs**
+
+- **Database Adapters:** Mongoose implementations, repository implementations
+- **API Adapters:** Express routes, controllers, HTTP concerns
+- **External Service Adapters:** Email clients, SMS providers, payment gateways
+- **Ports:** Interfaces that define boundaries between layers
+
+**Key principle:** Adapters implement ports defined by inner layers
+
+#### Application Layer
+**Orchestration of use cases**
+
+- **Services:** Coordinate domain logic and external operations
+- **Use Case Orchestration:** Execute business workflows
+- **DTOs:** Data transfer between layers
+- **Ports:** Define interfaces for infrastructure dependencies
+
+**Key principle:** No framework dependencies, only domain and port interfaces
+
+#### Domain Layer (Center)
+**Pure business logic - the heart of the application**
+
+- **Entities:** Core business objects (User, Building, Apartment, Issue)
+- **Value Objects:** Immutable domain concepts (Email, Money, Address)
+- **Domain Services:** Pure functions, business rules
+- **Exceptions:** Domain-specific errors
+- **Ports (Interfaces):** Define what domain needs from outside world
+
+**Key principles:**
+- ✅ Pure functions only
+- ✅ No framework dependencies (NO Express, NO Mongoose, NO external libs)
+- ✅ No annotations, no decorators
+- ✅ Clean objects only
+- ✅ No mocking needed (pure logic)
+- ✅ 100% testable without infrastructure
+
+**DEPENDENCIES ALWAYS FLOW TOWARD CENTER (DOMAIN)**
+- Domain depends on NOTHING
+- Everything else depends on Domain
+- Domain knows NOTHING about any framework
+
+---
+
+### Folder Structure Example
+
+```
+backend/
+├── src/
+│   ├── domain/                    # INNER CIRCLE - Pure business logic
+│   │   ├── model/                 # Entities & value objects
+│   │   │   ├── User.js
+│   │   │   ├── Building.js
+│   │   │   ├── Issue.js
+│   │   │   └── valueObjects/
+│   │   │       ├── Email.js
+│   │   │       └── Money.js
+│   │   ├── port/                  # Interfaces (what domain needs)
+│   │   │   ├── IUserRepository.js
+│   │   │   ├── IEmailService.js
+│   │   │   └── INotificationService.js
+│   │   ├── service/               # Pure domain services
+│   │   │   ├── IssueValidator.js  # Pure validation logic
+│   │   │   ├── RolePermissions.js # Pure authorization rules
+│   │   │   └── PriceCalculator.js # Pure calculation logic
+│   │   └── exception/             # Domain errors
+│   │       ├── ValidationError.js
+│   │       └── AuthorizationError.js
+│   │
+│   ├── application/               # MIDDLE CIRCLE - Use case orchestration
+│   │   └── service/               # Coordinate domain + infrastructure
+│   │       ├── UserService.js     # Orchestrates user operations
+│   │       ├── IssueService.js    # Orchestrates issue workflows
+│   │       └── BuildingService.js # Orchestrates building operations
+│   │
+│   └── adapter/                   # OUTER CIRCLE - External world
+│       ├── persistence/           # Database implementations
+│       │   ├── MongoUserRepository.js    # Implements IUserRepository
+│       │   ├── MongoIssueRepository.js   # Implements IIssueRepository
+│       │   └── models/                   # Mongoose schemas
+│       │       ├── UserModel.js
+│       │       └── IssueModel.js
+│       └── external/              # External services
+│           ├── EmailServiceImpl.js       # Implements IEmailService
+│           └── SMSServiceImpl.js         # Implements ISMSService
+```
+
+---
+
+### When to Use Which Pattern?
+
+#### Full Hexagonal (Domain + Application + Adapters)
+**Use for:**
+- ✅ Complex business logic
+- ✅ Multiple external integrations (payment, email, SMS, etc.)
+- ✅ Logic that needs to be framework-agnostic
+- ✅ Long-term maintainability critical
+- ✅ High test coverage required
+
+**Example:** Issue lifecycle management with notifications, payments, approvals
+
+#### Application Facade (Simplified)
+**Use for:**
+- ✅ Simple logic
+- ✅ Basic coordination between domain and infrastructure
+- ✅ CRUD operations without complex rules
+- ✅ Limited external dependencies
+
+**Example:** Basic user profile updates, simple list/detail operations
+
+**Don't force full hexagonal for every simple operation!**
+
+---
+
 ## SOLID Principles
 
 ### Single Responsibility Principle (SRP)
