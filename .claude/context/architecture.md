@@ -611,6 +611,315 @@ Delete legacy `models/`, `services/`, move everything to `src/`
 
 ---
 
+## ArchUnit - Provera Arhitektonskih Pravila
+
+### Overview
+**ArchUnit-style testing** enforces architectural boundaries at build/test time, preventing violations before they reach production.
+
+**Goal:** Automatically verify that:
+- Domain layer never imports framework code
+- Dependencies flow toward domain (center)
+- Layer boundaries are respected
+- No circular dependencies exist
+
+---
+
+### Tools for Node.js/JavaScript
+
+#### 1. **dependency-cruiser** (RECOMMENDED)
+**Best for:** Dependency rule enforcement, circular dependency detection
+
+```bash
+npm install -D dependency-cruiser
+```
+
+**Configuration:** `.dependency-cruiser.js`
+```javascript
+module.exports = {
+  forbidden: [
+    {
+      name: 'domain-no-infrastructure',
+      comment: 'Domain must not depend on infrastructure',
+      severity: 'error',
+      from: { path: '^src/domain' },
+      to: { path: '^src/(infrastructure|adapter)' }
+    },
+    {
+      name: 'domain-no-frameworks',
+      comment: 'Domain must not import Express or Mongoose',
+      severity: 'error',
+      from: { path: '^src/domain' },
+      to: { path: 'express|mongoose|bcrypt|jsonwebtoken' }
+    },
+    {
+      name: 'application-no-express',
+      comment: 'Application layer must not import Express',
+      severity: 'error',
+      from: { path: '^src/application' },
+      to: { path: 'express' }
+    },
+    {
+      name: 'no-circular',
+      comment: 'Prevent circular dependencies',
+      severity: 'error',
+      from: {},
+      to: { circular: true }
+    }
+  ]
+};
+```
+
+**Usage:**
+```bash
+# Check architecture
+npx depcruise --validate .dependency-cruiser.js src
+
+# Generate dependency graph
+npx depcruise --include-only "^src" --output-type dot src | dot -T svg > dependencies.svg
+```
+
+**Add to package.json:**
+```json
+{
+  "scripts": {
+    "deps:check": "depcruise --validate .dependency-cruiser.js src",
+    "deps:graph": "depcruise --include-only '^src' --output-type dot src | dot -T svg > dependencies.svg"
+  }
+}
+```
+
+---
+
+#### 2. **eslint-plugin-boundaries**
+**Best for:** Import path restrictions, enforcing module boundaries
+
+```bash
+npm install -D eslint-plugin-boundaries
+```
+
+**Configuration:** `.eslintrc.js`
+```javascript
+module.exports = {
+  plugins: ['boundaries'],
+  settings: {
+    'boundaries/elements': [
+      { type: 'domain', pattern: 'src/domain/**' },
+      { type: 'application', pattern: 'src/application/**' },
+      { type: 'infrastructure', pattern: 'src/infrastructure/**' }
+    ]
+  },
+  rules: {
+    'boundaries/element-types': [2, {
+      default: 'disallow',
+      rules: [
+        { from: 'domain', allow: ['domain'] },              // Domain only imports domain
+        { from: 'application', allow: ['domain'] },         // App imports domain
+        { from: 'infrastructure', allow: ['domain', 'application'] }  // Infra imports all
+      ]
+    }]
+  }
+};
+```
+
+---
+
+#### 3. **Custom Jest Tests** (SIMPLEST - Start Here)
+**Best for:** Quick start, custom validation rules
+
+```javascript
+// test/architecture/architecture.test.js
+const fs = require('fs');
+const path = require('path');
+const glob = require('glob');
+
+describe('Architectural Rules', () => {
+  
+  describe('Domain Layer Purity', () => {
+    
+    it('Domain must not import Express', () => {
+      const domainFiles = glob.sync('src/domain/**/*.js');
+      
+      domainFiles.forEach(file => {
+        const content = fs.readFileSync(file, 'utf8');
+        const hasExpress = /require\(['"]express['"]\)|from ['"]express['"]/.test(content);
+        
+        if (hasExpress) {
+          throw new Error(`${file} imports Express (violates domain purity)`);
+        }
+      });
+    });
+    
+    it('Domain must not import Mongoose', () => {
+      const domainFiles = glob.sync('src/domain/**/*.js');
+      
+      domainFiles.forEach(file => {
+        const content = fs.readFileSync(file, 'utf8');
+        const hasMongoose = /require\(['"]mongoose['"]\)|from ['"]mongoose['"]/.test(content);
+        
+        if (hasMongoose) {
+          throw new Error(`${file} imports Mongoose (violates domain purity)`);
+        }
+      });
+    });
+    
+    it('Domain must not import infrastructure', () => {
+      const domainFiles = glob.sync('src/domain/**/*.js');
+      
+      domainFiles.forEach(file => {
+        const content = fs.readFileSync(file, 'utf8');
+        // Check for imports from ../infrastructure or ../adapter
+        const hasInfraImport = /require\(['"].*\/(infrastructure|adapter)\//.test(content) ||
+                               /from ['"].*\/(infrastructure|adapter)\//.test(content);
+        
+        if (hasInfraImport) {
+          throw new Error(`${file} imports from infrastructure (wrong dependency direction)`);
+        }
+      });
+    });
+    
+  });
+  
+  describe('Application Layer Rules', () => {
+    
+    it('Application must not import Express', () => {
+      const appFiles = glob.sync('src/application/**/*.js');
+      
+      appFiles.forEach(file => {
+        const content = fs.readFileSync(file, 'utf8');
+        const hasExpress = /require\(['"]express['"]\)|from ['"]express['"]/.test(content);
+        
+        if (hasExpress) {
+          throw new Error(`${file} imports Express (should use ports)`);
+        }
+      });
+    });
+    
+  });
+  
+  describe('Naming Conventions', () => {
+    
+    it('Repository interfaces should start with I', () => {
+      const portFiles = glob.sync('src/domain/port/**/*Repository.js');
+      
+      portFiles.forEach(file => {
+        const filename = path.basename(file, '.js');
+        if (!filename.startsWith('I')) {
+          throw new Error(`${file} should start with I (e.g., IUserRepository)`);
+        }
+      });
+    });
+    
+    it('Service implementations should end with Service', () => {
+      const serviceFiles = glob.sync('src/application/service/**/*.js');
+      
+      serviceFiles.forEach(file => {
+        const filename = path.basename(file, '.js');
+        if (!filename.endsWith('Service') && filename !== 'index') {
+          throw new Error(`${file} should end with Service`);
+        }
+      });
+    });
+    
+  });
+  
+});
+```
+
+**Add to package.json:**
+```json
+{
+  "scripts": {
+    "test:arch": "jest test/architecture --testTimeout=10000"
+  }
+}
+```
+
+---
+
+### Recommended Rules to Enforce
+
+#### Critical (Implement First)
+- ✅ Domain must not import Express
+- ✅ Domain must not import Mongoose
+- ✅ Domain must not import infrastructure/adapter layers
+- ✅ Application must not import Express (only through ports)
+
+#### Important (Implement at Level 3)
+- ✅ No circular dependencies
+- ✅ Infrastructure can only implement ports from domain/application
+- ✅ All repository implementations must implement an interface
+
+#### Nice to Have (Implement at Level 5+)
+- ✅ Naming conventions (IRepository, *Service, *Entity)
+- ✅ Folder structure validation
+- ✅ Test coverage per layer (domain ≥ 90%, application ≥ 80%)
+
+---
+
+### Integration with Pre-Commit Hook
+
+**Phase 1 (NOW):** Tests exist, run manually
+```bash
+npm run test:arch  # Manual
+npm run deps:check # Manual
+```
+
+**Phase 2 (Level 3+):** Add to pre-commit hook
+
+Edit `.husky/pre-commit`:
+```bash
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Existing checks...
+echo "🏛️  Running architectural tests..."
+npm run test:arch || exit 1
+
+echo "📦 Checking dependencies..."
+npm run deps:check || exit 1
+```
+
+---
+
+### When to Activate
+
+| Phase | ArchUnit Rules | Status |
+|-------|----------------|--------|
+| **Pre-refactoring (NOW)** | Not active | Write tests, don't enforce |
+| **Level 1-2** | Custom Jest tests | Run manually |
+| **Level 3** | Full enforcement | Block commits |
+| **Level 4+** | dependency-cruiser | Full automation |
+
+---
+
+### Example: Full Setup
+
+```bash
+# 1. Install tools
+npm install -D dependency-cruiser eslint-plugin-boundaries glob
+
+# 2. Create architectural tests
+mkdir -p test/architecture
+# (add custom Jest tests from above)
+
+# 3. Create dependency-cruiser config
+# (add .dependency-cruiser.js from above)
+
+# 4. Add scripts to package.json
+npm pkg set scripts.test:arch="jest test/architecture"
+npm pkg set scripts.deps:check="depcruise --validate .dependency-cruiser.js src"
+npm pkg set scripts.deps:graph="depcruise --include-only '^src' --output-type dot src | dot -T svg > deps.svg"
+
+# 5. Test manually
+npm run test:arch
+npm run deps:check
+
+# 6. Activate in pre-commit (when ready)
+# Edit .husky/pre-commit (uncomment arch test lines)
+```
+
+---
+
 ## Architectural Tests (Example)
 
 ```javascript
