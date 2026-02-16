@@ -952,6 +952,278 @@ describe('Domain Layer Purity', () => {
 
 ---
 
+## Testing Strategy (Per Layer)
+
+### Overview
+
+This project uses a **3-layer testing approach** adapted from Spring Boot patterns to Node.js/Express/MongoDB stack. We focus on **Domain**, **Application**, and **Routes** layers, with minimal manual testing for critical user flows.
+
+**❌ NO E2E Tests:** For simple CRUD workflows with single-user scenarios, integration testing with `supertest` and in-memory MongoDB provides sufficient coverage without the complexity of full E2E suites (Cypress/Playwright).
+
+---
+
+### Testing Stack Comparison
+
+| Framework | Node.js/Express (THIS PROJECT) | Spring Boot/Kotlin (Reference) |
+|-----------|-------------------------------|-------------------------------|
+| **Test Runner** | Jest | JUnit 5 |
+| **Mocking** | `jest.fn()`, `jest.mock()` | MockK |
+| **Integration** | `supertest` + `@shelf/jest-mongodb` | `@SpringBootTest` + TestContainers |
+| **DB** | MongoDB (in-memory) | MySQL (in-memory) |
+| **E2E** | ❌ None (not needed) | ❌ None (not needed) |
+
+---
+
+### Testing Stack by Layer
+
+| Layer | Tools | Mocking | Coverage Target | What to Test |
+|-------|-------|---------|----------------|--------------|
+| **Domain** | Jest | ❌ No mocks (pure logic) | **≥ 90%** | Business rules, validation, entities, value objects |
+| **Application** | Jest + `jest.fn()` | ✅ Mock repositories/ports | **≥ 80%** | Use cases, orchestration, business workflows |
+| **Routes** | Jest + `supertest` + `@shelf/jest-mongodb` | ⚠️ Partial (mock external APIs only) | **≥ 70%** | HTTP endpoints, request/response, auth, status codes |
+| **Manual** | Browser (Chrome/Firefox) | N/A | N/A | Critical user flows (login, issue creation, voting) |
+
+---
+
+### Test Distribution Target
+
+```
+70% Unit Tests       → Domain + Application layers (fast, isolated)
+20% Integration Tests → Routes layer (with real HTTP + in-memory DB)
+10% Manual Tests     → Critical flows (login, CRUD, role switching)
+```
+
+**Overall Coverage Target:** ≥ 80%
+
+---
+
+### Domain Layer Testing (Pure Unit Tests)
+
+**Purpose:** Validate business rules and domain logic in complete isolation.
+
+**No Mocks:** Domain code should not depend on infrastructure (Express, Mongoose), so no mocking is needed.
+
+**Example:**
+```javascript
+// test/domain/entities/Issue.test.js
+const Issue = require('../../../src/domain/entities/Issue');
+
+describe('Issue Entity', () => {
+  it('should initialize with PENDING status', () => {
+    const issue = new Issue({ title: 'Broken pipe', description: 'Water leak' });
+    expect(issue.status).toBe('PENDING');
+  });
+  
+  it('should not allow TENANT to forward issues', () => {
+    const issue = new Issue({ title: 'Test' });
+    expect(() => issue.forward('TENANT')).toThrow('Only MANAGER can forward');
+  });
+  
+  it('should validate severity is valid enum', () => {
+    expect(() => new Issue({ severity: 'INVALID' })).toThrow('Invalid severity');
+  });
+});
+```
+
+**Coverage Target:** ≥ 90% (business logic is critical)
+
+---
+
+### Application Layer Testing (Unit Tests with Mocks)
+
+**Purpose:** Validate use cases and orchestration logic without hitting real databases or external services.
+
+**Mock Repositories:** Use `jest.fn()` to mock repository methods and verify service behavior.
+
+**Example:**
+```javascript
+// test/application/services/IssueService.test.js
+const IssueService = require('../../../src/application/services/IssueService');
+
+describe('IssueService', () => {
+  let mockIssueRepo;
+  let mockUserRepo;
+  let service;
+  
+  beforeEach(() => {
+    mockIssueRepo = {
+      findById: jest.fn(),
+      save: jest.fn()
+    };
+    mockUserRepo = {
+      findById: jest.fn()
+    };
+    service = new IssueService(mockIssueRepo, mockUserRepo);
+  });
+  
+  it('should forward issue when user is MANAGER', async () => {
+    mockIssueRepo.findById.mockResolvedValue({ id: '123', status: 'PENDING' });
+    mockUserRepo.findById.mockResolvedValue({ id: 'user1', role: 'MANAGER' });
+    mockIssueRepo.save.mockResolvedValue({ id: '123', status: 'FORWARDED' });
+    
+    const result = await service.forwardIssue('123', 'user1');
+    
+    expect(result.status).toBe('FORWARDED');
+    expect(mockIssueRepo.save).toHaveBeenCalledTimes(1);
+  });
+  
+  it('should throw error when user is not MANAGER', async () => {
+    mockUserRepo.findById.mockResolvedValue({ id: 'user1', role: 'TENANT' });
+    
+    await expect(service.forwardIssue('123', 'user1')).rejects.toThrow('Not authorized');
+  });
+});
+```
+
+**Coverage Target:** ≥ 80% (focus on business workflows)
+
+---
+
+### Routes Layer Testing (Integration Tests)
+
+**Purpose:** Validate HTTP endpoints, authentication, request/response handling with real MongoDB (in-memory).
+
+**Tools:** `supertest` for HTTP requests, `@shelf/jest-mongodb` for in-memory database.
+
+**Partial Mocking:** Only mock external APIs (email, SMS, payment gateways). Use real database for routes.
+
+**Example:**
+```javascript
+// test/routes/issues.test.js
+const request = require('supertest');
+const app = require('../../../backend/index');
+const User = require('../../../backend/models/User');
+const Issue = require('../../../backend/models/Issue');
+
+describe('Issues API', () => {
+  let authToken;
+  
+  beforeEach(async () => {
+    // Seed test data
+    const user = await User.create({ username: 'manager', password: 'Test123!', role: 'MANAGER' });
+    const res = await request(app).post('/auth/login').send({ username: 'manager', password: 'Test123!' });
+    authToken = res.body.token;
+  });
+  
+  it('POST /issues should create issue', async () => {
+    const res = await request(app)
+      .post('/issues')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ title: 'Test Issue', description: 'Test', severity: 'HIGH' });
+    
+    expect(res.status).toBe(201);
+    expect(res.body.issue.title).toBe('Test Issue');
+    expect(res.body.issue.status).toBe('PENDING');
+  });
+  
+  it('PATCH /issues/:id/forward should require MANAGER role', async () => {
+    const issue = await Issue.create({ title: 'Test', description: 'Test', status: 'PENDING' });
+    
+    const tenantRes = await request(app).post('/auth/login').send({ username: 'tenant', password: 'Test123!' });
+    
+    const res = await request(app)
+      .patch(`/issues/${issue._id}/forward`)
+      .set('Authorization', `Bearer ${tenantRes.body.token}`);
+    
+    expect(res.status).toBe(403);
+  });
+});
+```
+
+**Coverage Target:** ≥ 70% (focus on critical endpoints)
+
+---
+
+### Manual Testing (Critical Flows)
+
+**Purpose:** Verify end-to-end user experience in browser for workflows that are hard to automate.
+
+**When:** Before releases, after major refactoring, when UI changes.
+
+**Critical Flows:**
+1. **Login & Role Switching:** Login as TENANT, MANAGER, DIRECTOR (verify dashboards load)
+2. **Issue Lifecycle:** TENANT creates → MANAGER forwards → DIRECTOR assigns → ASSOCIATE completes
+3. **Building Management:** DIRECTOR creates building → assigns MANAGER → adds apartments
+4. **Voting:** DIRECTOR creates poll → TENANTs vote → Poll closes (verify results)
+5. **Notices:** MANAGER creates notice for building → TENANTs see notification
+
+**No Automation:** These flows are covered by integration tests, manual testing is for final validation only.
+
+---
+
+### Why No E2E Tests?
+
+**Decision:** Skip Cypress/Playwright E2E tests for this project.
+
+**Reasoning:**
+- ✅ **Integration tests cover 95% of E2E scenarios:** `supertest` tests HTTP endpoints with real MongoDB, catching most bugs
+- ✅ **Simple workflows:** No complex multi-step workflows requiring full browser automation
+- ✅ **Single-user scenarios:** No collaboration features needing multiple browser sessions
+- ✅ **Manual testing is fast:** 5-10 minutes to verify critical flows manually
+- ❌ **E2E is slow:** 10-30 minutes per test suite run
+- ❌ **E2E is brittle:** CSS selectors break on UI changes
+- ❌ **E2E is complex:** Requires separate infrastructure (headless browsers, video recording, screenshots)
+
+**When to Add E2E:** If project grows to include WebSockets (real-time chat), complex workflows (multi-step forms), or collaboration features (multiple users editing same data), reconsider E2E.
+
+---
+
+### Mocking Strategy Summary
+
+| Layer | Mock Level | Examples |
+|-------|-----------|----------|
+| **Domain** | ❌ No mocks | Pure business logic, no dependencies |
+| **Application** | ✅ Mock all ports/repos | `jest.fn()` for `IssueRepository`, `UserRepository` |
+| **Routes** | ⚠️ Partial mocking | Real MongoDB (in-memory), mock external APIs (email, SMS) |
+
+---
+
+### Running Tests
+
+```bash
+# All tests
+npm test
+
+# Unit tests only (Domain + Application)
+npm test -- --testPathPattern="test/(domain|application)"
+
+# Integration tests only (Routes)
+npm test -- --testPathPattern="test/routes"
+
+# Architectural tests
+npm run test:arch
+
+# Coverage report
+npm test -- --coverage
+```
+
+---
+
+### Test File Organization
+
+```
+backend/
+├── test/
+│   ├── domain/
+│   │   ├── entities/          # Entity tests (Issue, User, Building)
+│   │   ├── value-objects/     # Value object tests (Address, Phone)
+│   │   └── services/          # Domain service tests (IssueValidator)
+│   ├── application/
+│   │   ├── services/          # Use case tests (IssueService, UserService)
+│   │   └── workflows/         # Complex workflow tests
+│   ├── routes/
+│   │   ├── auth.test.js       # Auth endpoints
+│   │   ├── issues.test.js     # Issue endpoints
+│   │   ├── buildings.test.js  # Building endpoints
+│   │   └── users.test.js      # User management endpoints
+│   └── architecture/
+│       ├── baseline.test.js            # Pre-refactoring metrics
+│       ├── dependency-cruiser.test.js  # Architectural rule validation
+│       └── boundaries.test.js          # Hexagonal boundaries (future)
+```
+
+---
+
 ## Complexity Reduction Strategies
 
 ### Extract Function
