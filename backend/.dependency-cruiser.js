@@ -91,6 +91,38 @@ module.exports = {
     },
     
     // ═══════════════════════════════════════════
+    // CURRENT STRUCTURE RULES (models/, services/, routes/)
+    // Active until hexagonal refactoring
+    // ═══════════════════════════════════════════
+    
+    // Services should NOT import Express (good practice even now)
+    {
+      name: 'services-no-express',
+      severity: 'warn',
+      from: { path: '^services/' },
+      to: { path: 'node_modules/express' },
+      comment: '⚠️ Services should not depend on HTTP framework (prepare for hexagonal)'
+    },
+    
+    // Routes should delegate to services (not access models directly)
+    {
+      name: 'routes-use-services',
+      severity: 'info',
+      from: { path: '^routes/' },
+      to: { path: '^models/' },
+      comment: 'ℹ️ Consider moving database logic to services for better separation'
+    },
+    
+    // Models should not import from services (wrong direction)
+    {
+      name: 'models-no-services',
+      severity: 'error',
+      from: { path: '^models/' },
+      to: { path: '^services/' },
+      comment: '❌ Models should not depend on services (wrong dependency direction)'
+    },
+    
+    // ═══════════════════════════════════════════
     // GENERAL CODE QUALITY RULES
     // ═══════════════════════════════════════════
     
@@ -139,108 +171,20 @@ module.exports = {
     },
     
     includeOnly: [
-      '^src',
-      '^backend'
+      '^src',           // Future hexagonal structure
+      '^models',        // Current structure
+      '^services',      // Current structure
+      '^routes',        // Current structure
+      '^middleware',    // Current structure
+      '^utils',         // Current structure
+      '^validators'     // Current structure
     ],
     
     tsPreCompilationDeps: false,
     
-    tsConfig: {
-      fileName: null
-    },
-    
     enhancedResolveOptions: {
       exportsFields: ['exports'],
       conditionNames: ['import', 'require', 'node', 'default']
-    },
-    
-    reporterOptions: {
-      dot: {
-        collapsePattern: 'node_modules/[^/]+',
-        theme: {
-          graph: {
-            splines: 'ortho',
-            rankdir: 'TB'
-          }
-        }
-      },
-      
-      archi: {
-        collapsePattern: '^(node_modules|packages|src/[^/]+)/',
-        theme: {
-          graph: {
-            splines: 'ortho',
-            rankdir: 'TB',
-            ranksep: '1',
-            nodesep: '1'
-          },
-          modules: [
-            {
-              criteria: { matchesFocus: true },
-              attributes: { fillcolor: '#ccffcc', penwidth: 2 }
-            },
-            {
-              criteria: { source: '^src/domain' },
-              attributes: { 
-                fillcolor: '#77aaff',
-                fontcolor: 'white',
-                label: 'Domain\n(Pure Business Logic)'
-              }
-            },
-            {
-              criteria: { source: '^src/application' },
-              attributes: { 
-                fillcolor: '#ffaa77',
-                label: 'Application\n(Use Cases)'
-              }
-            },
-            {
-              criteria: { source: '^src/ports' },
-              attributes: { 
-                fillcolor: '#ffff77',
-                label: 'Ports\n(Interfaces)'
-              }
-            },
-            {
-              criteria: { source: '^src/adapters' },
-              attributes: { 
-                fillcolor: '#ff99ff',
-                label: 'Adapters\n(Implementations)'
-              }
-            },
-            {
-              criteria: { source: '^src/infrastructure' },
-              attributes: { 
-                fillcolor: '#aaaaaa',
-                fontcolor: 'white',
-                label: 'Infrastructure\n(Config & DI)'
-              }
-            }
-          ],
-          dependencies: [
-            {
-              criteria: { resolved: '^src/domain' },
-              attributes: { color: '#0000ff', penwidth: 2 }
-            },
-            {
-              criteria: { resolved: '^src/application' },
-              attributes: { color: '#ff6600' }
-            },
-            {
-              criteria: { resolved: '^src/adapters' },
-              attributes: { color: '#cc00cc' }
-            }
-          ]
-        }
-      },
-      
-      err: {
-        collapsePattern: 'node_modules/[^/]+'
-      },
-      
-      'err-long': {
-        collapsePattern: 'node_modules/[^/]+'
-      }
     }
   }
 };
