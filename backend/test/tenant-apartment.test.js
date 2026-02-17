@@ -1,160 +1,88 @@
+const _mongoose = require('mongoose');
 const request = require('supertest');
-const mongoose = require('mongoose');
+
 const app = require('../index');
-const User = require('../models/User');
-const Building = require('../models/Building');
-const Apartment = require('../models/Apartment');
-const { connectTestDB, disconnectTestDB } = require('./setup');
+
+const {
+  cleanCollections,
+  createDirector,
+  createManager,
+  createTenant,
+  createBuilding,
+  assignManager,
+  createApartment,
+  assignTenant
+} = require('./helpers');
 const { getData, getErrorMessage } = require('./helpers/responseHelpers');
+const { connectTestDB, disconnectTestDB } = require('./setup');
+
+jest.setTimeout(60000);
 
 beforeAll(async () => {
   await connectTestDB();
 });
-
 afterAll(async () => {
   await disconnectTestDB();
 });
 
 describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
   let tenantToken, tenant2Token, managerToken, directorToken;
-  let tenantId, tenant2Id, managerId, directorId;
-  let buildingId, apartmentId, apartment2Id;
+  let tenantId, _tenant2Id;
+  let buildingId, apartmentId, _apartment2Id;
 
   beforeEach(async () => {
-    await User.deleteMany({});
-    await Building.deleteMany({});
-    await Apartment.deleteMany({});
+    await cleanCollections();
 
-    // Create director
-    const directorRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'director1',
-        email: 'director1@example.com',
-        password: 'password123',
-        firstName: 'Director',
-        lastName: 'One',
-        role: 'director'
-      });
-    directorId = getData(directorRes).user._id;
+    const director = await createDirector({
+      username: 'director1',
+      email: 'director1@example.com',
+      password: 'password123'
+    });
+    directorToken = director.token;
 
-    const directorLogin = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'director1',
-        password: 'password123'
-      });
-    directorToken = getData(directorLogin).token;
+    const manager = await createManager(directorToken, {
+      username: 'manager1',
+      email: 'manager1@example.com',
+      password: 'password123',
+      firstName: 'Manager',
+      lastName: 'One'
+    });
+    managerToken = manager.token;
 
-    // Create and approve manager
-    const managerRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'manager1',
-        email: 'manager1@example.com',
-        password: 'password123',
-        firstName: 'Manager',
-        lastName: 'One',
-        role: 'manager'
-      });
-    managerId = getData(managerRes).user._id;
+    buildingId = await createBuilding(directorToken, {
+      name: 'Test Building',
+      address: '123 Main St'
+    });
+    await assignManager(directorToken, buildingId, manager._id);
 
-    await request(app)
-      .patch(`/api/users/${managerId}/approve`)
-      .set('Authorization', `Bearer ${directorToken}`);
+    apartmentId = await createApartment(managerToken, buildingId, '101', {
+      address: '123 Main St, Unit 101'
+    });
+    _apartment2Id = await createApartment(managerToken, buildingId, '102', {
+      address: '123 Main St, Unit 102'
+    });
 
-    const managerLogin = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'manager1',
-        password: 'password123'
-      });
-    managerToken = getData(managerLogin).token;
+    const tenant1 = await createTenant({
+      username: 'tenant1',
+      email: 'tenant1@example.com',
+      password: 'password123',
+      firstName: 'Tenant',
+      lastName: 'One'
+    });
+    tenantId = tenant1._id;
+    tenantToken = tenant1.token;
 
-    // Create building and assign manager
-    const buildingRes = await request(app)
-      .post('/api/buildings')
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({
-        name: 'Test Building',
-        address: '123 Main St'
-      });
-    buildingId = getData(buildingRes)._id;
+    const tenant2 = await createTenant({
+      username: 'tenant2',
+      email: 'tenant2@example.com',
+      password: 'password123',
+      firstName: 'Tenant',
+      lastName: 'Two'
+    });
+    _tenant2Id = tenant2._id;
+    tenant2Token = tenant2.token;
 
-    await request(app)
-      .patch(`/api/buildings/${buildingId}/assign-manager`)
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({ managerId });
-
-    // Create apartments
-    const apartment1Res = await request(app)
-      .post(`/api/buildings/${buildingId}/apartments`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({
-        unitNumber: '101',
-        address: '123 Main St, Unit 101'
-      });
-    apartmentId = getData(apartment1Res)._id;
-
-    const apartment2Res = await request(app)
-      .post(`/api/buildings/${buildingId}/apartments`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({
-        unitNumber: '102',
-        address: '123 Main St, Unit 102'
-      });
-    apartment2Id = getData(apartment2Res)._id;
-
-    // Create tenants
-    const tenant1Res = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'tenant1',
-        email: 'tenant1@example.com',
-        password: 'password123',
-        firstName: 'Tenant',
-        lastName: 'One',
-        role: 'tenant'
-      });
-    tenantId = getData(tenant1Res).user._id;
-
-    const tenant1Login = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'tenant1',
-        password: 'password123'
-      });
-    tenantToken = getData(tenant1Login).token;
-
-    const tenant2Res = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'tenant2',
-        email: 'tenant2@example.com',
-        password: 'password123',
-        firstName: 'Tenant',
-        lastName: 'Two',
-        role: 'tenant'
-      });
-    tenant2Id = getData(tenant2Res).user._id;
-
-    const tenant2Login = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'tenant2',
-        password: 'password123'
-      });
-    tenant2Token = getData(tenant2Login).token;
-
-    // Assign tenant1 to apartment
-    await request(app)
-      .post(`/api/tenants/${tenantId}/assign`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({
-        apartmentId,
-        buildingId,
-        numPeople: 3
-      });
+    await assignTenant(managerToken, { tenantId, apartmentId, buildingId, numPeople: 3 });
   });
 
   describe('GET /api/tenants/me/apartment', () => {
@@ -189,8 +117,7 @@ describe('Phase 3.1: Tenant Views Apartment & Building Info', () => {
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app)
-        .get('/api/tenants/me/apartment');
+      const res = await request(app).get('/api/tenants/me/apartment');
 
       expect(res.status).toBe(401);
     });

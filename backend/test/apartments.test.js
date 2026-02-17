@@ -1,92 +1,69 @@
-const request = require('supertest');
+/* eslint-disable max-nested-callbacks */
 const mongoose = require('mongoose');
-const User = require('../models/User');
-const Building = require('../models/Building');
-const Apartment = require('../models/Apartment');
-const { connectTestDB, disconnectTestDB } = require('./setup');
-const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
+const request = require('supertest');
 
-let app;
+const app = require('../index');
+const Apartment = require('../models/Apartment');
+
+const {
+  cleanCollections,
+  createDirector,
+  createManager,
+  createTenant,
+  createBuilding,
+  assignManager
+} = require('./helpers');
+const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
+const { connectTestDB, disconnectTestDB } = require('./setup');
+
+jest.setTimeout(60000);
+
+beforeAll(async () => {
+  await connectTestDB();
+});
+afterAll(async () => {
+  await disconnectTestDB();
+});
 
 describe('Phase 2.2: Manager Creates Apartments', () => {
-  beforeAll(async () => {
-    await connectTestDB();
-    // Now require app after DB is connected
-    app = require('../index');
-  });
-
-  afterAll(async () => {
-    await disconnectTestDB();
-  });
-
   let directorToken, managerToken, tenantToken;
-  let directorId, managerId;
+  let managerId;
   let buildingId;
 
   beforeEach(async () => {
-    // Clean up
-    await User.deleteMany({});
-    await Building.deleteMany({});
-    await Apartment.deleteMany({});
+    await cleanCollections();
 
-    // Create director
-    const directorRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'director1',
-        email: 'director1@test.com',
-        password: 'pass123',
-        firstName: 'Dir',
-        lastName: 'Ector',
-        role: 'director'
-      });
-    directorToken = getData(directorRes).token;
-    directorId = getData(directorRes).user._id;
+    const director = await createDirector({
+      username: 'director1',
+      email: 'director1@test.com',
+      password: 'pass123'
+    });
+    directorToken = director.token;
 
-    // Create manager
-    const managerRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'manager1',
-        email: 'manager1@test.com',
-        password: 'pass123',
-        firstName: 'Man',
-        lastName: 'Ager',
-        role: 'manager'
-      });
-    managerToken = getData(managerRes).token;
-    managerId = getData(managerRes).user._id;
+    const manager = await createManager(directorToken, {
+      username: 'manager1',
+      email: 'manager1@test.com',
+      password: 'pass123',
+      firstName: 'Man',
+      lastName: 'Ager'
+    });
+    managerId = manager._id;
+    managerToken = manager.token;
 
-    // Approve manager
-    await request(app)
-      .patch(`/api/users/${managerId}/approve`)
-      .set('Authorization', `Bearer ${directorToken}`);
+    const tenant = await createTenant({
+      username: 'tenant1',
+      email: 'tenant1@test.com',
+      password: 'pass123',
+      firstName: 'Ten',
+      lastName: 'Ant'
+    });
+    tenantToken = tenant.token;
 
-    // Create tenant
-    const tenantRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'tenant1',
-        email: 'tenant1@test.com',
-        password: 'pass123',
-        firstName: 'Ten',
-        lastName: 'Ant',
-        role: 'tenant'
-      });
-    tenantToken = getData(tenantRes).token;
-
-    // Create building
-    const buildingRes = await request(app)
-      .post('/api/buildings')
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({ name: 'Test Building', address: '123 Main St' });
-    buildingId = getData(buildingRes)._id;
-
-    // Assign manager to building
-    await request(app)
-      .patch(`/api/buildings/${buildingId}/assign-manager`)
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({ managerId });
+    buildingId = await createBuilding(directorToken, {
+      name: 'Test Building',
+      address: '123 Main St'
+    });
+    await assignManager(directorToken, buildingId, managerId);
   });
 
   describe('POST /api/buildings/:id/apartments/bulk', () => {
@@ -106,7 +83,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
       expect(apartments.length).toBe(12);
 
       // Check unit numbering (e.g., 101, 102, 103, 104, 201, 202, ...)
-      const unitNumbers = apartments.map(a => a.unitNumber).sort();
+      const unitNumbers = apartments.map((a) => a.unitNumber).sort();
       expect(unitNumbers).toContain('101');
       expect(unitNumbers).toContain('104');
       expect(unitNumbers).toContain('201');
@@ -125,8 +102,8 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
 
       const apartments = await Apartment.find({ building: buildingId });
       expect(apartments.length).toBe(10);
-      
-      const unitNumbers = apartments.map(a => a.unitNumber).sort();
+
+      const unitNumbers = apartments.map((a) => a.unitNumber).sort();
       expect(unitNumbers).toContain('201');
       expect(unitNumbers).toContain('204');
       expect(unitNumbers).toContain('301');
@@ -246,14 +223,13 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
       const data = getData(res);
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBe(3);
-      
-      const unitNumbers = data.map(a => a.unitNumber).sort();
+
+      const unitNumbers = data.map((a) => a.unitNumber).sort();
       expect(unitNumbers).toEqual(['101', '102', '201']);
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app)
-        .get(`/api/buildings/${buildingId}/apartments`);
+      const res = await request(app).get(`/api/buildings/${buildingId}/apartments`);
 
       assertError(res, 401);
     });

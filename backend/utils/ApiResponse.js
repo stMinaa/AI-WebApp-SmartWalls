@@ -17,11 +17,12 @@ class ApiResponse {
    * @param {string} message - Success message
    * @param {number} statusCode - HTTP status code (default: 200)
    */
+  // eslint-disable-next-line max-params
   static success(res, data = null, message = 'Success', statusCode = HTTP_STATUS.OK) {
     return res.status(statusCode).json({
       success: true,
       message,
-      data,
+      data
     });
   }
 
@@ -35,7 +36,7 @@ class ApiResponse {
     return res.status(HTTP_STATUS.CREATED).json({
       success: true,
       message,
-      data,
+      data
     });
   }
 
@@ -46,11 +47,17 @@ class ApiResponse {
    * @param {number} statusCode - HTTP status code (default: 500)
    * @param {any} error - Additional error details
    */
-  static error(res, message = 'An error occurred', statusCode = HTTP_STATUS.INTERNAL_ERROR, error = null) {
+  // eslint-disable-next-line max-params
+  static error(
+    res,
+    message = 'An error occurred',
+    statusCode = HTTP_STATUS.INTERNAL_ERROR,
+    error = null
+  ) {
     return res.status(statusCode).json({
       success: false,
       message,
-      error,
+      error
     });
   }
 
@@ -64,7 +71,7 @@ class ApiResponse {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
       message,
-      error,
+      error
     });
   }
 
@@ -76,7 +83,7 @@ class ApiResponse {
   static unauthorized(res, message = 'Unauthorized') {
     return res.status(HTTP_STATUS.UNAUTHORIZED).json({
       success: false,
-      message,
+      message
     });
   }
 
@@ -88,7 +95,7 @@ class ApiResponse {
   static forbidden(res, message = 'Forbidden') {
     return res.status(HTTP_STATUS.FORBIDDEN).json({
       success: false,
-      message,
+      message
     });
   }
 
@@ -100,7 +107,7 @@ class ApiResponse {
   static notFound(res, message = 'Resource not found') {
     return res.status(HTTP_STATUS.NOT_FOUND).json({
       success: false,
-      message,
+      message
     });
   }
 
@@ -112,7 +119,7 @@ class ApiResponse {
   static conflict(res, message = 'Resource conflict') {
     return res.status(HTTP_STATUS.CONFLICT).json({
       success: false,
-      message,
+      message
     });
   }
 
@@ -125,7 +132,7 @@ class ApiResponse {
   static serverError(res, message = 'Internal server error', error = null) {
     const response = {
       success: false,
-      message,
+      message
     };
 
     // Only include error details in development

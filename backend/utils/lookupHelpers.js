@@ -1,7 +1,7 @@
+const { HTTP_STATUS } = require('../config/constants');
+const Apartment = require('../models/Apartment');
 const Building = require('../models/Building');
 const Issue = require('../models/Issue');
-const Apartment = require('../models/Apartment');
-const { HTTP_STATUS } = require('../config/constants');
 
 async function findBuildingById(buildingId) {
   const building = await Building.findById(buildingId);

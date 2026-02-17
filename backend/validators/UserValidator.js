@@ -3,7 +3,7 @@
  * Input validation for user-related operations
  */
 
-const { 
+const {
   validateEmail,
   validatePassword,
   validateMobile,
@@ -17,55 +17,48 @@ const {
  * @param {Object} data - Signup data (username, email, password, firstName, lastName, role, mobile)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
-function validateSignup(data) {
+function checkRequired(data, fields) {
   const errors = [];
-  
-  // Check required fields
-  const usernameCheck = validateRequired(data.username, 'Username');
-  if (!usernameCheck.valid) errors.push(usernameCheck.message);
-  
-  const emailCheck = validateRequired(data.email, 'Email');
-  if (!emailCheck.valid) errors.push(emailCheck.message);
-  
-  const passwordCheck = validateRequired(data.password, 'Password');
-  if (!passwordCheck.valid) errors.push(passwordCheck.message);
-  
-  const firstNameCheck = validateRequired(data.firstName, 'First name');
-  if (!firstNameCheck.valid) errors.push(firstNameCheck.message);
-  
-  const lastNameCheck = validateRequired(data.lastName, 'Last name');
-  if (!lastNameCheck.valid) errors.push(lastNameCheck.message);
-  
-  const roleCheck = validateRequired(data.role, 'Role');
-  if (!roleCheck.valid) errors.push(roleCheck.message);
-  
-  // If basic required checks failed, return early
-  if (errors.length > 0) {
-    return { valid: false, errors };
+  for (const [field, label] of fields) {
+    const check = validateRequired(data[field], label);
+    if (!check.valid) errors.push(check.message);
   }
-  
-  // Validate formats
-  const usernameValidation = validateUsername(data.username);
-  if (!usernameValidation.valid) errors.push(usernameValidation.message);
-  
-  const emailValidation = validateEmail(data.email);
-  if (!emailValidation.valid) errors.push(emailValidation.message);
-  
-  const passwordValidation = validatePassword(data.password);
-  if (!passwordValidation.valid) errors.push(passwordValidation.message);
-  
-  const roleValidation = validateRole(data.role);
-  if (!roleValidation.valid) errors.push(roleValidation.message);
-  
-  // Optional mobile validation
+  return errors;
+}
+
+function checkFormats(data) {
+  const errors = [];
+  const checks = [
+    validateUsername(data.username),
+    validateEmail(data.email),
+    validatePassword(data.password),
+    validateRole(data.role)
+  ];
+  for (const check of checks) {
+    if (!check.valid) errors.push(check.message);
+  }
   if (data.mobile) {
-    const mobileValidation = validateMobile(data.mobile, false);
-    if (!mobileValidation.valid) errors.push(mobileValidation.message);
+    const mobileCheck = validateMobile(data.mobile, false);
+    if (!mobileCheck.valid) errors.push(mobileCheck.message);
   }
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+  return errors;
+}
+
+function validateSignup(data) {
+  const requiredFields = [
+    ['username', 'Username'],
+    ['email', 'Email'],
+    ['password', 'Password'],
+    ['firstName', 'First name'],
+    ['lastName', 'Last name'],
+    ['role', 'Role']
+  ];
+
+  const requiredErrors = checkRequired(data, requiredFields);
+  if (requiredErrors.length > 0) return { valid: false, errors: requiredErrors };
+
+  const formatErrors = checkFormats(data);
+  return formatErrors.length === 0 ? { valid: true } : { valid: false, errors: formatErrors };
 }
 
 /**
@@ -75,16 +68,14 @@ function validateSignup(data) {
  */
 function validateLogin(data) {
   const errors = [];
-  
+
   const usernameCheck = validateRequired(data.username, 'Username/Email');
   if (!usernameCheck.valid) errors.push(usernameCheck.message);
-  
+
   const passwordCheck = validateRequired(data.password, 'Password');
   if (!passwordCheck.valid) errors.push(passwordCheck.message);
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 /**
@@ -94,16 +85,14 @@ function validateLogin(data) {
  */
 function validateProfileUpdate(data) {
   const errors = [];
-  
+
   // All fields are optional, but if mobile is provided, validate it
   if (data.mobile && data.mobile.trim()) {
     const mobileValidation = validateMobile(data.mobile, false);
     if (!mobileValidation.valid) errors.push(mobileValidation.message);
   }
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 module.exports = {

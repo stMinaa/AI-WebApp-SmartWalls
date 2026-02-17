@@ -1,29 +1,37 @@
+/* eslint-disable max-nested-callbacks */
 /**
  * Phase 4.2: Associate accepts job with cost estimate
  * Tests for POST /api/issues/:id/accept
- * 
- * TDD Phase: RED - All tests should fail initially (404 or endpoint not implemented)
  */
 
-const request = require('supertest');
 const mongoose = require('mongoose');
-const app = require('../index');
-const User = require('../models/User');
-const Building = require('../models/Building');
-const Apartment = require('../models/Apartment');
-const Issue = require('../models/Issue');
-const bcrypt = require('bcryptjs');
-const { connectTestDB, disconnectTestDB } = require('./setup');
-const { getData } = require('./helpers/responseHelpers');
+const request = require('supertest');
 
-let director, associate1, associate2, manager, tenant;
-let directorToken, associate1Token, associate2Token, managerToken, tenantToken;
-let building, apartment, assignedIssue, unassignedIssue;
+const app = require('../index');
+const Apartment = require('../models/Apartment');
+const Building = require('../models/Building');
+const Issue = require('../models/Issue');
+
+const {
+  cleanCollections,
+  createDirector,
+  createManager,
+  createTenant,
+  createAssociate,
+  getIssueFromDB
+} = require('./helpers');
+const { getData } = require('./helpers/responseHelpers');
+const { connectTestDB, disconnectTestDB } = require('./setup');
+
+let associate1, _associate2, manager, tenant;
+let directorToken, associate1Token, associate2Token, _managerToken, tenantToken;
+let building, apartment, assignedIssue, _unassignedIssue;
+
+jest.setTimeout(60000);
 
 beforeAll(async () => {
   await connectTestDB();
 });
-
 afterAll(async () => {
   await disconnectTestDB();
 });
@@ -31,94 +39,59 @@ afterAll(async () => {
 describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
   describe('POST /api/issues/:id/accept', () => {
     beforeEach(async () => {
-      await User.deleteMany({});
-      await Building.deleteMany({});
-      await Apartment.deleteMany({});
-      await Issue.deleteMany({});
+      await cleanCollections();
 
-      // Create users
-      const directorRes = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'director1',
-          email: 'director1@test.com',
-          password: 'password123',
-          role: 'director',
-          firstName: 'Director',
-          lastName: 'One'
-        });
-      directorToken = getData(directorRes).token;
-      director = await User.findOne({ username: 'director1' });
+      const director = await createDirector({
+        username: 'director1',
+        email: 'director1@test.com',
+        password: 'password123'
+      });
+      directorToken = director.token;
 
-      const associate1Res = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'associate1',
-          email: 'associate1@test.com',
-          password: 'password123',
-          role: 'associate',
-          firstName: 'Associate',
-          lastName: 'One',
-          company: 'Plumbing Co'
-        });
-      associate1Token = getData(associate1Res).token;
-      associate1 = await User.findOne({ username: 'associate1' });
+      const assoc1 = await createAssociate(directorToken, {
+        username: 'associate1',
+        email: 'associate1@test.com',
+        password: 'password123',
+        firstName: 'Associate',
+        lastName: 'One',
+        company: 'Plumbing Co'
+      });
+      associate1Token = assoc1.token;
+      associate1 = { _id: assoc1._id };
 
-      const associate2Res = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'associate2',
-          email: 'associate2@test.com',
-          password: 'password123',
-          role: 'associate',
-          firstName: 'Associate',
-          lastName: 'Two',
-          company: 'Electric Co'
-        });
-      associate2Token = getData(associate2Res).token;
-      associate2 = await User.findOne({ username: 'associate2' });
+      const assoc2 = await createAssociate(directorToken, {
+        username: 'associate2',
+        email: 'associate2@test.com',
+        password: 'password123',
+        firstName: 'Associate',
+        lastName: 'Two',
+        company: 'Electric Co'
+      });
+      associate2Token = assoc2.token;
+      _associate2 = { _id: assoc2._id };
 
-      const managerRes = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'manager1',
-          email: 'manager1@test.com',
-          password: 'password123',
-          role: 'manager',
-          firstName: 'Manager',
-          lastName: 'One',
-          company: 'Management Co'
-        });
-      managerToken = getData(managerRes).token;
-      manager = await User.findOne({ username: 'manager1' });
+      const mgr = await createManager(directorToken, {
+        username: 'manager1',
+        email: 'manager1@test.com',
+        password: 'password123',
+        firstName: 'Manager',
+        lastName: 'One',
+        company: 'Management Co'
+      });
+      _managerToken = mgr.token;
+      manager = { _id: mgr._id };
 
-      const tenantRes = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'tenant1',
-          email: 'tenant1@test.com',
-          password: 'password123',
-          role: 'tenant',
-          firstName: 'Tenant',
-          lastName: 'One'
-        });
-      tenantToken = getData(tenantRes).token;
-      tenant = await User.findOne({ username: 'tenant1' });
+      const ten = await createTenant({
+        username: 'tenant1',
+        email: 'tenant1@test.com',
+        password: 'password123',
+        firstName: 'Tenant',
+        lastName: 'One'
+      });
+      tenantToken = ten.token;
+      tenant = { _id: ten._id };
 
-      // Approve manager and associates
-      await request(app)
-        .patch(`/api/users/${manager._id}/approve`)
-        .set('Authorization', 'Bearer ' + directorToken);
-      
-      await request(app)
-        .patch(`/api/users/${associate1._id}/approve`)
-        .set('Authorization', 'Bearer ' + directorToken);
-
-      await request(app)
-        .patch(`/api/users/${associate2._id}/approve`)
-        .set('Authorization', 'Bearer ' + directorToken);
-
-      // Create building, apartment
+      // Create building, apartment via direct model (needed for specific issue setup)
       building = await Building.create({
         name: 'Test Building',
         address: '123 Test St',
@@ -133,7 +106,6 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
         tenant: tenant._id
       });
 
-      // Create issues
       assignedIssue = await Issue.create({
         apartment: apartment._id,
         building: building._id,
@@ -145,7 +117,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
         assignedTo: associate1._id
       });
 
-      unassignedIssue = await Issue.create({
+      _unassignedIssue = await Issue.create({
         apartment: apartment._id,
         building: building._id,
         createdBy: tenant._id,
@@ -168,8 +140,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
       expect(data.cost).toBe(150);
       expect(data._id).toBe(assignedIssue._id.toString());
 
-      // Verify in database
-      const updated = await Issue.findById(assignedIssue._id);
+      const updated = await getIssueFromDB(assignedIssue._id);
       expect(updated.status).toBe('in-progress');
       expect(updated.cost).toBe(150);
     });

@@ -134,8 +134,6 @@ backend/quick-*.js
 backend/perf-*.js
 backend/notices-endpoints.js
 backend/users.js
-backend/index_complex.js
-backend/index-refactored.js
 backend/test-*.js
 backend/complete-setup.js
 backend/backend.http

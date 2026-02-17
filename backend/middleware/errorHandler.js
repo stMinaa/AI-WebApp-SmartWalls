@@ -10,62 +10,35 @@
  * @param {Error|Object} err
  * @param {Object} res - Express response object
  */
+function errorResponse(res, status, message) {
+  return res.status(status).json({ success: false, message, status });
+}
+
+const ERROR_MAP = {
+  MongoError: { status: 500, message: 'Database error' },
+  JsonWebTokenError: { status: 401, message: 'Invalid token' },
+  TokenExpiredError: { status: 401, message: 'Token expired' }
+};
+
 function handleError(err, res) {
-  // Service errors have status and message
-  if (err && typeof err === 'object' && err.status && err.message) {
-    return res.status(err.status).json({
-      success: false,
-      message: err.message,
-      status: err.status
-    });
+  if (!err) return errorResponse(res, 500, 'Internal server error');
+
+  if (err.status && err.message) return errorResponse(res, err.status, err.message);
+
+  if (err.name === 'ValidationError') {
+    return errorResponse(
+      res,
+      400,
+      Object.values(err.errors)
+        .map((e) => e.message)
+        .join(', ')
+    );
   }
 
-  // MongoDB/Mongoose errors
-  if (err && err.name === 'MongoError') {
-    return res.status(500).json({
-      success: false,
-      message: 'Database error',
-      status: 500
-    });
-  }
+  const mapped = ERROR_MAP[err.name];
+  if (mapped) return errorResponse(res, mapped.status, mapped.message);
 
-  // Mongoose validation errors
-  if (err && err.name === 'ValidationError') {
-    return res.status(400).json({
-      success: false,
-      message: Object.values(err.errors)
-        .map(e => e.message)
-        .join(', '),
-      status: 400
-    });
-  }
-
-  // JWT errors
-  if (err && err.name === 'JsonWebTokenError') {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token',
-      status: 401
-    });
-  }
-
-  if (err && err.name === 'TokenExpiredError') {
-    return res.status(401).json({
-      success: false,
-      message: 'Token expired',
-      status: 401
-    });
-  }
-
-  // Unexpected errors
-  const status = err?.status || 500;
-  const message = err?.message || 'Internal server error';
-
-  return res.status(status).json({
-    success: false,
-    message,
-    status
-  });
+  return errorResponse(res, 500, err.message || 'Internal server error');
 }
 
 /**
@@ -77,6 +50,7 @@ function handleError(err, res) {
  * @param {Object} res
  * @param {Function} next
  */
+// eslint-disable-next-line max-params, no-unused-vars
 function errorMiddleware(err, req, res, next) {
   return handleError(err, res);
 }
@@ -100,6 +74,7 @@ function asyncHandler(fn) {
  * @param {string} message
  * @param {any} data - optional response data
  */
+// eslint-disable-next-line max-params
 function sendSuccess(res, status, message, data) {
   const response = {
     success: true,

@@ -3,9 +3,16 @@
  * JWT token creation/verification and password hashing
  */
 
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { JWT_SECRET, TOKEN_EXPIRY, BCRYPT_ROUNDS, HTTP_STATUS, ERROR_MESSAGES } = require('../config/constants');
+const jwt = require('jsonwebtoken');
+
+const {
+  JWT_SECRET,
+  TOKEN_EXPIRY,
+  BCRYPT_ROUNDS,
+  HTTP_STATUS,
+  ERROR_MESSAGES
+} = require('../config/constants');
 
 /**
  * Generate JWT token for user
@@ -18,11 +25,11 @@ function generateToken(user) {
   }
 
   return jwt.sign(
-    { 
-      userId: user._id.toString(), 
+    {
+      userId: user._id.toString(),
       username: user.username,
       email: user.email || '',
-      role: user.role 
+      role: user.role
     },
     JWT_SECRET,
     { expiresIn: TOKEN_EXPIRY }
@@ -37,19 +44,17 @@ function generateToken(user) {
  */
 function verifyToken(token) {
   if (!token) {
-    throw { 
-      status: HTTP_STATUS.UNAUTHORIZED, 
-      message: ERROR_MESSAGES.TOKEN_REQUIRED 
-    };
+    const error = new Error(ERROR_MESSAGES.TOKEN_REQUIRED);
+    error.status = HTTP_STATUS.UNAUTHORIZED;
+    throw error;
   }
 
   try {
     return jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    throw { 
-      status: HTTP_STATUS.UNAUTHORIZED, 
-      message: ERROR_MESSAGES.TOKEN_INVALID 
-    };
+  } catch {
+    const error = new Error(ERROR_MESSAGES.TOKEN_INVALID);
+    error.status = HTTP_STATUS.UNAUTHORIZED;
+    throw error;
   }
 }
 

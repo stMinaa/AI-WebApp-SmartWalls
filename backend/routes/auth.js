@@ -3,24 +3,25 @@
  * Handles user authentication: signup, login, profile management
  */
 
-const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
+const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+
+const router = express.Router();
+const { ERROR_MESSAGES, USER_ROLES, JWT_SECRET } = require('../config/constants');
 const { authMiddleware: authenticateToken } = require('../middleware/authHelper');
 const { validate } = require('../middleware/validate');
-const UserValidator = require('../validators/UserValidator');
+const User = require('../models/User');
 const ApiResponse = require('../utils/ApiResponse');
-const { ERROR_MESSAGES, USER_ROLES, USER_STATUS, JWT_SECRET } = require('../config/constants');
-
-// Import helper functions
 const {
   findUserByUsername,
   getCurrentUser,
   getUserStatusByRole,
   createUserResponse
 } = require('../utils/authHelpers');
+const UserValidator = require('../validators/UserValidator');
+
+// Import helper functions
 
 // ===== SIGNUP =====
 router.post('/signup', validate(UserValidator.validateSignup), async (req, res) => {
@@ -56,11 +57,11 @@ router.post('/signup', validate(UserValidator.validateSignup), async (req, res) 
 
     // Create token with standardized payload: { userId, username, email, role }
     const token = jwt.sign(
-      { 
+      {
         userId: user._id.toString(),
-        username: user.username, 
+        username: user.username,
         email: user.email,
-        role: user.role 
+        role: user.role
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -92,27 +93,31 @@ router.post('/login', validate(UserValidator.validateLogin), async (req, res) =>
 
     // Create token with standardized payload: { userId, username, email, role }
     const token = jwt.sign(
-      { 
+      {
         userId: user._id.toString(),
-        username: user.username, 
+        username: user.username,
         email: user.email,
-        role: user.role 
+        role: user.role
       },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    return ApiResponse.success(res, {
-      token,
-      user: {
-        username: user.username,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        status: user.status
-      }
-    }, 'Login successful');
+    return ApiResponse.success(
+      res,
+      {
+        token,
+        user: {
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          status: user.status
+        }
+      },
+      'Login successful'
+    );
   } catch (err) {
     console.error('Login error:', err);
     return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
@@ -124,49 +129,40 @@ router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await getCurrentUser(req);
     return ApiResponse.success(res, user, 'User retrieved');
-  } catch (err) {
+  } catch {
     return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 });
 
+function applyProfileUpdates(user, body) {
+  const { firstName, lastName, mobile, company } = body;
+  if (firstName !== undefined) user.firstName = firstName;
+  if (lastName !== undefined) user.lastName = lastName;
+  if (mobile !== undefined) user.mobile = mobile;
+  if (company !== undefined && user.role !== USER_ROLES.TENANT) user.company = company;
+}
+
 // ===== UPDATE CURRENT USER =====
-router.patch('/me', authenticateToken, validate(UserValidator.validateProfileUpdate), async (req, res) => {
-  console.log('PATCH /api/auth/me - User:', req.user?.username, 'Body:', req.body);
-  try {
-    const user = await findUserByUsername(req.user.username);
+router.patch(
+  '/me',
+  authenticateToken,
+  validate(UserValidator.validateProfileUpdate),
+  async (req, res) => {
+    console.info('PATCH /api/auth/me - User:', req.user?.username);
+    try {
+      const user = await findUserByUsername(req.user.username);
+      applyProfileUpdates(user, req.body);
+      await user.save();
 
-    const { firstName, lastName, mobile, company } = req.body;
-    console.log('Updating user:', user.username, 'with:', { firstName, lastName, mobile, company });
-
-    // Restrict tenants from editing certain fields (future: add more restrictions if needed)
-    if (user.role === USER_ROLES.TENANT) {
-      // Tenants can only update firstName, lastName, mobile - not username, email, role, etc.
-      if (firstName !== undefined) user.firstName = firstName;
-      if (lastName !== undefined) user.lastName = lastName;
-      if (mobile !== undefined) user.mobile = mobile;
-    } else if (user.role === USER_ROLES.ASSOCIATE) {
-      // Associates can update firstName, lastName, mobile, company
-      if (firstName !== undefined) user.firstName = firstName;
-      if (lastName !== undefined) user.lastName = lastName;
-      if (mobile !== undefined) user.mobile = mobile;
-      if (company !== undefined) user.company = company;
-    } else {
-      // Other roles can update these fields too
-      if (firstName !== undefined) user.firstName = firstName;
-      if (lastName !== undefined) user.lastName = lastName;
-      if (mobile !== undefined) user.mobile = mobile;
-      if (company !== undefined) user.company = company;
+      console.info('User saved:', user.username);
+      const updatedUser = await getCurrentUser(req);
+      return ApiResponse.success(res, updatedUser, 'Profile updated');
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_UPDATING_PROFILE);
     }
-
-    await user.save();
-    console.log('User saved successfully:', user.username);
-    const updatedUser = await getCurrentUser(req);
-    return ApiResponse.success(res, updatedUser, 'Profile updated');
-  } catch (err) {
-    console.error('Error updating profile:', err);
-    return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_UPDATING_PROFILE);
   }
-});
+);
 
 // ===== PAYMENT - Tenant pays debt =====
 router.post('/pay-debt', authenticateToken, async (req, res) => {
@@ -188,7 +184,11 @@ router.post('/pay-debt', authenticateToken, async (req, res) => {
     await user.save();
 
     const updatedUser = await getCurrentUser(req);
-    return ApiResponse.success(res, { user: updatedUser, remainingDebt: user.debt }, 'Payment successful');
+    return ApiResponse.success(
+      res,
+      { user: updatedUser, remainingDebt: user.debt },
+      'Payment successful'
+    );
   } catch (err) {
     console.error('Error processing payment:', err);
     return ApiResponse.serverError(res, ERROR_MESSAGES.ERROR_PROCESSING_PAYMENT);

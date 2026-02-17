@@ -64,7 +64,7 @@ $health = Test-Endpoint -Name "Health Check" -Url "$baseUrl/api/health"
 
 if ($health -eq $null) {
     Write-Host "❌ CRITICAL: Backend server is not responding!" -ForegroundColor Red
-    Write-Host "Please start the backend server with: node server.js" -ForegroundColor Yellow
+    Write-Host "Please start the backend server with: node index.js" -ForegroundColor Yellow
     exit 1
 }
 

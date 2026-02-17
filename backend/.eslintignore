@@ -30,8 +30,6 @@ find-*.js
 fix-*.js
 force-*.js
 full-*.js
-index_complex.js
-index-refactored.js
 minimal-*.js
 perf-test.js
 quick-*.js
@@ -43,6 +41,8 @@ test-*.js
 try-*.js
 update-*.js
 users.js
+complete-*.js
+notices-endpoints.js
 
 # Test files (checked separately)
 *.test.js

@@ -1,52 +1,96 @@
+/* eslint-disable max-nested-callbacks */
 require('dotenv').config();
+const _mongoose = require('mongoose');
 const request = require('supertest');
-const mongoose = require('mongoose');
+
 const app = require('../index');
-const Issue = require('../models/Issue');
-const { connectTestDB, disconnectTestDB } = require('./setup');
+const _Issue = require('../models/Issue');
+
 const {
-  cleanCollections, signupUser, approveUser,
-  createBuilding, assignManager, createApartment,
-  assignTenant, createIssue
+  cleanCollections,
+  createDirector,
+  createManager,
+  createTenant,
+  createBuilding,
+  assignManager,
+  createApartment,
+  assignTenant,
+  createIssue,
+  updateIssueStatus,
+  apiGet
 } = require('./helpers');
 const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
+const { connectTestDB, disconnectTestDB } = require('./setup');
 
 jest.setTimeout(60000);
 
-beforeAll(async () => { await connectTestDB(); });
-afterAll(async () => { await disconnectTestDB(); });
+beforeAll(async () => {
+  await connectTestDB();
+});
+afterAll(async () => {
+  await disconnectTestDB();
+});
 
 /**
  * Setup one building with two tenants and their issues
  */
 async function setupTenantIssueScenario() {
-  const director = await signupUser({ username: 'director1', email: 'director1@test.com', password: 'password123', role: 'director', firstName: 'Director', lastName: 'One' });
+  const director = await createDirector({ username: 'director1', email: 'director1@test.com' });
+  const mgr = await createManager(director.token, {
+    username: 'manager1',
+    email: 'manager1@test.com'
+  });
 
-  const mgr = await signupUser({ username: 'manager1', email: 'manager1@test.com', password: 'password123', role: 'manager', firstName: 'Manager', lastName: 'One' });
-  await approveUser(director.token, mgr._id);
-
-  const bld = await createBuilding(director.token, { name: 'Test Building', address: '123 Main St' });
+  const bld = await createBuilding(director.token, {
+    name: 'Test Building',
+    address: '123 Main St'
+  });
   await assignManager(director.token, bld, mgr._id);
 
   const apt1 = await createApartment(mgr.token, bld, '101');
   const apt2 = await createApartment(mgr.token, bld, '102');
 
-  const ten1 = await signupUser({ username: 'tenant1', email: 'tenant1@test.com', password: 'password123', role: 'tenant', firstName: 'Tenant', lastName: 'One' });
-  const ten2 = await signupUser({ username: 'tenant2', email: 'tenant2@test.com', password: 'password123', role: 'tenant', firstName: 'Tenant', lastName: 'Two' });
+  const ten1 = await createTenant({ username: 'tenant1', email: 'tenant1@test.com' });
+  const ten2 = await createTenant({ username: 'tenant2', email: 'tenant2@test.com' });
 
-  await assignTenant(mgr.token, { tenantId: ten1._id, apartmentId: apt1, buildingId: bld, numPeople: 2 });
-  await assignTenant(mgr.token, { tenantId: ten2._id, apartmentId: apt2, buildingId: bld, numPeople: 3 });
+  await assignTenant(mgr.token, {
+    tenantId: ten1._id,
+    apartmentId: apt1,
+    buildingId: bld,
+    numPeople: 2
+  });
+  await assignTenant(mgr.token, {
+    tenantId: ten2._id,
+    apartmentId: apt2,
+    buildingId: bld,
+    numPeople: 3
+  });
 
-  const iss1 = await createIssue(ten1.token, { title: 'Broken faucet', description: 'Kitchen faucet is leaking', priority: 'high' });
-  const iss2 = await createIssue(ten1.token, { title: 'Light bulb out', description: 'Living room light needs replacement', priority: 'low' });
-  const iss3 = await createIssue(ten2.token, { title: 'Heating not working', description: 'No heat in apartment', priority: 'high' });
+  const iss1 = await createIssue(ten1.token, {
+    title: 'Broken faucet',
+    description: 'Kitchen faucet is leaking',
+    priority: 'high'
+  });
+  const iss2 = await createIssue(ten1.token, {
+    title: 'Light bulb out',
+    description: 'Living room light needs replacement',
+    priority: 'low'
+  });
+  const iss3 = await createIssue(ten2.token, {
+    title: 'Heating not working',
+    description: 'No heat in apartment',
+    priority: 'high'
+  });
 
   return {
     directorToken: director.token,
     managerToken: mgr.token,
-    tenant1Token: ten1.token, tenant2Token: ten2.token,
+    tenant1Token: ten1.token,
+    tenant2Token: ten2.token,
     building: bld,
-    issue1: iss1, issue2: iss2, issue3: iss3
+    issue1: iss1,
+    issue2: iss2,
+    issue3: iss3
   };
 }
 
@@ -60,28 +104,20 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
     });
 
     it('should return only issues created by the authenticated tenant', async () => {
-      const res = await request(app)
-        .get('/api/issues/my')
-        .set('Authorization', `Bearer ${ctx.tenant1Token}`);
+      const data = await apiGet('/api/issues/my', ctx.tenant1Token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBe(2);
 
-      const issueTitles = data.map(i => i.title);
+      const issueTitles = data.map((i) => i.title);
       expect(issueTitles).toContain('Broken faucet');
       expect(issueTitles).toContain('Light bulb out');
       expect(issueTitles).not.toContain('Heating not working');
     });
 
     it('should populate apartment and building details', async () => {
-      const res = await request(app)
-        .get('/api/issues/my')
-        .set('Authorization', `Bearer ${ctx.tenant1Token}`);
+      const data = await apiGet('/api/issues/my', ctx.tenant1Token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data[0].apartment).toBeDefined();
       expect(data[0].apartment.unitNumber).toBe('101');
       expect(data[0].building).toBeDefined();
@@ -89,26 +125,18 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
     });
 
     it('should filter issues by status', async () => {
-      await Issue.findByIdAndUpdate(ctx.issue1, { status: 'forwarded' });
+      await updateIssueStatus(null, ctx.issue1, 'forwarded');
 
-      const res = await request(app)
-        .get('/api/issues/my?status=reported')
-        .set('Authorization', `Bearer ${ctx.tenant1Token}`);
+      const data = await apiGet('/api/issues/my?status=reported', ctx.tenant1Token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data.length).toBe(1);
       expect(data[0].title).toBe('Light bulb out');
       expect(data[0].status).toBe('reported');
     });
 
     it('should filter issues by priority', async () => {
-      const res = await request(app)
-        .get('/api/issues/my?priority=high')
-        .set('Authorization', `Bearer ${ctx.tenant1Token}`);
+      const data = await apiGet('/api/issues/my?priority=high', ctx.tenant1Token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data.length).toBe(1);
       expect(data[0].title).toBe('Broken faucet');
       expect(data[0].priority).toBe('high');
@@ -127,14 +155,10 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
     });
 
     it('should return empty array if tenant has no issues', async () => {
-      const ten3 = await signupUser({ username: 'tenant3', email: 'tenant3@test.com', password: 'password123', role: 'tenant', firstName: 'Tenant', lastName: 'Three' });
+      const ten3 = await createTenant({ username: 'tenant3', email: 'tenant3@test.com' });
 
-      const res = await request(app)
-        .get('/api/issues/my')
-        .set('Authorization', `Bearer ${ten3.token}`);
+      const data = await apiGet('/api/issues/my', ten3.token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data).toEqual([]);
     });
 
@@ -153,12 +177,8 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
     });
 
     it('should include all issue fields', async () => {
-      const res = await request(app)
-        .get('/api/issues/my')
-        .set('Authorization', `Bearer ${ctx.tenant1Token}`);
+      const data = await apiGet('/api/issues/my', ctx.tenant1Token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       const issue = data[0];
       expect(issue._id).toBeDefined();
       expect(issue.title).toBeDefined();
@@ -169,14 +189,10 @@ describe('Phase 3.3: Tenant Views Their Own Issues', () => {
     });
 
     it('should work for tenants even if not assigned to apartment', async () => {
-      const ten3 = await signupUser({ username: 'tenant3', email: 'tenant3@test.com', password: 'password123', role: 'tenant', firstName: 'Tenant', lastName: 'Three' });
+      const ten3 = await createTenant({ username: 'tenant3', email: 'tenant3@test.com' });
 
-      const res = await request(app)
-        .get('/api/issues/my')
-        .set('Authorization', `Bearer ${ten3.token}`);
+      const data = await apiGet('/api/issues/my', ten3.token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data).toEqual([]);
     });
   });

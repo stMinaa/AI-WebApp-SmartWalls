@@ -3,12 +3,18 @@
  * Handles building notices and tenant notifications
  */
 
-const Notice = require('../models/Notice');
-const Poll = require('../models/Poll');
 const Building = require('../models/Building');
+const Notice = require('../models/Notice');
 const NoticeRead = require('../models/NoticeRead');
+const Poll = require('../models/Poll');
 
 // ============= HELPER FUNCTIONS =============
+
+function createError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
 
 /**
  * Validate notice input data
@@ -18,10 +24,10 @@ const NoticeRead = require('../models/NoticeRead');
 function validateNoticeInput(data) {
   const { title, body } = data;
   if (!title || !title.trim()) {
-    throw { status: 400, message: 'Title required' };
+    throw createError(400, 'Title required');
   }
   if (!body || !body.trim()) {
-    throw { status: 400, message: 'Body required' };
+    throw createError(400, 'Body required');
   }
 }
 
@@ -34,7 +40,7 @@ function validateNoticeInput(data) {
 async function verifyBuildingExists(buildingId) {
   const building = await Building.findById(buildingId);
   if (!building) {
-    throw { status: 404, message: 'Building not found' };
+    throw createError(404, 'Building not found');
   }
   return building;
 }
@@ -47,10 +53,10 @@ async function verifyBuildingExists(buildingId) {
 function validatePollInput(data) {
   const { question, options } = data;
   if (!question || !question.trim()) {
-    throw { status: 400, message: 'Question required' };
+    throw createError(400, 'Question required');
   }
   if (!Array.isArray(options) || options.length < 2) {
-    throw { status: 400, message: 'At least 2 options required' };
+    throw createError(400, 'At least 2 options required');
   }
 }
 
@@ -60,7 +66,7 @@ function validatePollInput(data) {
  * @returns {Array} Trimmed and filtered options
  */
 function sanitizePollOptions(options) {
-  return options.map(opt => opt.trim()).filter(opt => opt);
+  return options.map((opt) => opt.trim()).filter((opt) => opt);
 }
 
 /**
@@ -70,7 +76,7 @@ function sanitizePollOptions(options) {
  */
 function validateVoteOption(option) {
   if (!option || !option.trim()) {
-    throw { status: 400, message: 'Option required' };
+    throw createError(400, 'Option required');
   }
 }
 
@@ -83,7 +89,7 @@ function validateVoteOption(option) {
 async function verifyPollExists(pollId) {
   const poll = await Poll.findById(pollId);
   if (!poll) {
-    throw { status: 404, message: 'Poll not found' };
+    throw createError(404, 'Poll not found');
   }
   return poll;
 }
@@ -96,7 +102,7 @@ async function verifyPollExists(pollId) {
  */
 function validateOptionInPoll(poll, option) {
   if (!poll.options.includes(option.trim())) {
-    throw { status: 400, message: 'Invalid option' };
+    throw createError(400, 'Invalid option');
   }
 }
 
@@ -160,9 +166,7 @@ async function createNotice(buildingId, data) {
  * @returns {Promise<Array>}
  */
 async function getNoticesByBuilding(buildingId) {
-  return await Notice.find({ building: buildingId })
-    .sort({ createdAt: -1 })
-    .lean();
+  return await Notice.find({ building: buildingId }).sort({ createdAt: -1 }).lean();
 }
 
 /**
@@ -172,15 +176,13 @@ async function getNoticesByBuilding(buildingId) {
  * @returns {Promise<Array>}
  */
 async function getTenantNotices(tenantId, buildingId) {
-  const notices = await Notice.find({ building: buildingId })
-    .sort({ createdAt: -1 })
-    .lean();
+  const notices = await Notice.find({ building: buildingId }).sort({ createdAt: -1 }).lean();
 
   // Attach read status for tenant
   const reads = await NoticeRead.find({ tenant: tenantId }).lean();
-  const readIds = new Set(reads.map(r => String(r.notice)));
+  const readIds = new Set(reads.map((r) => String(r.notice)));
 
-  return notices.map(notice => ({
+  return notices.map((notice) => ({
     ...notice,
     isRead: readIds.has(String(notice._id))
   }));
@@ -194,7 +196,7 @@ async function getTenantNotices(tenantId, buildingId) {
  */
 async function markNoticeAsRead(noticeId, tenantId) {
   const notice = await Notice.findById(noticeId);
-  if (!notice) throw { status: 404, message: 'Notice not found' };
+  if (!notice) throw createError(404, 'Notice not found');
 
   // Check if already read
   const existing = await NoticeRead.findOne({ notice: noticeId, tenant: tenantId });
@@ -233,9 +235,7 @@ async function createPoll(buildingId, data) {
  * @returns {Promise<Array>}
  */
 async function getPollsByBuilding(buildingId) {
-  return await Poll.find({ building: buildingId })
-    .sort({ createdAt: -1 })
-    .lean();
+  return await Poll.find({ building: buildingId }).sort({ createdAt: -1 }).lean();
 }
 
 /**
@@ -249,10 +249,10 @@ async function votePoll(pollId, tenantId, option) {
   validateVoteOption(option);
   const poll = await verifyPollExists(pollId);
   validateOptionInPoll(poll, option);
-  
+
   const alreadyVoted = await checkAlreadyVoted(pollId, tenantId);
   if (alreadyVoted) {
-    throw { status: 400, message: 'Already voted' };
+    throw createError(400, 'Already voted');
   }
 
   const updatedPoll = await recordVote(poll, tenantId, option);
@@ -266,11 +266,11 @@ async function votePoll(pollId, tenantId, option) {
  */
 async function getPollResults(pollId) {
   const poll = await Poll.findById(pollId);
-  if (!poll) throw { status: 404, message: 'Poll not found' };
+  if (!poll) throw createError(404, 'Poll not found');
 
   const results = {};
-  poll.options.forEach(opt => {
-    results[opt] = poll.voters.filter(v => v.vote === opt).length;
+  poll.options.forEach((opt) => {
+    results[opt] = poll.voters.filter((v) => v.vote === opt).length;
   });
 
   return {

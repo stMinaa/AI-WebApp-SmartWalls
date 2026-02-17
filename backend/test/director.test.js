@@ -1,15 +1,28 @@
+/* eslint-disable max-nested-callbacks, max-statements */
 /**
  * Director Operations Tests
  * Tests for director-specific endpoints: buildings, manager assignment, staff approvals
  */
 
-const request = require('supertest');
 const mongoose = require('mongoose');
+const request = require('supertest');
+
 const app = require('../index');
+const _Building = require('../models/Building');
 const User = require('../models/User');
-const Building = require('../models/Building');
+
+const {
+  cleanCollections,
+  signupUser,
+  _loginUser,
+  createBuilding,
+  approveUser,
+  apiPost,
+  apiGet,
+  apiPatch
+} = require('./helpers');
+const { _getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 const { connectTestDB, disconnectTestDB } = require('./setup');
-const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
 
 // ========================================
 // Test Data Fixtures
@@ -55,62 +68,6 @@ const TEST_BUILDING = {
 };
 
 // ========================================
-// Test Helper Functions
-// ========================================
-
-/**
- * Create a user via signup endpoint
- * @param {Object} userData - User data object
- * @returns {Promise<string>} User ID
- */
-async function createUser(userData) {
-  const res = await request(app)
-    .post('/api/auth/signup')
-    .send(userData);
-  return getData(res).user._id;
-}
-
-/**
- * Login and get authentication token
- * @param {string} username 
- * @param {string} password 
- * @returns {Promise<string>} JWT token
- */
-async function loginUser(username, password) {
-  const res = await request(app)
-    .post('/api/auth/login')
-    .send({ username, password });
-  return getData(res).token;
-}
-
-/**
- * Create a building (director only)
- * @param {string} token - Director token
- * @param {Object} buildingData - Building data
- * @returns {Promise<string>} Building ID
- */
-async function createBuilding(token, buildingData) {
-  const res = await request(app)
-    .post('/api/buildings')
-    .set('Authorization', `Bearer ${token}`)
-    .send(buildingData);
-  return getData(res)._id;
-}
-
-/**
- * Approve a pending user (director only)
- * @param {string} token - Director token
- * @param {string} userId - User ID to approve
- * @returns {Promise<Object>} Response body
- */
-async function approveUser(token, userId) {
-  const res = await request(app)
-    .patch(`/api/users/${userId}/approve`)
-    .set('Authorization', `Bearer ${token}`);
-  return getData(res);
-}
-
-// ========================================
 // Test Suite
 // ========================================
 
@@ -123,40 +80,29 @@ afterAll(async () => {
 });
 
 describe('Director Operations', () => {
-  let directorToken;
-  let directorId;
-  let managerId;
-  let associateUserId;
-  let tenantId;
+  let director;
+  let manager;
+  let associate;
+  let tenant;
 
   beforeEach(async () => {
     // Clean all collections
-    await User.deleteMany({});
-    await Building.deleteMany({});
+    await cleanCollections();
 
-    // Create test users
-    directorId = await createUser(TEST_USERS.director);
-    managerId = await createUser(TEST_USERS.manager);
-    associateUserId = await createUser(TEST_USERS.associate);
-    tenantId = await createUser(TEST_USERS.tenant);
-
-    // Login as director
-    directorToken = await loginUser(TEST_USERS.director.username, TEST_USERS.director.password);
+    // Create test users (signupUser returns { _id, token })
+    director = await signupUser(TEST_USERS.director);
+    manager = await signupUser(TEST_USERS.manager);
+    associate = await signupUser(TEST_USERS.associate);
+    tenant = await signupUser(TEST_USERS.tenant);
   });
 
   // ========================================
   // Group 1: Building Creation
   // ========================================
   describe('POST /api/buildings - Create Building', () => {
-    
     test('Should create building with valid data', async () => {
-      const res = await request(app)
-        .post('/api/buildings')
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send(TEST_BUILDING);
+      const data = await apiPost('/api/buildings', director.token, TEST_BUILDING, 201);
 
-      assertSuccess(res, 201);
-      const data = getData(res);
       expect(data).toHaveProperty('_id');
       expect(data.name).toBe(TEST_BUILDING.name);
       expect(data.address).toBe(TEST_BUILDING.address);
@@ -165,7 +111,7 @@ describe('Director Operations', () => {
     test('Should reject building without name', async () => {
       const res = await request(app)
         .post('/api/buildings')
-        .set('Authorization', `Bearer ${directorToken}`)
+        .set('Authorization', `Bearer ${director.token}`)
         .send({ address: TEST_BUILDING.address });
 
       assertError(res, 400, 'Building name');
@@ -174,26 +120,22 @@ describe('Director Operations', () => {
     test('Should reject building without address', async () => {
       const res = await request(app)
         .post('/api/buildings')
-        .set('Authorization', `Bearer ${directorToken}`)
+        .set('Authorization', `Bearer ${director.token}`)
         .send({ name: TEST_BUILDING.name });
 
       assertError(res, 400, 'Address');
     });
 
     test('Should reject request without director token', async () => {
-      const res = await request(app)
-        .post('/api/buildings')
-        .send(TEST_BUILDING);
+      const res = await request(app).post('/api/buildings').send(TEST_BUILDING);
 
       assertError(res, 401);
     });
 
     test('Should reject request from non-director role', async () => {
-      const tenantToken = await loginUser(TEST_USERS.tenant.username, TEST_USERS.tenant.password);
-
       const res = await request(app)
         .post('/api/buildings')
-        .set('Authorization', `Bearer ${tenantToken}`)
+        .set('Authorization', `Bearer ${tenant.token}`)
         .send(TEST_BUILDING);
 
       assertError(res, 403);
@@ -204,32 +146,31 @@ describe('Director Operations', () => {
   // Group 2: Manager Assignment
   // ========================================
   describe('PATCH /api/buildings/:id/assign-manager - Assign Manager to Building', () => {
-    
     let buildingId;
 
     beforeEach(async () => {
       // Create building and approve manager
-      buildingId = await createBuilding(directorToken, { name: 'Test Zgrada', address: 'Test Adresa 123' });
-      await approveUser(directorToken, managerId);
+      buildingId = await createBuilding(director.token, {
+        name: 'Test Zgrada',
+        address: 'Test Adresa 123'
+      });
+      await approveUser(director.token, manager._id);
     });
 
     test('Should assign manager to building', async () => {
-      const res = await request(app)
-        .patch(`/api/buildings/${buildingId}/assign-manager`)
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send({ managerId });
+      const data = await apiPatch(`/api/buildings/${buildingId}/assign-manager`, director.token, {
+        managerId: manager._id
+      });
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(data.manager).toBeDefined();
-      expect(String(data.manager._id)).toBe(String(managerId));
+      expect(String(data.manager._id)).toBe(String(manager._id));
     });
 
     test('Should reject assignment with invalid building ID', async () => {
       const res = await request(app)
         .patch('/api/buildings/invalid-id/assign-manager')
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send({ managerId });
+        .set('Authorization', `Bearer ${director.token}`)
+        .send({ managerId: manager._id });
 
       assertError(res, 500);
     });
@@ -238,7 +179,7 @@ describe('Director Operations', () => {
       const fakeId = new mongoose.Types.ObjectId();
       const res = await request(app)
         .patch(`/api/buildings/${buildingId}/assign-manager`)
-        .set('Authorization', `Bearer ${directorToken}`)
+        .set('Authorization', `Bearer ${director.token}`)
         .send({ managerId: fakeId });
 
       assertError(res, 404);
@@ -247,19 +188,17 @@ describe('Director Operations', () => {
     test('Should reject assignment if user is not manager role', async () => {
       const res = await request(app)
         .patch(`/api/buildings/${buildingId}/assign-manager`)
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send({ managerId: tenantId });
+        .set('Authorization', `Bearer ${director.token}`)
+        .send({ managerId: tenant._id });
 
       assertError(res, 400, 'Invalid manager');
     });
 
     test('Should reject request from non-director user', async () => {
-      const tenantToken = await loginUser(TEST_USERS.tenant.username, TEST_USERS.tenant.password);
-
       const res = await request(app)
         .patch(`/api/buildings/${buildingId}/assign-manager`)
-        .set('Authorization', `Bearer ${tenantToken}`)
-        .send({ managerId });
+        .set('Authorization', `Bearer ${tenant.token}`)
+        .send({ managerId: manager._id });
 
       assertError(res, 403);
     });
@@ -269,28 +208,21 @@ describe('Director Operations', () => {
   // Group 3: View Pending Staff
   // ========================================
   describe('GET /api/users/pending - View Pending Staff', () => {
-
     test('Should return pending users for director', async () => {
-      const res = await request(app)
-        .get('/api/users/pending')
-        .set('Authorization', `Bearer ${directorToken}`);
+      const data = await apiGet('/api/users/pending', director.token);
 
-      assertSuccess(res, 200);
-      const data = getData(res);
       expect(Array.isArray(data)).toBe(true);
-      
+
       // Check that all returned users have pending status
-      data.forEach(user => {
+      data.forEach((user) => {
         expect(user.status).toBe('pending');
       });
     });
 
     test('Should reject request from tenant (not manager/director)', async () => {
-      const tenantToken = await loginUser(TEST_USERS.tenant.username, TEST_USERS.tenant.password);
-
       const res = await request(app)
         .get('/api/users/pending')
-        .set('Authorization', `Bearer ${tenantToken}`);
+        .set('Authorization', `Bearer ${tenant.token}`);
 
       assertError(res, 403);
     });
@@ -300,47 +232,44 @@ describe('Director Operations', () => {
   // Group 4: Approve Staff
   // ========================================
   describe('PATCH /api/users/:id/approve - Approve Staff', () => {
-
     test('Should approve pending manager', async () => {
-      const result = await approveUser(directorToken, managerId);
+      const result = await approveUser(director.token, manager._id);
 
       expect(result.user.status).toBe('active');
     });
 
     test('Should approve pending associate', async () => {
-      const result = await approveUser(directorToken, associateUserId);
+      const result = await approveUser(director.token, associate._id);
 
       expect(result.user.status).toBe('active');
     });
 
     test('Should reject approval of already active user', async () => {
       // Approve once
-      await approveUser(directorToken, managerId);
+      await approveUser(director.token, manager._id);
 
       // Try to approve again
       const res = await request(app)
-        .patch(`/api/users/${managerId}/approve`)
-        .set('Authorization', `Bearer ${directorToken}`);
+        .patch(`/api/users/${manager._id}/approve`)
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertError(res, 400, 'already');
     });
 
     test('Should reject approval of non-existent user', async () => {
       const fakeId = new mongoose.Types.ObjectId();
-      
+
       const res = await request(app)
         .patch(`/api/users/${fakeId}/approve`)
-        .set('Authorization', `Bearer ${directorToken}`);
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertError(res, 404);
     });
 
     test('Should reject approval from non-director/non-manager', async () => {
-      const tenantToken = await loginUser(TEST_USERS.tenant.username, TEST_USERS.tenant.password);
-
       const res = await request(app)
-        .patch(`/api/users/${managerId}/approve`)
-        .set('Authorization', `Bearer ${tenantToken}`);
+        .patch(`/api/users/${manager._id}/approve`)
+        .set('Authorization', `Bearer ${tenant.token}`);
 
       assertError(res, 403);
     });
@@ -348,7 +277,7 @@ describe('Director Operations', () => {
     test('Should handle invalid user ID gracefully', async () => {
       const res = await request(app)
         .patch('/api/users/invalid-id/approve')
-        .set('Authorization', `Bearer ${directorToken}`);
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertError(res, 500);
     });
@@ -358,36 +287,33 @@ describe('Director Operations', () => {
   // Group 5: Delete User
   // ========================================
   describe('DELETE /api/users/:id - Delete User', () => {
-
     test('Should delete user by ID', async () => {
       const res = await request(app)
-        .delete(`/api/users/${tenantId}`)
-        .set('Authorization', `Bearer ${directorToken}`);
+        .delete(`/api/users/${tenant._id}`)
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertSuccess(res, 200);
       expect(res.body.message).toContain('deleted');
-      
+
       // Verify user is deleted from database
-      const user = await User.findById(tenantId);
+      const user = await User.findById(tenant._id);
       expect(user).toBeNull();
     });
 
     test('Should reject deletion of non-existent user', async () => {
       const fakeId = new mongoose.Types.ObjectId();
-      
+
       const res = await request(app)
         .delete(`/api/users/${fakeId}`)
-        .set('Authorization', `Bearer ${directorToken}`);
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertError(res, 404);
     });
 
     test('Should reject deletion from non-director', async () => {
-      const tenantToken = await loginUser(TEST_USERS.tenant.username, TEST_USERS.tenant.password);
-
       const res = await request(app)
-        .delete(`/api/users/${managerId}`)
-        .set('Authorization', `Bearer ${tenantToken}`);
+        .delete(`/api/users/${manager._id}`)
+        .set('Authorization', `Bearer ${tenant.token}`);
 
       assertError(res, 403);
     });
@@ -395,7 +321,7 @@ describe('Director Operations', () => {
     test('Should handle invalid user ID', async () => {
       const res = await request(app)
         .delete('/api/users/invalid-id')
-        .set('Authorization', `Bearer ${directorToken}`);
+        .set('Authorization', `Bearer ${director.token}`);
 
       assertError(res, 500);
     });

@@ -4,8 +4,8 @@
  * Extracted from index.js in Step 2.1/2.2
  */
 
-const User = require('../models/User');
 const { HTTP_STATUS, ERROR_MESSAGES, USER_ROLES, USER_STATUS } = require('../config/constants');
+const User = require('../models/User');
 
 // ===== DATABASE LOOKUP HELPERS =====
 

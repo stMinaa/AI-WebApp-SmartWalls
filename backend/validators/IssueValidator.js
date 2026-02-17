@@ -13,14 +13,14 @@ const { validateRequired } = require('../utils/validation');
  */
 function validateReport(data) {
   const errors = [];
-  
+
   // Check required fields
   const titleCheck = validateRequired(data.title, 'Title');
   if (!titleCheck.valid) errors.push(titleCheck.message);
-  
+
   const descriptionCheck = validateRequired(data.description, 'Description');
   if (!descriptionCheck.valid) errors.push(descriptionCheck.message);
-  
+
   // Validate priority if provided
   if (data.priority) {
     const validPriorities = Object.values(PRIORITY_LEVELS);
@@ -28,10 +28,8 @@ function validateReport(data) {
       errors.push(`Invalid priority. Must be one of: ${validPriorities.join(', ')}`);
     }
   }
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 /**
@@ -41,18 +39,18 @@ function validateReport(data) {
  */
 function validateTriage(data) {
   const errors = [];
-  
+
   const actionCheck = validateRequired(data.action, 'Action');
   if (!actionCheck.valid) {
     errors.push(actionCheck.message);
     return { valid: false, errors };
   }
-  
+
   const validActions = ['forward', 'reject', 'assign'];
   if (!validActions.includes(data.action)) {
     errors.push(`Invalid action. Must be one of: ${validActions.join(', ')}`);
   }
-  
+
   // If action is 'assign', assignedTo is required
   if (data.action === 'assign') {
     const assignedToCheck = validateRequired(data.assignedTo, 'Associate username');
@@ -60,10 +58,8 @@ function validateTriage(data) {
       errors.push('Associate username is required for assign action');
     }
   }
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 /**
@@ -73,18 +69,18 @@ function validateTriage(data) {
  */
 function validateAssign(data) {
   const errors = [];
-  
+
   const actionCheck = validateRequired(data.action, 'Action');
   if (!actionCheck.valid) {
     errors.push(actionCheck.message);
     return { valid: false, errors };
   }
-  
+
   const validActions = ['assign', 'reject'];
   if (!validActions.includes(data.action)) {
     errors.push(`Invalid action. Must be one of: ${validActions.join(', ')}`);
   }
-  
+
   // If action is 'assign', assignedTo is required
   if (data.action === 'assign') {
     const assignedToCheck = validateRequired(data.assignedTo, 'Associate username');
@@ -92,10 +88,8 @@ function validateAssign(data) {
       errors.push('Associate username is required for assign action');
     }
   }
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 /**
@@ -103,7 +97,7 @@ function validateAssign(data) {
  * @param {Object} data - Acceptance data (message - optional)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
-function validateAccept(data) {
+function validateAccept(_data) {
   // All fields are optional
   return { valid: true };
 }
@@ -113,7 +107,7 @@ function validateAccept(data) {
  * @param {Object} data - Completion data (message - optional)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
-function validateComplete(data) {
+function validateComplete(_data) {
   // All fields are optional
   return { valid: true };
 }
@@ -123,7 +117,7 @@ function validateComplete(data) {
  * @param {Object} data - Rejection data (reason - optional)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
-function validateReject(data) {
+function validateReject(_data) {
   // All fields are optional
   return { valid: true };
 }

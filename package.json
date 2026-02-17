@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run dev",
-    "dev": "cd backend && node server.js",
-    "backend": "cd backend && node server.js",
+    "dev": "cd backend && node index.js",
+    "backend": "cd backend && node index.js",
     "frontend": "cd frontend && npm start",
     "test": "jest backend/test/ --detectOpenHandles --forceExit --runInBand",
     "test:arch": "jest backend/test/architecture/ --verbose",

@@ -1,125 +1,73 @@
-const request = require('supertest');
 const mongoose = require('mongoose');
+const request = require('supertest');
+
 const app = require('../index');
-const User = require('../models/User');
-const Building = require('../models/Building');
-const Apartment = require('../models/Apartment');
+
+const {
+  cleanCollections,
+  createDirector,
+  createManager,
+  createTenant,
+  createBuilding,
+  assignManager,
+  createApartment,
+  getUserFromDB,
+  getApartmentFromDB,
+  _signupUser
+} = require('./helpers');
+const { getData, assertSuccess, _assertError } = require('./helpers/responseHelpers');
 const { connectTestDB, disconnectTestDB } = require('./setup');
-const { getData, assertSuccess, assertError } = require('./helpers/responseHelpers');
+
+jest.setTimeout(60000);
 
 beforeAll(async () => {
   await connectTestDB();
 });
-
 afterAll(async () => {
   await disconnectTestDB();
 });
 
 describe('Phase 2.4: Assign Tenants to Apartments', () => {
   let directorToken, managerToken, tenantToken;
-  let directorId, managerId, tenantId;
+  let tenantId;
   let buildingId, apartmentId;
 
   beforeEach(async () => {
-    await User.deleteMany({});
-    await Building.deleteMany({});
-    await Apartment.deleteMany({});
+    await cleanCollections();
 
-    // Create director
-    const directorRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'director1',
-        email: 'director1@example.com',
-        password: 'password123',
-        firstName: 'Director',
-        lastName: 'One',
-        role: 'director'
-      });
-    
-    directorId = getData(directorRes).user._id;
+    const director = await createDirector({
+      username: 'director1',
+      email: 'director1@example.com',
+      password: 'password123'
+    });
+    directorToken = director.token;
 
-    const directorLogin = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'director1',
-        password: 'password123'
-      });
-    directorToken = getData(directorLogin).token;
+    const manager = await createManager(directorToken, {
+      username: 'manager1',
+      email: 'manager1@example.com',
+      password: 'password123',
+      firstName: 'Manager',
+      lastName: 'One'
+    });
+    managerToken = manager.token;
 
-    // Verify director
-    const director = await User.findById(directorId);
+    buildingId = await createBuilding(directorToken, {
+      name: 'Test Building',
+      address: '123 Main St'
+    });
+    await assignManager(directorToken, buildingId, manager._id);
 
-    // Create and approve manager
-    const managerRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'manager1',
-        email: 'manager1@example.com',
-        password: 'password123',
-        firstName: 'Manager',
-        lastName: 'One',
-        role: 'manager'
-      });
-    managerId = getData(managerRes).user._id;
+    apartmentId = await createApartment(managerToken, buildingId, '101');
 
-    const approveRes = await request(app)
-      .patch(`/api/users/${managerId}/approve`)
-      .set('Authorization', `Bearer ${directorToken}`);
-
-    const managerLogin = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'manager1',
-        password: 'password123'
-      });
-    managerToken = getData(managerLogin).token;
-
-    // Create building and assign manager
-    const buildingRes = await request(app)
-      .post('/api/buildings')
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({
-        name: 'Test Building',
-        address: '123 Main St'
-      });
-    buildingId = getData(buildingRes)._id;
-
-    await request(app)
-      .patch(`/api/buildings/${buildingId}/assign-manager`)
-      .set('Authorization', `Bearer ${directorToken}`)
-      .send({ managerId });
-
-    // Create apartment
-    const apartmentRes = await request(app)
-      .post(`/api/buildings/${buildingId}/apartments`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({
-        unitNumber: '101',
-        address: '123 Main St, Unit 101'
-      });
-    apartmentId = getData(apartmentRes)._id;
-
-    // Create tenant
-    const tenantRes = await request(app)
-      .post('/api/auth/signup')
-      .send({
-        username: 'tenant1',
-        email: 'tenant1@example.com',
-        password: 'password123',
-        firstName: 'Tenant',
-        lastName: 'One',
-        role: 'tenant'
-      });
-    tenantId = getData(tenantRes).user._id;
-
-    const tenantLogin = await request(app)
-      .post('/api/auth/login')
-      .send({
-        username: 'tenant1',
-        password: 'password123'
-      });
-    tenantToken = getData(tenantLogin).token;
+    const tenant = await createTenant({
+      username: 'tenant1',
+      email: 'tenant1@example.com',
+      password: 'password123',
+      firstName: 'Tenant',
+      lastName: 'One'
+    });
+    tenantId = tenant._id;
+    tenantToken = tenant.token;
   });
 
   describe('POST /api/tenants/:id/assign', () => {
@@ -136,13 +84,11 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
       assertSuccess(res, 200);
       expect(res.body.message).toBe('Tenant assigned successfully');
 
-      // Verify tenant updated
-      const tenant = await User.findById(tenantId);
+      const tenant = await getUserFromDB(tenantId);
       expect(tenant.apartment.toString()).toBe(apartmentId);
       expect(tenant.building.toString()).toBe(buildingId);
 
-      // Verify apartment updated
-      const apartment = await Apartment.findById(apartmentId);
+      const apartment = await getApartmentFromDB(apartmentId);
       expect(apartment.tenant.toString()).toBe(tenantId);
       expect(apartment.numPeople).toBe(3);
     });
@@ -170,7 +116,7 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
 
       assertSuccess(res, 200);
 
-      const apartment = await Apartment.findById(apartmentId);
+      const apartment = await getApartmentFromDB(apartmentId);
       expect(apartment.numPeople).toBe(4);
     });
 
@@ -207,34 +153,27 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
 
       expect(res.status).toBe(200);
 
-      // Verify old apartment freed
-      const apartment1 = await Apartment.findById(apartmentId);
+      const apartment1 = await getApartmentFromDB(apartmentId);
       expect(apartment1.tenant).toBeNull();
       expect(apartment1.numPeople).toBe(0);
 
-      // Verify new apartment assigned
-      const apartment2 = await Apartment.findById(apartment2Id);
+      const apartment2 = await getApartmentFromDB(apartment2Id);
       expect(apartment2.tenant.toString()).toBe(tenantId);
       expect(apartment2.numPeople).toBe(3);
 
-      // Verify tenant updated
-      const tenant = await User.findById(tenantId);
+      const tenant = await getUserFromDB(tenantId);
       expect(tenant.apartment.toString()).toBe(apartment2Id);
     });
 
     it('should return 400 if apartment already occupied by another tenant', async () => {
-      // Create second tenant
-      const tenant2Res = await request(app)
-        .post('/api/auth/signup')
-        .send({
-          username: 'tenant2',
-          email: 'tenant2@example.com',
-          password: 'password123',
-          firstName: 'Tenant',
-          lastName: 'Two',
-          role: 'tenant'
-        });
-      const tenant2Id = getData(tenant2Res).user._id;
+      const tenant2 = await createTenant({
+        username: 'tenant2',
+        email: 'tenant2@example.com',
+        password: 'password123',
+        firstName: 'Tenant',
+        lastName: 'Two'
+      });
+      const tenant2Id = tenant2._id;
 
       // Assign first tenant to apartment
       await request(app)
@@ -304,13 +243,11 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
+      const res = await request(app).post(`/api/tenants/${tenantId}/assign`).send({
+        apartmentId,
+        buildingId,
+        numPeople: 2
+      });
 
       expect(res.status).toBe(401);
     });
