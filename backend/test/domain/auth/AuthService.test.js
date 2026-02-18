@@ -1,22 +1,11 @@
-/* eslint-disable import/no-unresolved, no-unused-vars, max-nested-callbacks */
-// test/domain/auth/AuthService.test.js
-// RED phase: Auth domain migration (module not yet implemented)
-
-let AuthService;
-let _Auth;
-
-try {
-  AuthService = require('../../../src/domain/auth/AuthService');
-  _Auth = require('../../../src/domain/auth/Auth');
-} catch {
-  // Module not yet implemented — skip all tests
-}
+/* eslint-disable no-unused-vars, max-nested-callbacks */
 
 const jwt = require('jsonwebtoken');
 
-const describeIfReady = AuthService ? describe : describe.skip;
+const _Auth = require('../../../src/domain/auth/Auth');
+const AuthService = require('../../../src/domain/auth/AuthService');
 
-describeIfReady('AuthService', () => {
+describe('AuthService', () => {
   let authService;
   let mockUserRepo;
   let testUser;

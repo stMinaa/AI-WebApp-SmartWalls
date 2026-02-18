@@ -4,11 +4,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const { NODE_ENV } = require('./config/constants');
-const authRoutes = require('./routes/auth');
 const invoicesRouter = require('./routes/invoices');
 const noticeRoutes = require('./routes/notices');
 const pollRoutes = require('./routes/polls');
 const testRoutes = require('./routes/test');
+const authRoutes = require('./src/adapter/http/routes/auth');
 const buildingRoutes = require('./src/adapter/http/routes/buildings');
 const issueRoutes = require('./src/adapter/http/routes/issues');
 const tenantRoutes = require('./src/adapter/http/routes/tenants');
