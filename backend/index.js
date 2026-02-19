@@ -4,14 +4,14 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const { NODE_ENV } = require('./config/constants');
-const invoicesRouter = require('./routes/invoices');
-const noticeRoutes = require('./routes/notices');
-const pollRoutes = require('./routes/polls');
-const testRoutes = require('./routes/test');
 const authRoutes = require('./src/adapter/http/routes/auth');
 const buildingRoutes = require('./src/adapter/http/routes/buildings');
+const invoicesRouter = require('./src/adapter/http/routes/invoices');
 const issueRoutes = require('./src/adapter/http/routes/issues');
+const noticeRoutes = require('./src/adapter/http/routes/notices');
+const pollRoutes = require('./src/adapter/http/routes/polls');
 const tenantRoutes = require('./src/adapter/http/routes/tenants');
+const testRoutes = require('./src/adapter/http/routes/test');
 const userRoutes = require('./src/adapter/http/routes/users');
 
 const app = express();
