@@ -1,9 +1,11 @@
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
+const helmet = require('helmet');
 const mongoose = require('mongoose');
 
 const { NODE_ENV } = require('./config/constants');
+const { errorMiddleware } = require('./middleware/errorHandler');
 const authRoutes = require('./src/adapter/http/routes/auth');
 const buildingRoutes = require('./src/adapter/http/routes/buildings');
 const invoicesRouter = require('./src/adapter/http/routes/invoices');
@@ -14,26 +16,21 @@ const tenantRoutes = require('./src/adapter/http/routes/tenants');
 const testRoutes = require('./src/adapter/http/routes/test');
 const userRoutes = require('./src/adapter/http/routes/users');
 
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI environment variable is required');
+  process.exit(1);
+}
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
 const app = express();
 
-// MongoDB connection string (hardcoded for simplicity)
-const MONGO_URI =
-  'mongodb+srv://minastankovic111_db_user:XcZ45WFEEOnILNJu@cluster0.2lelkqq.mongodb.net/tennetdb?retryWrites=true&w=majority&appName=Cluster0';
-
-// Middleware
-app.use(cors());
+// Security middleware
+app.use(helmet());
+app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
-
-// Connect to MongoDB (skip in test environment)
-if (process.env.NODE_ENV !== NODE_ENV.TEST) {
-  mongoose
-    .connect(MONGO_URI)
-    .then(() => console.info('✅ MONGO RUNNING - Connected to MongoDB'))
-    .catch((err) => {
-      console.error('❌ MONGO ERROR:', err.message);
-      process.exit(1);
-    });
-}
 
 // ===== REGISTER ROUTES =====
 app.use('/api/auth', authRoutes);
@@ -50,14 +47,26 @@ app.get('/', (req, res) => {
   res.send('Backend API is running');
 });
 
+// Global error handler (must be after all routes)
+app.use(errorMiddleware);
+
 const PORT = process.env.PORT || 5000;
 
-// Only start server if not in test environment
-if (process.env.NODE_ENV !== 'test') {
+async function startServer() {
+  await mongoose.connect(MONGO_URI);
+  console.info('✅ MONGO RUNNING - Connected to MongoDB');
   app.listen(PORT, () => {
     console.info(`✅ BACKEND RUNNING - Server listening on port ${PORT}`);
     console.info(`📍 API Base URL: http://localhost:${PORT}`);
     console.info(`✅ MONGO RUNNING ✅ BACKEND RUNNING - Ready to accept requests!\n`);
+  });
+}
+
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== NODE_ENV.TEST) {
+  startServer().catch((err) => {
+    console.error('❌ STARTUP ERROR:', err.message);
+    process.exit(1);
   });
 }
 
