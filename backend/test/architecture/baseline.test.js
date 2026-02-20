@@ -92,8 +92,8 @@ describe('🏗️ Architectural Baseline (Current State)', () => {
         }
       }
 
-      // This is expected in current architecture - just documenting
-      expect(mongooseImports).toBeGreaterThan(0); // We EXPECT this to be true now
+      // services/ removed as part of hexagonal migration - 0 is correct
+      expect(mongooseImports).toBe(0);
     });
   });
 
