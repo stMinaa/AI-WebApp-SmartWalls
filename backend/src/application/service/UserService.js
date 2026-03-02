@@ -50,6 +50,17 @@ class UserService {
       throw new AuthorizationError(ERROR_MESSAGES.ONLY_DIRECTORS_VIEW_USERS);
     }
 
+    const select = 'firstName lastName email username role status mobile company';
+    const users = await this.userRepo.findWithFilters(
+      this._buildUserFilter(role, status, includeTest),
+      select,
+      { createdAt: -1 }
+    );
+
+    return role === USER_ROLES.MANAGER ? this._enrichManagersWithBuildingCount(users) : users;
+  }
+
+  _buildUserFilter(role, status, includeTest) {
     const filter = {};
     if (role) filter.role = role;
     if (status) filter.status = status;
@@ -62,19 +73,16 @@ class UserService {
       ];
     }
 
-    const select = 'firstName lastName email username role status mobile company';
-    const users = await this.userRepo.findWithFilters(filter, select, { createdAt: -1 });
+    return filter;
+  }
 
-    if (role === USER_ROLES.MANAGER) {
-      return Promise.all(
-        users.map(async (u) => {
-          const buildingCount = await this.userRepo.countBuildingsByManager(u._id);
-          return { ...u.toObject(), buildingCount };
-        })
-      );
-    }
-
-    return users;
+  async _enrichManagersWithBuildingCount(users) {
+    return Promise.all(
+      users.map(async (u) => {
+        const buildingCount = await this.userRepo.countBuildingsByManager(u._id);
+        return { ...u.toObject(), buildingCount };
+      })
+    );
   }
 
   async approveUser(username, targetUserId) {

@@ -9,32 +9,26 @@ class UserController {
   }
 
   async updateDebt(req, res) {
-    try {
+    return this._execute(res, async () => {
       const { debt, reason } = req.body;
       const result = await this.userService.updateDebt(req.user.username, req.params.id, {
         debt,
         reason
       });
       return ApiResponse.success(res, result, 'Debt updated');
-    } catch (err) {
-      console.error('Error updating debt:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.ERROR_UPDATING_DEBT);
-    }
+    });
   }
 
   async listPendingUsers(req, res) {
-    try {
+    return this._execute(res, async () => {
       const users = await this.userService.listPendingUsers(req.user.username);
       return ApiResponse.success(res, users, 'Pending users retrieved');
-    } catch (err) {
-      console.error('Error fetching pending users:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async listUsers(req, res) {
     console.info('GET /api/users - User:', req.user?.username, 'Query:', req.query);
-    try {
+    return this._execute(res, async () => {
       const { role, status, includeTest } = req.query;
       const users = await this.userService.listUsers(req.user.username, {
         role,
@@ -47,23 +41,11 @@ class UserController {
         users,
         role === 'manager' ? 'Managers retrieved successfully' : 'Users retrieved successfully'
       );
-    } catch (err) {
-      console.error('Get users error:', err);
-      if (err instanceof AuthorizationError) {
-        console.info('Authorization failed');
-        return ApiResponse.forbidden(res, err.message);
-      }
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async approveUser(req, res) {
-    console.info(
-      'APPROVE ENDPOINT CALLED! User:',
-      req.user?.username,
-      'Target:',
-      req.params.userId
-    );
+    console.info(`APPROVE endpoint - User: ${req.user?.username} Target: ${req.params.userId}`);
     return this._execute(res, async () => {
       const result = await this.userService.approveUser(req.user.username, req.params.userId);
       return ApiResponse.success(res, result, 'User approved successfully');
@@ -85,21 +67,18 @@ class UserController {
 
   async bulkDeleteTestUsers(req, res) {
     console.info('DELETE /api/users/bulk/test - User:', req.user?.username);
-    try {
+    return this._execute(res, async () => {
       const result = await this.userService.bulkDeleteTestUsers(req.user.username);
       return ApiResponse.success(
         res,
         result,
         `Successfully deleted ${result.deletedCount} test users`
       );
-    } catch (err) {
-      console.error('Bulk delete error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async listAssociateJobs(req, res) {
-    try {
+    return this._execute(res, async () => {
       console.info(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);
       const { status, priority } = req.query;
       const jobs = await this.userService.listAssociateJobs(req.user.username, {
@@ -108,10 +87,7 @@ class UserController {
       });
       console.info(`Associate jobs retrieved: ${jobs.length}`);
       return ApiResponse.success(res, jobs, 'Associate jobs retrieved successfully');
-    } catch (err) {
-      console.error('Error retrieving associate jobs:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async listAssociates(req, res) {
