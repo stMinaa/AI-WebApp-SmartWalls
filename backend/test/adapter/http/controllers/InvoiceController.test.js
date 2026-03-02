@@ -2,6 +2,7 @@
 'use strict';
 
 const InvoiceController = require('../../../../src/adapter/http/controllers/InvoiceController');
+const NotFoundException = require('../../../../src/domain/exception/NotFoundException');
 const ValidationError = require('../../../../src/domain/exception/ValidationError');
 
 function makeService(overrides = {}) {
@@ -111,9 +112,7 @@ describe('InvoiceController', () => {
     });
 
     it('returns 404 when not found', async () => {
-      const err = new Error('Invoice not found');
-      err.status = 404;
-      service.markAsPaid.mockRejectedValue(err);
+      service.markAsPaid.mockRejectedValue(new NotFoundException('Invoice not found'));
       const res = makeRes();
       await controller.markAsPaid({ params: { id: '507f1f77bcf86cd799439011' } }, res);
       expect(res.status).toHaveBeenCalledWith(404);
@@ -130,9 +129,7 @@ describe('InvoiceController', () => {
     });
 
     it('returns 404 when not found', async () => {
-      const err = new Error('Invoice not found');
-      err.status = 404;
-      service.remove.mockRejectedValue(err);
+      service.remove.mockRejectedValue(new NotFoundException('Invoice not found'));
       const res = makeRes();
       await controller.remove({ params: { id: '507f1f77bcf86cd799439011' } }, res);
       expect(res.status).toHaveBeenCalledWith(404);

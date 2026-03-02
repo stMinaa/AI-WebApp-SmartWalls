@@ -2,14 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { authMiddleware: authenticateToken } = require('../../../../middleware/authHelper');
-const UserService = require('../../../application/service/UserService');
-const MongoUserRepository = require('../../persistence/MongoUserRepository');
-const UserController = require('../controllers/UserController');
-
-// Wire dependencies
-const userRepo = new MongoUserRepository();
-const userService = new UserService(userRepo);
-const controller = new UserController(userService);
+const { userController: controller } = require('../../composition');
 
 // ===== USER MANAGEMENT ENDPOINTS =====
 router.patch('/users/:id/debt', authenticateToken, (req, res) => controller.updateDebt(req, res));

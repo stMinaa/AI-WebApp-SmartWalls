@@ -58,12 +58,16 @@ class AuthApplicationService {
   async login(username, password) {
     const user = await this.authRepo.findByUsernameOrEmail(username);
     if (!user) {
-      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      const err = new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      err.status = 401;
+      throw err;
     }
 
     const isMatch = await this.authService.verifyPassword(password, user.password);
     if (!isMatch) {
-      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      const err = new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      err.status = 401;
+      throw err;
     }
 
     const tokenPayload = {

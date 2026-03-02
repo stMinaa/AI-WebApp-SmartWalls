@@ -2,6 +2,7 @@
 'use strict';
 
 const PollController = require('../../../../src/adapter/http/controllers/PollController');
+const NotFoundException = require('../../../../src/domain/exception/NotFoundException');
 const ValidationError = require('../../../../src/domain/exception/ValidationError');
 
 function makeService(overrides = {}) {
@@ -46,9 +47,7 @@ describe('PollController', () => {
     });
 
     it('returns 404 when poll not found', async () => {
-      const err = new Error('Poll not found');
-      err.status = 404;
-      service.vote.mockRejectedValue(err);
+      service.vote.mockRejectedValue(new NotFoundException('Poll not found'));
       const req = { params: { pollId: 'poll1' }, user: { userId: 'user1' }, body: { option: 'A' } };
       const res = makeRes();
       await controller.vote(req, res);
@@ -74,9 +73,7 @@ describe('PollController', () => {
     });
 
     it('returns 404 when poll not found', async () => {
-      const err = new Error('Poll not found');
-      err.status = 404;
-      service.close.mockRejectedValue(err);
+      service.close.mockRejectedValue(new NotFoundException('Poll not found'));
       const res = makeRes();
       await controller.close({ params: { pollId: 'x' } }, res);
       expect(res.status).toHaveBeenCalledWith(404);

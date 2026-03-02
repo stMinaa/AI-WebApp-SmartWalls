@@ -1,4 +1,5 @@
 const { ERROR_MESSAGES } = require('../../../config/constants');
+const NotFoundException = require('../../domain/exception/NotFoundException');
 const ValidationError = require('../../domain/exception/ValidationError');
 
 const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
@@ -68,7 +69,7 @@ class InvoiceService {
     if (!OBJECT_ID_REGEX.test(id)) throw new ValidationError('Invalid invoice ID');
 
     const invoice = await this.repo.findById(id);
-    if (!invoice) this._throwNotFound('Invoice not found');
+    if (!invoice) throw new NotFoundException('Invoice not found');
 
     if (invoice.paid) throw new ValidationError('Invoice already paid');
 
@@ -82,15 +83,9 @@ class InvoiceService {
     if (!OBJECT_ID_REGEX.test(id)) throw new ValidationError('Invalid invoice ID');
 
     const invoice = await this.repo.findById(id);
-    if (!invoice) this._throwNotFound('Invoice not found');
+    if (!invoice) throw new NotFoundException('Invoice not found');
 
     await this.repo.deleteOne(invoice);
-  }
-
-  _throwNotFound(message) {
-    const err = new Error(message);
-    err.status = 404;
-    throw err;
   }
 }
 

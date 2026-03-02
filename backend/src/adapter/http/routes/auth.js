@@ -4,24 +4,13 @@ const rateLimit = require('express-rate-limit');
 const { authMiddleware: authenticateToken } = require('../../../../middleware/authHelper');
 const { validate } = require('../../../../middleware/validate');
 const UserValidator = require('../../../../validators/UserValidator');
-const AuthApplicationService = require('../../../application/service/AuthApplicationService');
-const AuthService = require('../../../domain/auth/AuthService');
-const MongoAuthRepository = require('../../persistence/MongoAuthRepository');
-const MongoUserRepository = require('../../persistence/MongoUserRepository');
-const AuthController = require('../controllers/AuthController');
+const { authController: controller } = require('../../composition');
 
 const router = express.Router();
 
-// Wire dependencies
-const authRepo = new MongoAuthRepository();
-const userRepo = new MongoUserRepository();
-const domainAuthService = new AuthService(userRepo);
-const authAppService = new AuthApplicationService(authRepo, domainAuthService);
-const controller = new AuthController(authAppService);
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 10000 : 5,
+  max: process.env.NODE_ENV === 'test' ? 10000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many attempts, please try again later.' }

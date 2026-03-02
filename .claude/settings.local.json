@@ -38,7 +38,27 @@
       "Bash(ESLINT_USE_FLAT_CONFIG=false frontend/node_modules/.bin/eslint:*)",
       "Bash(ESLINT_USE_FLAT_CONFIG=false npx lint-staged:*)",
       "Bash(grep:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ESLINT_USE_FLAT_CONFIG=false npx jest:*)",
+      "Bash(git status:*)",
+      "Bash(npm run lint:*)",
+      "Bash(echo:*)",
+      "Bash(tee:*)",
+      "Bash(bash .husky/pre-commit)",
+      "Bash(dir:*)",
+      "Bash(git -C \"C:/Users/Milan/Desktop/AI aplikacija\" status --short)",
+      "Bash(git -C \"C:/Users/Milan/Desktop/AI aplikacija\" commit -m \"refactor: migrate Auth to hexagonal architecture\n\n- Add domain layer: AuthService \\(bcrypt/JWT\\), Auth entity\n- Add persistence adapter: MongoAuthRepository with auth-specific queries\n- Add application service: AuthApplicationService \\(signup, login, getProfile, updateProfile, payDebt\\)\n- Add HTTP adapter: AuthController + routes/auth.js with same 5 endpoints\n- Swap index.js to use hex arch route \\(legacy routes/auth.js kept as reference\\)\n- Token payload preserved as { userId, username, email, role } for authMiddleware compatibility\n- Add 29 unit tests \\(AuthApplicationService x18, AuthController x11\\)\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\")",
+      "Bash(git -C \"C:/Users/Milan/Desktop/AI aplikacija\" status)",
+      "Bash(./node_modules/.bin/eslint:*)",
+      "Bash(git -C \"C:/Users/Milan/Desktop/AI aplikacija\" log --oneline -3)",
+      "Bash(git -C:*)",
+      "Bash(node_modules/.bin/eslint.cmd:*)",
+      "Bash(python3:*)",
+      "Bash(npx:*)",
+      "Bash(git stash:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(curl:*)"
     ]
   }
 }

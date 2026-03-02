@@ -13,6 +13,16 @@ class MongoPollRepository {
     return this._populate(PollModel.findById(id));
   }
 
+  async findByBuilding(buildingId) {
+    return this._populate(PollModel.find({ building: buildingId }).sort({ createdAt: -1 }));
+  }
+
+  async create(data) {
+    const poll = new PollModel(data);
+    await poll.save();
+    return this._populate(PollModel.findById(poll._id));
+  }
+
   async save(poll) {
     return poll.save();
   }

@@ -32,8 +32,8 @@ class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  generateToken(user) {
-    return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
+  generateToken(payload) {
+    return jwt.sign(payload, JWT_SECRET, {
       expiresIn: TOKEN_EXPIRY
     });
   }

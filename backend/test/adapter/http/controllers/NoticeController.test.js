@@ -2,6 +2,7 @@
 'use strict';
 
 const NoticeController = require('../../../../src/adapter/http/controllers/NoticeController');
+const NotFoundException = require('../../../../src/domain/exception/NotFoundException');
 
 function makeService(overrides = {}) {
   return {
@@ -36,9 +37,7 @@ describe('NoticeController', () => {
     });
 
     it('returns 404 when not found', async () => {
-      const err = new Error('Notice not found');
-      err.status = 404;
-      service.deleteNotice.mockRejectedValue(err);
+      service.deleteNotice.mockRejectedValue(new NotFoundException('Notice not found'));
       const res = makeRes();
       await controller.deleteNotice({ params: { noticeId: 'x' } }, res);
       expect(res.status).toHaveBeenCalledWith(404);

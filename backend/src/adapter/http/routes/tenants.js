@@ -2,14 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { authMiddleware: authenticateToken } = require('../../../../middleware/authHelper');
-const UserService = require('../../../application/service/UserService');
-const MongoUserRepository = require('../../persistence/MongoUserRepository');
-const UserController = require('../controllers/UserController');
-
-// Wire dependencies
-const userRepo = new MongoUserRepository();
-const userService = new UserService(userRepo);
-const controller = new UserController(userService);
+const { userController: controller } = require('../../composition');
 
 // ===== TENANT ENDPOINTS =====
 router.delete('/tenants/:id', authenticateToken, (req, res) => controller.deleteTenant(req, res));

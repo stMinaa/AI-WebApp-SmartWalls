@@ -1,5 +1,6 @@
 const { ERROR_MESSAGES } = require('../../../../config/constants');
 const ApiResponse = require('../../../../utils/ApiResponse');
+const NotFoundException = require('../../../domain/exception/NotFoundException');
 const ValidationError = require('../../../domain/exception/ValidationError');
 
 class InvoiceController {
@@ -58,8 +59,8 @@ class InvoiceController {
   }
 
   _handleError(res, err) {
+    if (err instanceof NotFoundException) return ApiResponse.notFound(res, err.message);
     if (err instanceof ValidationError) return ApiResponse.badRequest(res, err.message);
-    if (err.status === 404) return ApiResponse.notFound(res, err.message);
     return ApiResponse.serverError(res, ERROR_MESSAGES.SERVER_ERROR);
   }
 }
