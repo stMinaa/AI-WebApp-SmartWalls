@@ -31,6 +31,13 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
   let tenantId;
   let buildingId, apartmentId;
 
+  async function sendAssign(token, tId, body) {
+    return request(app)
+      .post(`/api/tenants/${tId}/assign`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+  }
+
   beforeEach(async () => {
     await cleanCollections();
 
@@ -199,44 +206,25 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should return 400 if apartmentId or buildingId missing', async () => {
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          numPeople: 2
-        });
-
+      const res = await sendAssign(managerToken, tenantId, { apartmentId, numPeople: 2 });
       expect(res.status).toBe(400);
       expect(res.body.message).toContain('apartmentId and buildingId are required');
     });
 
     it('should return 404 if tenant not found', async () => {
       const fakeId = new mongoose.Types.ObjectId();
-      const res = await request(app)
-        .post(`/api/tenants/${fakeId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
+      const res = await sendAssign(managerToken, fakeId, { apartmentId, buildingId, numPeople: 2 });
       expect(res.status).toBe(404);
       expect(res.body.message).toContain('Tenant not found');
     });
 
     it('should return 404 if apartment not found', async () => {
       const fakeId = new mongoose.Types.ObjectId();
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId: fakeId,
-          buildingId,
-          numPeople: 2
-        });
-
+      const res = await sendAssign(managerToken, tenantId, {
+        apartmentId: fakeId,
+        buildingId,
+        numPeople: 2
+      });
       expect(res.status).toBe(404);
       expect(res.body.message).toContain('Apartment not found');
     });
@@ -265,15 +253,11 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should allow director to assign tenants', async () => {
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
+      const res = await sendAssign(directorToken, tenantId, {
+        apartmentId,
+        buildingId,
+        numPeople: 2
+      });
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Tenant assigned successfully');
     });

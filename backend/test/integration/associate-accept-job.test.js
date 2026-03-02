@@ -26,6 +26,88 @@ let associate1, _associate2, manager, tenant;
 let directorToken, associate1Token, associate2Token, _managerToken, tenantToken;
 let building, apartment, assignedIssue, _unassignedIssue;
 
+async function _createTestUsers(dToken) {
+  const assoc1 = await createAssociate(dToken, {
+    username: 'associate1',
+    email: 'associate1@test.com',
+    password: 'password123',
+    firstName: 'Associate',
+    lastName: 'One',
+    company: 'Plumbing Co'
+  });
+  associate1Token = assoc1.token;
+  associate1 = { _id: assoc1._id };
+
+  const assoc2 = await createAssociate(dToken, {
+    username: 'associate2',
+    email: 'associate2@test.com',
+    password: 'password123',
+    firstName: 'Associate',
+    lastName: 'Two',
+    company: 'Electric Co'
+  });
+  associate2Token = assoc2.token;
+  _associate2 = { _id: assoc2._id };
+
+  const mgr = await createManager(dToken, {
+    username: 'manager1',
+    email: 'manager1@test.com',
+    password: 'password123',
+    firstName: 'Manager',
+    lastName: 'One',
+    company: 'Management Co'
+  });
+  _managerToken = mgr.token;
+  manager = { _id: mgr._id };
+
+  const ten = await createTenant({
+    username: 'tenant1',
+    email: 'tenant1@test.com',
+    password: 'password123',
+    firstName: 'Tenant',
+    lastName: 'One'
+  });
+  tenantToken = ten.token;
+  tenant = { _id: ten._id };
+}
+
+async function _createTestData() {
+  building = await Building.create({
+    name: 'Test Building',
+    address: '123 Test St',
+    manager: manager._id
+  });
+
+  apartment = await Apartment.create({
+    building: building._id,
+    unitNumber: '101',
+    address: '123 Test St, Apt 101',
+    numPeople: 2,
+    tenant: tenant._id
+  });
+
+  assignedIssue = await Issue.create({
+    apartment: apartment._id,
+    building: building._id,
+    createdBy: tenant._id,
+    title: 'Leaking faucet',
+    description: 'Kitchen faucet is leaking',
+    priority: 'high',
+    status: 'assigned',
+    assignedTo: associate1._id
+  });
+
+  _unassignedIssue = await Issue.create({
+    apartment: apartment._id,
+    building: building._id,
+    createdBy: tenant._id,
+    title: 'Broken window',
+    description: 'Bedroom window is broken',
+    priority: 'medium',
+    status: 'reported'
+  });
+}
+
 jest.setTimeout(60000);
 
 beforeAll(async () => {
@@ -39,92 +121,14 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
   describe('POST /api/issues/:id/accept', () => {
     beforeEach(async () => {
       await cleanCollections();
-
       const director = await createDirector({
         username: 'director1',
         email: 'director1@test.com',
         password: 'password123'
       });
       directorToken = director.token;
-
-      const assoc1 = await createAssociate(directorToken, {
-        username: 'associate1',
-        email: 'associate1@test.com',
-        password: 'password123',
-        firstName: 'Associate',
-        lastName: 'One',
-        company: 'Plumbing Co'
-      });
-      associate1Token = assoc1.token;
-      associate1 = { _id: assoc1._id };
-
-      const assoc2 = await createAssociate(directorToken, {
-        username: 'associate2',
-        email: 'associate2@test.com',
-        password: 'password123',
-        firstName: 'Associate',
-        lastName: 'Two',
-        company: 'Electric Co'
-      });
-      associate2Token = assoc2.token;
-      _associate2 = { _id: assoc2._id };
-
-      const mgr = await createManager(directorToken, {
-        username: 'manager1',
-        email: 'manager1@test.com',
-        password: 'password123',
-        firstName: 'Manager',
-        lastName: 'One',
-        company: 'Management Co'
-      });
-      _managerToken = mgr.token;
-      manager = { _id: mgr._id };
-
-      const ten = await createTenant({
-        username: 'tenant1',
-        email: 'tenant1@test.com',
-        password: 'password123',
-        firstName: 'Tenant',
-        lastName: 'One'
-      });
-      tenantToken = ten.token;
-      tenant = { _id: ten._id };
-
-      // Create building, apartment via direct model (needed for specific issue setup)
-      building = await Building.create({
-        name: 'Test Building',
-        address: '123 Test St',
-        manager: manager._id
-      });
-
-      apartment = await Apartment.create({
-        building: building._id,
-        unitNumber: '101',
-        address: '123 Test St, Apt 101',
-        numPeople: 2,
-        tenant: tenant._id
-      });
-
-      assignedIssue = await Issue.create({
-        apartment: apartment._id,
-        building: building._id,
-        createdBy: tenant._id,
-        title: 'Leaking faucet',
-        description: 'Kitchen faucet is leaking',
-        priority: 'high',
-        status: 'assigned',
-        assignedTo: associate1._id
-      });
-
-      _unassignedIssue = await Issue.create({
-        apartment: apartment._id,
-        building: building._id,
-        createdBy: tenant._id,
-        title: 'Broken window',
-        description: 'Bedroom window is broken',
-        priority: 'medium',
-        status: 'reported'
-      });
+      await _createTestUsers(directorToken);
+      await _createTestData();
     });
 
     it('should accept job and update status to in-progress with cost', async () => {

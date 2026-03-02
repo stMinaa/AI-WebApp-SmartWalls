@@ -29,6 +29,21 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
   let managerId;
   let buildingId;
 
+  async function createBulkAndVerify(body, expectedCount, expectedUnits) {
+    const res = await request(app)
+      .post(`/api/buildings/${buildingId}/apartments/bulk`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send(body);
+    assertSuccess(res, 201);
+    const data = getData(res);
+    expect(res.body.message).toMatch(/created/i);
+    expect(data.count).toBe(expectedCount);
+    const apartments = await Apartment.find({ building: buildingId });
+    expect(apartments.length).toBe(expectedCount);
+    const unitNumbers = apartments.map((a) => a.unitNumber).sort();
+    expectedUnits.forEach((u) => expect(unitNumbers).toContain(u));
+  }
+
   beforeEach(async () => {
     await cleanCollections();
 
@@ -67,48 +82,18 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
 
   describe('POST /api/buildings/:id/apartments/bulk', () => {
     it('should create apartments using simple replication (floors + unitsPerFloor)', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ floors: 3, unitsPerFloor: 4 });
-
-      assertSuccess(res, 201);
-      const data = getData(res);
-      expect(res.body.message).toMatch(/created/i);
-      expect(data.count).toBe(12); // 3 floors × 4 units
-
-      // Verify in database
-      const apartments = await Apartment.find({ building: buildingId });
-      expect(apartments.length).toBe(12);
-
-      // Check unit numbering (e.g., 101, 102, 103, 104, 201, 202, ...)
-      const unitNumbers = apartments.map((a) => a.unitNumber).sort();
-      expect(unitNumbers).toContain('101');
-      expect(unitNumbers).toContain('104');
-      expect(unitNumbers).toContain('201');
-      expect(unitNumbers).toContain('304');
+      await createBulkAndVerify({ floors: 3, unitsPerFloor: 4 }, 12, ['101', '104', '201', '304']);
     });
 
     it('should create apartments using advanced spec (custom floors)', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ floorsSpec: '2,3,5' });
-
-      assertSuccess(res, 201);
-      const data = getData(res);
-      expect(data.count).toBe(10); // Floor 2: 4 units, Floor 3: 4 units, Floor 5: 2 units
-
-      const apartments = await Apartment.find({ building: buildingId });
-      expect(apartments.length).toBe(10);
-
-      const unitNumbers = apartments.map((a) => a.unitNumber).sort();
-      expect(unitNumbers).toContain('201');
-      expect(unitNumbers).toContain('204');
-      expect(unitNumbers).toContain('301');
-      expect(unitNumbers).toContain('304');
-      expect(unitNumbers).toContain('501');
-      expect(unitNumbers).toContain('502');
+      await createBulkAndVerify({ floorsSpec: '2,3,5' }, 10, [
+        '201',
+        '204',
+        '301',
+        '304',
+        '501',
+        '502'
+      ]);
     });
 
     it('should reject bulk create if building already has apartments', async () => {
