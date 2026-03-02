@@ -31,9 +31,17 @@ class Issue {
   }
 
   static _validateInput({ title, description, priority }) {
-    if (!title || !title.trim()) throw new ValidationError('Title is required');
-    if (!description || !description.trim()) throw new ValidationError('Description is required');
-    if (priority && !VALID_PRIORITIES.includes(priority)) {
+    Issue._requireField(title, 'Title');
+    Issue._requireField(description, 'Description');
+    if (priority) Issue._validatePriority(priority);
+  }
+
+  static _requireField(value, name) {
+    if (!value || !value.trim()) throw new ValidationError(`${name} is required`);
+  }
+
+  static _validatePriority(priority) {
+    if (!VALID_PRIORITIES.includes(priority)) {
       throw new ValidationError(`Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}`);
     }
   }

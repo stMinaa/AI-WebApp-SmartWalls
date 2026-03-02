@@ -47,21 +47,26 @@ class BuildingService {
   }
 
   async assignManager(username, buildingId, managerId) {
-    const user = await this.userRepo.findByUsername(username);
-    if (!user) throw new ValidationError('User not found');
-
-    if (!BuildingPermissions.canAssignManager(user.role)) {
-      throw new AuthorizationError('Only directors can assign managers');
-    }
-
-    const building = await this.buildingRepo.findById(buildingId);
-    if (!building) throw new ValidationError('Building not found');
-
+    await this._requireDirectorRole(username);
+    const building = await this._findBuildingOrThrow(buildingId);
     if (managerId) await this._validateManager(managerId);
-
     building.assignManager(managerId || null);
     await this.buildingRepo.save(building);
     return this.buildingRepo.findByIdPopulated(buildingId);
+  }
+
+  async _requireDirectorRole(username) {
+    const user = await this.userRepo.findByUsername(username);
+    if (!user) throw new ValidationError('User not found');
+    if (!BuildingPermissions.canAssignManager(user.role)) {
+      throw new AuthorizationError('Only directors can assign managers');
+    }
+  }
+
+  async _findBuildingOrThrow(buildingId) {
+    const building = await this.buildingRepo.findById(buildingId);
+    if (!building) throw new ValidationError('Building not found');
+    return building;
   }
 
   async _validateManager(managerId) {
@@ -72,73 +77,71 @@ class BuildingService {
   }
 
   async createApartment(username, buildingId, { unitNumber, address }) {
-    const user = await this.userRepo.findByUsername(username);
-    if (!user) throw new ValidationError('User not found');
-
-    if (!BuildingPermissions.canCreateApartments(user.role)) {
-      throw new AuthorizationError('Only managers and directors can create apartments');
-    }
-
-    const building = await this.buildingRepo.findRawById(buildingId);
-    if (!building) throw new ValidationError('Building not found');
-
-    const apartment = await this.apartmentRepo.createSingle({
+    await this._requireApartmentPermission(username);
+    const building = await this._findBuildingRawOrThrow(buildingId);
+    return this.apartmentRepo.createSingle({
       buildingId: building._id,
       unitNumber,
       address: address || building.address
     });
-
-    return apartment;
   }
 
-  async bulkCreateApartments(username, buildingId, { floors, unitsPerFloor, floorsSpec }) {
+  async bulkCreateApartments(username, buildingId, spec) {
+    await this._requireApartmentPermission(username);
+    const building = await this._findBuildingRawOrThrow(buildingId);
+    await this._requireEmptyBuilding(building._id);
+    const apartments = this._generateApartments(building._id, spec);
+    const created = await this.apartmentRepo.createBulk(apartments);
+    return { count: created.length };
+  }
+
+  async _requireApartmentPermission(username) {
     const user = await this.userRepo.findByUsername(username);
     if (!user) throw new ValidationError('User not found');
-
     if (!BuildingPermissions.canCreateApartments(user.role)) {
       throw new AuthorizationError('Only managers and directors can create apartments');
     }
+  }
 
+  async _findBuildingRawOrThrow(buildingId) {
     const building = await this.buildingRepo.findRawById(buildingId);
     if (!building) throw new ValidationError('Building not found');
+    return building;
+  }
 
-    const existingCount = await this.apartmentRepo.countByBuilding(building._id);
+  async _requireEmptyBuilding(buildingId) {
+    const existingCount = await this.apartmentRepo.countByBuilding(buildingId);
     if (existingCount > 0) {
       throw new ValidationError(
         'Building already has apartments. Bulk create only works on empty buildings.'
       );
     }
-
-    const apartments = this._generateApartments(building._id, {
-      floors,
-      unitsPerFloor,
-      floorsSpec
-    });
-    const created = await this.apartmentRepo.createBulk(apartments);
-    return { count: created.length };
   }
 
   _generateApartments(buildingId, { floors, unitsPerFloor, floorsSpec }) {
+    if (floorsSpec) return this._generateFromSpec(buildingId, floorsSpec);
+    if (floors && unitsPerFloor) return this._generateFromFloors(buildingId, floors, unitsPerFloor);
+    throw new ValidationError('Either (floors + unitsPerFloor) or floorsSpec is required');
+  }
+
+  _generateFromSpec(buildingId, floorsSpec) {
+    const floorNumbers = floorsSpec.split(',').map((f) => parseInt(f.trim()));
+    return floorNumbers.flatMap((floorNum) => {
+      const unitsOnFloor = floorNum === 5 ? 2 : 4;
+      return Array.from({ length: unitsOnFloor }, (_, i) => ({
+        building: buildingId,
+        unitNumber: `${floorNum}0${i + 1}`
+      }));
+    });
+  }
+
+  _generateFromFloors(buildingId, floors, unitsPerFloor) {
     const apartments = [];
-
-    if (floorsSpec) {
-      const floorNumbers = floorsSpec.split(',').map((f) => parseInt(f.trim()));
-      for (const floorNum of floorNumbers) {
-        const unitsOnFloor = floorNum === 5 ? 2 : 4;
-        for (let unit = 1; unit <= unitsOnFloor; unit++) {
-          apartments.push({ building: buildingId, unitNumber: `${floorNum}0${unit}` });
-        }
+    for (let floor = 1; floor <= floors; floor++) {
+      for (let unit = 1; unit <= unitsPerFloor; unit++) {
+        apartments.push({ building: buildingId, unitNumber: `${floor}0${unit}` });
       }
-    } else if (floors && unitsPerFloor) {
-      for (let floor = 1; floor <= floors; floor++) {
-        for (let unit = 1; unit <= unitsPerFloor; unit++) {
-          apartments.push({ building: buildingId, unitNumber: `${floor}0${unit}` });
-        }
-      }
-    } else {
-      throw new ValidationError('Either (floors + unitsPerFloor) or floorsSpec is required');
     }
-
     return apartments;
   }
 

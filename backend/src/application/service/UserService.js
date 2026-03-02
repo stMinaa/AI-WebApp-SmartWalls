@@ -89,16 +89,7 @@ class UserService {
       throw new AuthorizationError(ERROR_MESSAGES.ONLY_DIRECTORS_APPROVE_MANAGERS);
     }
 
-    // Manager can only approve tenants in their buildings
-    if (user.role === USER_ROLES.MANAGER && targetUser.role === USER_ROLES.TENANT) {
-      const buildings = await this.userRepo.findBuildingsByManager(user._id);
-      const canApprove = buildings.some((b) => String(b._id) === String(targetUser.building));
-      if (!canApprove) {
-        throw new AuthorizationError(ERROR_MESSAGES.ONLY_MANAGERS_APPROVE_TENANTS);
-      }
-    }
-
-    // Use updateOne to bypass validation (matching original behavior)
+    await this._verifyManagerCanApproveTenant(user, targetUser);
     await this.userRepo.updateStatus(targetUserId, USER_STATUS.ACTIVE);
 
     return {
@@ -235,18 +226,7 @@ class UserService {
       throw new ValidationError('You are not assigned to any apartment yet');
     }
 
-    const apartment = await this.userRepo.findApartmentWithBuilding(user.apartment);
-    if (!apartment) {
-      throw new ValidationError('Apartment not found');
-    }
-
-    const buildingWithCount = await this.userRepo.findBuildingWithManagerAndCount(
-      apartment.building
-    );
-    if (!buildingWithCount) {
-      throw new ValidationError(ERROR_MESSAGES.BUILDING_NOT_FOUND);
-    }
-
+    const { apartment, building } = await this._getApartmentWithBuilding(user.apartment);
     return {
       apartment: {
         _id: apartment._id,
@@ -255,8 +235,28 @@ class UserService {
         numPeople: apartment.numPeople,
         floor: apartment.floor
       },
-      building: buildingWithCount
+      building
     };
+  }
+
+  async _getApartmentWithBuilding(apartmentId) {
+    const apartment = await this.userRepo.findApartmentWithBuilding(apartmentId);
+    if (!apartment) throw new ValidationError('Apartment not found');
+
+    const building = await this.userRepo.findBuildingWithManagerAndCount(apartment.building);
+    if (!building) throw new ValidationError(ERROR_MESSAGES.BUILDING_NOT_FOUND);
+
+    return { apartment, building };
+  }
+
+  async _verifyManagerCanApproveTenant(user, targetUser) {
+    if (user.role !== USER_ROLES.MANAGER || targetUser.role !== USER_ROLES.TENANT) return;
+
+    const buildings = await this.userRepo.findBuildingsByManager(user._id);
+    const canApprove = buildings.some((b) => String(b._id) === String(targetUser.building));
+    if (!canApprove) {
+      throw new AuthorizationError(ERROR_MESSAGES.ONLY_MANAGERS_APPROVE_TENANTS);
+    }
   }
 
   async listAssociateJobs(username, filters) {

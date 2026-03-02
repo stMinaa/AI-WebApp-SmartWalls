@@ -14,11 +14,11 @@ function validateEmail(email) {
   if (!email || !email.trim()) {
     return { valid: false, message: 'Email is required' };
   }
-  
+
   if (!VALIDATION_RULES.EMAIL_REGEX.test(email)) {
     return { valid: false, message: ERROR_MESSAGES.INVALID_EMAIL };
   }
-  
+
   return { valid: true };
 }
 
@@ -31,11 +31,11 @@ function validatePassword(password) {
   if (!password) {
     return { valid: false, message: 'Password is required' };
   }
-  
+
   if (password.length < VALIDATION_RULES.PASSWORD_MIN_LENGTH) {
     return { valid: false, message: ERROR_MESSAGES.PASSWORD_TOO_SHORT };
   }
-  
+
   return { valid: true };
 }
 
@@ -47,15 +47,13 @@ function validatePassword(password) {
  */
 function validateMobile(mobile, required = false) {
   if (!mobile) {
-    return required 
-      ? { valid: false, message: 'Mobile number is required' }
-      : { valid: true };
+    return required ? { valid: false, message: 'Mobile number is required' } : { valid: true };
   }
-  
+
   if (!VALIDATION_RULES.MOBILE_REGEX.test(mobile)) {
     return { valid: false, message: ERROR_MESSAGES.INVALID_MOBILE };
   }
-  
+
   return { valid: true };
 }
 
@@ -68,23 +66,23 @@ function validateUsername(username) {
   if (!username || !username.trim()) {
     return { valid: false, message: 'Username is required' };
   }
-  
+
   const trimmed = username.trim();
-  
+
   if (trimmed.length < VALIDATION_RULES.USERNAME_MIN_LENGTH) {
-    return { 
-      valid: false, 
-      message: `Username must be at least ${VALIDATION_RULES.USERNAME_MIN_LENGTH} characters` 
+    return {
+      valid: false,
+      message: `Username must be at least ${VALIDATION_RULES.USERNAME_MIN_LENGTH} characters`
     };
   }
-  
+
   if (trimmed.length > VALIDATION_RULES.USERNAME_MAX_LENGTH) {
-    return { 
-      valid: false, 
-      message: `Username must not exceed ${VALIDATION_RULES.USERNAME_MAX_LENGTH} characters` 
+    return {
+      valid: false,
+      message: `Username must not exceed ${VALIDATION_RULES.USERNAME_MAX_LENGTH} characters`
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -97,11 +95,11 @@ function validateRole(role) {
   if (!role) {
     return { valid: false, message: 'Role is required' };
   }
-  
+
   if (!VALID_ROLES.includes(role)) {
     return { valid: false, message: ERROR_MESSAGES.INVALID_ROLE };
   }
-  
+
   return { valid: true };
 }
 
@@ -111,11 +109,12 @@ function validateRole(role) {
  * @param {string} fieldName
  * @returns {Object} { valid: boolean, message?: string }
  */
+function _isMissing(value) {
+  return value === null || value === undefined || (typeof value === 'string' && !value.trim());
+}
+
 function validateRequired(value, fieldName = 'Field') {
-  if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) {
-    return { valid: false, message: `${fieldName} is required` };
-  }
-  
+  if (_isMissing(value)) return { valid: false, message: `${fieldName} is required` };
   return { valid: true };
 }
 
@@ -126,34 +125,26 @@ function validateRequired(value, fieldName = 'Field') {
  */
 function validateRegistrationData(data) {
   const { username, password, email, firstName, lastName, role, mobile } = data;
-  
-  // Check required fields
-  const requiredChecks = [
+
+  const requiredFail = [
     validateRequired(username, 'Username'),
     validateRequired(password, 'Password'),
     validateRequired(email, 'Email'),
     validateRequired(firstName, 'First name'),
     validateRequired(lastName, 'Last name'),
-    validateRequired(role, 'Role'),
-  ];
-  
-  for (const check of requiredChecks) {
-    if (!check.valid) return check;
-  }
-  
-  // Validate specific fields
-  const validations = [
+    validateRequired(role, 'Role')
+  ].find((c) => !c.valid);
+  if (requiredFail) return requiredFail;
+
+  const formatFail = [
     validateUsername(username),
     validatePassword(password),
     validateEmail(email),
     validateRole(role),
-    validateMobile(mobile, false),
-  ];
-  
-  for (const validation of validations) {
-    if (!validation.valid) return validation;
-  }
-  
+    validateMobile(mobile, false)
+  ].find((c) => !c.valid);
+  if (formatFail) return formatFail;
+
   return { valid: true };
 }
 
@@ -164,13 +155,13 @@ function validateRegistrationData(data) {
  */
 function validateLoginData(data) {
   const { username, password } = data;
-  
+
   const usernameCheck = validateRequired(username, 'Username/Email');
   if (!usernameCheck.valid) return usernameCheck;
-  
+
   const passwordCheck = validateRequired(password, 'Password');
   if (!passwordCheck.valid) return passwordCheck;
-  
+
   return { valid: true };
 }
 
@@ -193,5 +184,5 @@ module.exports = {
   validateRequired,
   validateRegistrationData,
   validateLoginData,
-  sanitizeString,
+  sanitizeString
 };

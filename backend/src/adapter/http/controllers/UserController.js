@@ -64,13 +64,10 @@ class UserController {
       'Target:',
       req.params.userId
     );
-    try {
+    return this._execute(res, async () => {
       const result = await this.userService.approveUser(req.user.username, req.params.userId);
       return ApiResponse.success(res, result, 'User approved successfully');
-    } catch (err) {
-      console.error('Approve user error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async deleteUser(req, res) {
@@ -80,13 +77,10 @@ class UserController {
       'Target:',
       req.params.userId
     );
-    try {
+    return this._execute(res, async () => {
       await this.userService.deleteUser(req.user.username, req.params.userId);
       return ApiResponse.success(res, null, 'User deleted successfully');
-    } catch (err) {
-      console.error('Delete user error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async bulkDeleteTestUsers(req, res) {
@@ -106,24 +100,18 @@ class UserController {
 
   async deleteTenant(req, res) {
     console.info('DELETE /api/tenants/:id - User:', req.user?.username, 'Tenant:', req.params.id);
-    try {
+    return this._execute(res, async () => {
       await this.userService.deleteTenant(req.user.username, req.params.id);
       return ApiResponse.success(res, null, 'Tenant deleted successfully');
-    } catch (err) {
-      console.error('Delete tenant error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async approveTenant(req, res) {
     console.info(`POST /api/tenants/:id/approve - User: ${req.user.username}`);
-    try {
+    return this._execute(res, async () => {
       const result = await this.userService.approveTenant(req.user.username, req.params.id);
       return ApiResponse.success(res, result, 'Tenant approved successfully');
-    } catch (err) {
-      console.error('Approve tenant error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async assignTenant(req, res) {
@@ -144,13 +132,10 @@ class UserController {
 
   async getMyApartment(req, res) {
     console.info(`GET /api/tenants/me/apartment - User: ${req.user.username}`);
-    try {
+    return this._execute(res, async () => {
       const result = await this.userService.getMyApartment(req.user.username);
       return ApiResponse.success(res, result, 'Apartment info retrieved');
-    } catch (err) {
-      console.error('Get tenant apartment error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
+    });
   }
 
   async listAssociateJobs(req, res) {
@@ -181,6 +166,15 @@ class UserController {
       if (err instanceof AuthorizationError) {
         return res.status(HTTP_STATUS.FORBIDDEN).json({ error: err.message });
       }
+      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
+    }
+  }
+
+  async _execute(res, fn) {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error('UserController error:', err.message);
       return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
     }
   }

@@ -19,8 +19,12 @@ const {
  * @param {Object} user - { _id, username, email, role }
  * @returns {string} JWT token
  */
+function _hasRequiredUserFields(user) {
+  return user && user._id && user.username && user.role;
+}
+
 function generateToken(user) {
-  if (!user || !user._id || !user.username || !user.role) {
+  if (!_hasRequiredUserFields(user)) {
     throw new Error('Invalid user object for token generation');
   }
 

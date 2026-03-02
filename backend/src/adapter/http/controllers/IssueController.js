@@ -5,33 +5,16 @@ const AuthorizationError = require('../../../domain/exception/AuthorizationError
 const ValidationError = require('../../../domain/exception/ValidationError');
 
 class IssueController {
-  constructor(issueService, issueRepository, userRepository) {
+  constructor(issueService) {
     this.issueService = issueService;
-    this.issueRepo = issueRepository;
-    this.userRepo = userRepository;
   }
 
   async listIssues(req, res) {
-    try {
-      console.info('GET /api/issues - User:', req.user?.username, 'Query:', req.query);
-      const user = await this.userRepo.findByUsername(req.user.username);
-      console.info('Found user:', user?.username, 'Role:', user?.role);
-
-      const { status, priority } = req.query;
-      const filters = {};
-      if (status) filters.status = status;
-      if (priority) filters.priority = priority;
-
-      const issues = await this.issueService.listIssues(
-        { role: user.role, _id: user._id },
-        filters
-      );
-
-      console.info('Returning issues:', issues.length);
-      return ApiResponse.success(res, issues, 'Issues retrieved');
-    } catch (err) {
-      return this._handleError(res, err);
-    }
+    console.info('GET /api/issues - User:', req.user?.username, 'Role will be resolved');
+    return this._fetchIssues(req, res, {
+      fn: (ctx, filters) => this.issueService.listIssues(ctx, filters),
+      msg: 'Issues retrieved'
+    });
   }
 
   async reportIssue(req, res) {
@@ -59,7 +42,7 @@ class IssueController {
       });
 
       // Match original response format: { issue: {...} } with 201 status
-      const savedDoc = await this.issueRepo.findRawById(issue.id);
+      const savedDoc = await this.issueService.findRaw(issue.id);
       console.info(`Issue created: ${issue.id}`);
       return res.status(HTTP_STATUS.CREATED).json({ issue: savedDoc });
     } catch (err) {
@@ -68,25 +51,11 @@ class IssueController {
   }
 
   async listMyIssues(req, res) {
-    try {
-      console.info(`GET /api/issues/my - User: ${req.user.username} Query:`, req.query);
-      const user = await this.userRepo.findByUsername(req.user.username);
-
-      const { status, priority } = req.query;
-      const filters = {};
-      if (status) filters.status = status;
-      if (priority) filters.priority = priority;
-
-      const issues = await this.issueService.listMyIssues(
-        { role: user.role, _id: user._id },
-        filters
-      );
-
-      console.info(`Tenant issues retrieved: ${issues.length}`);
-      return ApiResponse.success(res, issues, 'Issues retrieved successfully');
-    } catch (err) {
-      return this._handleError(res, err);
-    }
+    console.info(`GET /api/issues/my - User: ${req.user.username}`);
+    return this._fetchIssues(req, res, {
+      fn: (ctx, filters) => this.issueService.listMyIssues(ctx, filters),
+      msg: 'Issues retrieved successfully'
+    });
   }
 
   async triageIssue(req, res) {
@@ -99,7 +68,7 @@ class IssueController {
       req.body
     );
     try {
-      const user = await this.userRepo.findByUsername(req.user.username);
+      const user = await this.issueService.getUserByUsername(req.user.username);
       if (!user || user.role !== 'manager') {
         return ApiResponse.error(res, ERROR_MESSAGES.ONLY_MANAGERS_TRIAGE, HTTP_STATUS.FORBIDDEN);
       }
@@ -113,7 +82,7 @@ class IssueController {
       );
 
       // Return raw mongoose doc to match original format
-      const updatedDoc = await this.issueRepo.findRawById(issue.id);
+      const updatedDoc = await this.issueService.findRaw(issue.id);
       console.info('Issue triaged successfully:', req.params.issueId, 'Action:', action);
       return ApiResponse.success(res, updatedDoc, 'Issue triaged successfully');
     } catch (err) {
@@ -142,7 +111,7 @@ class IssueController {
       });
       if (!issue) return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
 
-      const populated = await this.issueRepo.findByIdPopulated(issue.id);
+      const populated = await this.issueService.findPopulated(issue.id);
       return ApiResponse.success(res, populated, 'Issue assigned successfully');
     } catch (err) {
       return this._handleError(res, err);
@@ -185,7 +154,7 @@ class IssueController {
         req.body.estimatedCost
       );
 
-      const populated = await this.issueRepo.findByIdPopulated(issue.id);
+      const populated = await this.issueService.findPopulated(issue.id);
       console.info(`Issue ${issue.id} accepted with cost $${req.body.estimatedCost}`);
       return ApiResponse.success(res, populated, 'Job accepted successfully');
     } catch (err) {
@@ -196,12 +165,12 @@ class IssueController {
   async rejectIssueByAssociate(req, res) {
     try {
       console.info(`POST /api/issues/${req.params.id}/reject - User: ${req.user.username}`);
-      const user = await this.userRepo.findByUsername(req.user.username);
+      const user = await this.issueService.getUserByUsername(req.user.username);
       if (!user || user.role !== 'associate') {
         return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can reject jobs' });
       }
 
-      const rawIssue = await this.issueRepo.findRawById(req.params.id);
+      const rawIssue = await this.issueService.findRaw(req.params.id);
       if (!rawIssue) {
         return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
       }
@@ -251,8 +220,8 @@ class IssueController {
         req.body.completionNotes
       );
 
-      await this._createInvoiceIfNeeded(rawIssue, user, issue);
-      const populated = await this.issueRepo.findByIdPopulated(issue.id);
+      await this.issueService.createInvoiceIfNeeded(rawIssue, user, issue);
+      const populated = await this.issueService.findPopulated(issue.id);
       console.info(`Issue ${issue.id} marked as complete`);
       return ApiResponse.success(res, populated, 'Job completed successfully');
     } catch (err) {
@@ -260,39 +229,25 @@ class IssueController {
     }
   }
 
-  _buildInvoiceData(rawIssue, user, invoiceInfo) {
-    const associateName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username;
-    const reason = `Rešavanje kvara: ${rawIssue.description?.substring(0, 100) || 'Servisni rad'}`;
-    return {
-      company: user.company || 'N/A',
-      associate: user._id,
-      associateName,
-      title: rawIssue.title,
-      reason,
-      amount: invoiceInfo.cost,
-      date: new Date(),
-      building: rawIssue.apartment?.building || null,
-      issue: invoiceInfo.id,
-      paid: false
-    };
-  }
-
-  async _createInvoiceIfNeeded(rawIssue, user, issue) {
-    const cost = issue.cost || rawIssue.cost;
-    if (!cost || cost <= 0) return;
-
-    const Invoice = require('../../../../models/Invoice');
-    const data = this._buildInvoiceData(rawIssue, user, { id: issue.id, cost });
+  async _fetchIssues(req, res, { fn, msg }) {
     try {
-      await new Invoice(data).save();
-      console.info(`Invoice created for issue ${issue.id}, Amount: ${cost}`);
-    } catch (invoiceError) {
-      console.error('Error creating invoice:', invoiceError);
+      const user = await this.issueService.getUserByUsername(req.user.username);
+      const issues = await fn({ role: user.role, _id: user._id }, this._buildFilters(req.query));
+      return ApiResponse.success(res, issues, msg);
+    } catch (err) {
+      return this._handleError(res, err);
     }
   }
 
+  _buildFilters({ status, priority }) {
+    const filters = {};
+    if (status) filters.status = status;
+    if (priority) filters.priority = priority;
+    return filters;
+  }
+
   async _requireRole(req, role, _errorMsg) {
-    const user = await this.userRepo.findByUsername(req.user.username);
+    const user = await this.issueService.getUserByUsername(req.user.username);
     if (!user || user.role !== role) return null;
     return user;
   }
@@ -306,7 +261,7 @@ class IssueController {
   }
 
   async _findAssignedIssue(res, issueId, user) {
-    const rawIssue = await this.issueRepo.findRawById(issueId);
+    const rawIssue = await this.issueService.findRaw(issueId);
     if (!rawIssue) {
       res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
       return null;
