@@ -111,8 +111,7 @@ class IssueController {
       });
       if (!issue) return ApiResponse.badRequest(res, ERROR_MESSAGES.INVALID_ACTION);
 
-      const populated = await this.issueService.findPopulated(issue.id);
-      return ApiResponse.success(res, populated, 'Issue assigned successfully');
+      return this._respondWithPopulated(res, issue.id, 'Issue assigned successfully');
     } catch (err) {
       return this._handleError(res, err);
     }
@@ -154,9 +153,8 @@ class IssueController {
         req.body.estimatedCost
       );
 
-      const populated = await this.issueService.findPopulated(issue.id);
       console.info(`Issue ${issue.id} accepted with cost $${req.body.estimatedCost}`);
-      return ApiResponse.success(res, populated, 'Job accepted successfully');
+      return this._respondWithPopulated(res, issue.id, 'Job accepted successfully');
     } catch (err) {
       return this._handleError(res, err);
     }
@@ -165,20 +163,13 @@ class IssueController {
   async rejectIssueByAssociate(req, res) {
     try {
       console.info(`POST /api/issues/${req.params.id}/reject - User: ${req.user.username}`);
-      const user = await this.issueService.getUserByUsername(req.user.username);
-      if (!user || user.role !== 'associate') {
+      const user = await this._requireRole(req, 'associate', null);
+      if (!user) {
         return res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'Only associates can reject jobs' });
       }
 
-      const rawIssue = await this.issueService.findRaw(req.params.id);
-      if (!rawIssue) {
-        return res.status(HTTP_STATUS.NOT_FOUND).json({ error: ERROR_MESSAGES.ISSUE_NOT_FOUND });
-      }
-      if (!rawIssue.assignedTo || rawIssue.assignedTo.toString() !== user._id.toString()) {
-        return res
-          .status(HTTP_STATUS.FORBIDDEN)
-          .json({ error: ERROR_MESSAGES.ISSUE_NOT_ASSIGNED_TO_YOU });
-      }
+      const rawIssue = await this._findAssignedIssue(res, req.params.id, user);
+      if (!rawIssue) return;
 
       await this.issueService.rejectByAssociate(req.params.id, {
         role: user.role,
@@ -221,12 +212,16 @@ class IssueController {
       );
 
       await this.issueService.createInvoiceIfNeeded(rawIssue, user, issue);
-      const populated = await this.issueService.findPopulated(issue.id);
       console.info(`Issue ${issue.id} marked as complete`);
-      return ApiResponse.success(res, populated, 'Job completed successfully');
+      return this._respondWithPopulated(res, issue.id, 'Job completed successfully');
     } catch (err) {
       return this._handleError(res, err);
     }
+  }
+
+  async _respondWithPopulated(res, issueId, msg) {
+    const populated = await this.issueService.findPopulated(issueId);
+    return ApiResponse.success(res, populated, msg);
   }
 
   async _fetchIssues(req, res, { fn, msg }) {

@@ -32,13 +32,7 @@ class AuthApplicationService {
       apartment: null
     });
 
-    const tokenPayload = {
-      userId: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      role: user.role
-    };
-    const token = this.authService.generateToken(tokenPayload);
+    const token = this.authService.generateToken(this._buildTokenPayload(user));
 
     return {
       message: 'User registered successfully',
@@ -57,26 +51,12 @@ class AuthApplicationService {
 
   async login(username, password) {
     const user = await this.authRepo.findByUsernameOrEmail(username);
-    if (!user) {
-      const err = new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
-      err.status = 401;
-      throw err;
-    }
+    if (!user) this._throwUnauthorized();
 
     const isMatch = await this.authService.verifyPassword(password, user.password);
-    if (!isMatch) {
-      const err = new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
-      err.status = 401;
-      throw err;
-    }
+    if (!isMatch) this._throwUnauthorized();
 
-    const tokenPayload = {
-      userId: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      role: user.role
-    };
-    const token = this.authService.generateToken(tokenPayload);
+    const token = this.authService.generateToken(this._buildTokenPayload(user));
 
     return {
       token,
@@ -136,6 +116,21 @@ class AuthApplicationService {
 
     const updatedUser = await this.authRepo.findByUsernameExcludePassword(username);
     return { user: updatedUser, remainingDebt: user.debt };
+  }
+
+  _buildTokenPayload(user) {
+    return {
+      userId: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      role: user.role
+    };
+  }
+
+  _throwUnauthorized() {
+    const err = new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    err.status = 401;
+    throw err;
   }
 
   _throwNotFound() {

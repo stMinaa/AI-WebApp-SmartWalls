@@ -98,46 +98,6 @@ class UserController {
     }
   }
 
-  async deleteTenant(req, res) {
-    console.info('DELETE /api/tenants/:id - User:', req.user?.username, 'Tenant:', req.params.id);
-    return this._execute(res, async () => {
-      await this.userService.deleteTenant(req.user.username, req.params.id);
-      return ApiResponse.success(res, null, 'Tenant deleted successfully');
-    });
-  }
-
-  async approveTenant(req, res) {
-    console.info(`POST /api/tenants/:id/approve - User: ${req.user.username}`);
-    return this._execute(res, async () => {
-      const result = await this.userService.approveTenant(req.user.username, req.params.id);
-      return ApiResponse.success(res, result, 'Tenant approved successfully');
-    });
-  }
-
-  async assignTenant(req, res) {
-    console.info(`POST /api/tenants/:id/assign - User: ${req.user.username} Body:`, req.body);
-    try {
-      const { apartmentId, buildingId, numPeople } = req.body;
-      await this.userService.assignTenant(req.user.username, req.params.id, {
-        apartmentId,
-        buildingId,
-        numPeople
-      });
-      return ApiResponse.success(res, null, 'Tenant assigned successfully');
-    } catch (err) {
-      console.error('Assign tenant error:', err);
-      return this._handleError(res, err, ERROR_MESSAGES.SERVER_ERROR);
-    }
-  }
-
-  async getMyApartment(req, res) {
-    console.info(`GET /api/tenants/me/apartment - User: ${req.user.username}`);
-    return this._execute(res, async () => {
-      const result = await this.userService.getMyApartment(req.user.username);
-      return ApiResponse.success(res, result, 'Apartment info retrieved');
-    });
-  }
-
   async listAssociateJobs(req, res) {
     try {
       console.info(`GET /api/associates/me/jobs - User: ${req.user.username} Query:`, req.query);

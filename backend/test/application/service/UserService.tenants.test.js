@@ -1,18 +1,18 @@
 const {
-  UserService,
+  TenantService,
   AuthorizationError,
   ValidationError,
   createMockRepo,
   makeUser
 } = require('./userServiceTestHelpers');
 
-describe('UserService - Tenant & Associate Operations', () => {
+describe('TenantService - Tenant Operations', () => {
   let service;
   let repo;
 
   beforeEach(() => {
     repo = createMockRepo();
-    service = new UserService(repo);
+    service = new TenantService(repo);
   });
 
   describe('deleteTenant', () => {
@@ -153,21 +153,6 @@ describe('UserService - Tenant & Associate Operations', () => {
     it('throws ValidationError if no apartment assigned', async () => {
       repo.findByUsername.mockResolvedValue(makeUser({ role: 'tenant', apartment: null }));
       await expect(service.getMyApartment('tenant')).rejects.toThrow(ValidationError);
-    });
-  });
-
-  describe('listAssociateJobs', () => {
-    it('returns jobs for associate', async () => {
-      repo.findByUsername.mockResolvedValue(makeUser({ role: 'associate' }));
-      repo.findAssociateJobs.mockResolvedValue([{ title: 'Fix pipe' }]);
-      const result = await service.listAssociateJobs('assoc', { status: 'assigned' });
-      expect(repo.findAssociateJobs).toHaveBeenCalledWith('user123', { status: 'assigned' });
-      expect(result).toHaveLength(1);
-    });
-
-    it('throws AuthorizationError for non-associate', async () => {
-      repo.findByUsername.mockResolvedValue(makeUser({ role: 'manager' }));
-      await expect(service.listAssociateJobs('manager', {})).rejects.toThrow(AuthorizationError);
     });
   });
 });

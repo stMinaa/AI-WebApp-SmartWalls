@@ -198,6 +198,21 @@ describe('UserService - User Management', () => {
     });
   });
 
+  describe('listAssociateJobs', () => {
+    it('returns jobs for associate', async () => {
+      repo.findByUsername.mockResolvedValue(makeUser({ role: 'associate' }));
+      repo.findAssociateJobs.mockResolvedValue([{ title: 'Fix pipe' }]);
+      const result = await service.listAssociateJobs('assoc', { status: 'assigned' });
+      expect(repo.findAssociateJobs).toHaveBeenCalledWith('user123', { status: 'assigned' });
+      expect(result).toHaveLength(1);
+    });
+
+    it('throws AuthorizationError for non-associate', async () => {
+      repo.findByUsername.mockResolvedValue(makeUser({ role: 'manager' }));
+      await expect(service.listAssociateJobs('manager', {})).rejects.toThrow(AuthorizationError);
+    });
+  });
+
   describe('listAssociates', () => {
     it('returns associates for manager', async () => {
       repo.findByUsername.mockResolvedValue(makeUser({ role: 'manager' }));

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { authMiddleware: authenticateToken } = require('../../../../middleware/authHelper');
-const { userController: controller } = require('../../composition');
+const { tenantController: controller } = require('../../composition');
 
 // ===== TENANT ENDPOINTS =====
 router.delete('/tenants/:id', authenticateToken, (req, res) => controller.deleteTenant(req, res));

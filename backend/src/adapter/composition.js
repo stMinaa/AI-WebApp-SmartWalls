@@ -9,6 +9,7 @@ const InvoiceService = require('../application/service/InvoiceService');
 const IssueService = require('../application/service/IssueService');
 const NoticeService = require('../application/service/NoticeService');
 const PollService = require('../application/service/PollService');
+const TenantService = require('../application/service/TenantService');
 const TestService = require('../application/service/TestService');
 const UserService = require('../application/service/UserService');
 const AuthService = require('../domain/auth/AuthService');
@@ -19,6 +20,7 @@ const InvoiceController = require('./http/controllers/InvoiceController');
 const IssueController = require('./http/controllers/IssueController');
 const NoticeController = require('./http/controllers/NoticeController');
 const PollController = require('./http/controllers/PollController');
+const TenantController = require('./http/controllers/TenantController');
 const TestController = require('./http/controllers/TestController');
 const UserController = require('./http/controllers/UserController');
 const MongoApartmentRepository = require('./persistence/MongoApartmentRepository');
@@ -50,6 +52,7 @@ const invoiceService = new InvoiceService(invoiceRepo);
 const issueService = new IssueService(issueRepo, userRepo, invoiceRepo);
 const noticeService = new NoticeService(noticeRepo);
 const pollService = new PollService(pollRepo);
+const tenantService = new TenantService(userRepo);
 const testService = new TestService(testRepo);
 const userService = new UserService(userRepo);
 
@@ -60,6 +63,7 @@ const invoiceController = new InvoiceController(invoiceService);
 const issueController = new IssueController(issueService);
 const noticeController = new NoticeController(noticeService);
 const pollController = new PollController(pollService);
+const tenantController = new TenantController(tenantService);
 const testController = new TestController(testService);
 const userController = new UserController(userService);
 
@@ -70,6 +74,7 @@ module.exports = {
   issueController,
   noticeController,
   pollController,
+  tenantController,
   testController,
   userController
 };

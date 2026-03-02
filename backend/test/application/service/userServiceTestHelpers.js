@@ -1,3 +1,4 @@
+const TenantService = require('../../../src/application/service/TenantService');
 const UserService = require('../../../src/application/service/UserService');
 const AuthorizationError = require('../../../src/domain/exception/AuthorizationError');
 const ValidationError = require('../../../src/domain/exception/ValidationError');
@@ -39,6 +40,7 @@ function makeUser(overrides = {}) {
 }
 
 module.exports = {
+  TenantService,
   UserService,
   AuthorizationError,
   ValidationError,
