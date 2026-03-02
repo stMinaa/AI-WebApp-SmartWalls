@@ -211,22 +211,23 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
       expect(res.body.message).toContain('apartmentId and buildingId are required');
     });
 
-    it('should return 404 if tenant not found', async () => {
-      const fakeId = new mongoose.Types.ObjectId();
-      const res = await sendAssign(managerToken, fakeId, { apartmentId, buildingId, numPeople: 2 });
+    it.each([
+      {
+        scenario: 'tenant',
+        getTId: () => new mongoose.Types.ObjectId(),
+        getBody: () => ({ apartmentId, buildingId, numPeople: 2 }),
+        expectedMsg: 'Tenant not found'
+      },
+      {
+        scenario: 'apartment',
+        getTId: () => tenantId,
+        getBody: () => ({ apartmentId: new mongoose.Types.ObjectId(), buildingId, numPeople: 2 }),
+        expectedMsg: 'Apartment not found'
+      }
+    ])('should return 404 if $scenario not found', async ({ getTId, getBody, expectedMsg }) => {
+      const res = await sendAssign(managerToken, getTId(), getBody());
       expect(res.status).toBe(404);
-      expect(res.body.message).toContain('Tenant not found');
-    });
-
-    it('should return 404 if apartment not found', async () => {
-      const fakeId = new mongoose.Types.ObjectId();
-      const res = await sendAssign(managerToken, tenantId, {
-        apartmentId: fakeId,
-        buildingId,
-        numPeople: 2
-      });
-      expect(res.status).toBe(404);
-      expect(res.body.message).toContain('Apartment not found');
+      expect(res.body.message).toContain(expectedMsg);
     });
 
     it('should return 401 if not authenticated', async () => {
