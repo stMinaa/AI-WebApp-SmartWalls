@@ -34,24 +34,24 @@ class InvoiceService {
     return Object.values(grouped);
   }
 
-  _validateCreateInput({ company, associateId, title, amount }) {
+  _validateStringFields(company, title) {
     if (!company?.trim()) throw new ValidationError('Company name required');
-    if (!associateId) throw new ValidationError('Associate ID required');
     if (!title?.trim()) throw new ValidationError('Invoice title required');
+  }
+
+  _validateRequiredValues(associateId, amount) {
+    if (!associateId) throw new ValidationError('Associate ID required');
     if (!amount || amount <= 0) throw new ValidationError('Valid amount required');
   }
 
-  async create(data) {
-    const { company, associateId, title, amount, reason, buildingId, issueId } = data;
-    this._validateCreateInput({ company, associateId, title, amount });
+  _validateCreateInput({ company, associateId, title, amount }) {
+    this._validateStringFields(company, title);
+    this._validateRequiredValues(associateId, amount);
+  }
 
-    const associate = await this.repo.findAssociate(associateId);
-    if (!associate || associate.role !== 'associate') {
-      throw new ValidationError(ERROR_MESSAGES.INVALID_ASSOCIATE);
-    }
-
-    const associateName = `${associate.firstName || ''} ${associate.lastName || ''}`.trim();
-    const saved = await this.repo.create({
+  _buildInvoicePayload(data, associateName) {
+    const { company, associateId, title, reason, amount, buildingId, issueId } = data;
+    return {
       company: company.trim(),
       associate: associateId,
       associateName,
@@ -60,17 +60,32 @@ class InvoiceService {
       amount: parseFloat(amount),
       building: buildingId || undefined,
       issue: issueId || undefined
-    });
+    };
+  }
 
+  async create(data) {
+    const { associateId } = data;
+    this._validateCreateInput(data);
+
+    const associate = await this.repo.findAssociate(associateId);
+    if (!associate || associate.role !== 'associate') {
+      throw new ValidationError(ERROR_MESSAGES.INVALID_ASSOCIATE);
+    }
+
+    const associateName = `${associate.firstName || ''} ${associate.lastName || ''}`.trim();
+    const saved = await this.repo.create(this._buildInvoicePayload(data, associateName));
     return this.repo.findByIdPopulated(saved._id);
   }
 
-  async markAsPaid(id) {
+  async _findValidatedInvoice(id) {
     if (!OBJECT_ID_REGEX.test(id)) throw new ValidationError('Invalid invoice ID');
-
     const invoice = await this.repo.findById(id);
     if (!invoice) throw new NotFoundException('Invoice not found');
+    return invoice;
+  }
 
+  async markAsPaid(id) {
+    const invoice = await this._findValidatedInvoice(id);
     if (invoice.paid) throw new ValidationError('Invoice already paid');
 
     invoice.paid = true;
@@ -80,11 +95,7 @@ class InvoiceService {
   }
 
   async remove(id) {
-    if (!OBJECT_ID_REGEX.test(id)) throw new ValidationError('Invalid invoice ID');
-
-    const invoice = await this.repo.findById(id);
-    if (!invoice) throw new NotFoundException('Invoice not found');
-
+    const invoice = await this._findValidatedInvoice(id);
     await this.repo.deleteOne(invoice);
   }
 }
