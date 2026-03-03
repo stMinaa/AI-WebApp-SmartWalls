@@ -26,6 +26,13 @@ let associate1, _associate2, manager, tenant;
 let directorToken, associate1Token, associate2Token, _managerToken, tenantToken;
 let building, apartment, assignedIssue, _unassignedIssue;
 
+async function callAccept(token, body) {
+  return request(app)
+    .post(`/api/issues/${assignedIssue._id}/accept`)
+    .set('Authorization', 'Bearer ' + token)
+    .send(body);
+}
+
 async function _createTestUsers(dToken) {
   const assoc1 = await createAssociate(dToken, {
     username: 'associate1',
@@ -132,10 +139,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
     });
 
     it('should accept job and update status to in-progress with cost', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({ estimatedCost: 150 });
+      const res = await callAccept(associate1Token, { estimatedCost: 150 });
 
       expect(res.status).toBe(200);
       const data = getData(res);
@@ -149,10 +153,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
     });
 
     it('should return updated issue with populated fields', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({ estimatedCost: 200 });
+      const res = await callAccept(associate1Token, { estimatedCost: 200 });
 
       expect(res.status).toBe(200);
       const data = getData(res);
@@ -165,56 +166,27 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
       expect(data.createdBy.password).toBeUndefined();
     });
 
-    it('should reject if estimatedCost is missing', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({});
-
+    test.each([
+      [{}, 'estimatedCost'],
+      [{ estimatedCost: 'not a number' }, 'estimatedCost'],
+      [{ estimatedCost: -50 }, 'positive']
+    ])('should reject invalid estimatedCost', async (body, errorMatch) => {
+      const res = await callAccept(associate1Token, body);
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('estimatedCost');
-    });
-
-    it('should reject if estimatedCost is not a number', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({ estimatedCost: 'not a number' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain('estimatedCost');
-    });
-
-    it('should reject if estimatedCost is negative', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({ estimatedCost: -50 });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain('positive');
+      expect(res.body.error).toContain(errorMatch);
     });
 
     it('should reject if issue is not assigned to the associate', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate2Token) // Different associate
-        .send({ estimatedCost: 100 });
-
+      const res = await callAccept(associate2Token, { estimatedCost: 100 });
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('not assigned');
     });
 
     it('should reject if issue is not in assigned status', async () => {
-      // Change status to in-progress
       assignedIssue.status = 'in-progress';
       await assignedIssue.save();
 
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + associate1Token)
-        .send({ estimatedCost: 100 });
-
+      const res = await callAccept(associate1Token, { estimatedCost: 100 });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('status');
     });
@@ -228,11 +200,7 @@ describe('Phase 4.2: Associate Accepts Job with Cost Estimate', () => {
     });
 
     it('should return 403 if user is not an associate', async () => {
-      const res = await request(app)
-        .post(`/api/issues/${assignedIssue._id}/accept`)
-        .set('Authorization', 'Bearer ' + tenantToken)
-        .send({ estimatedCost: 100 });
-
+      const res = await callAccept(tenantToken, { estimatedCost: 100 });
       expect(res.status).toBe(403);
       expect(res.body.message).toMatch(/associate/i);
     });

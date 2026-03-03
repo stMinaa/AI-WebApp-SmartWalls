@@ -273,53 +273,33 @@ async function createAssociate(directorToken, userData = {}) {
   return associate;
 }
 
-/**
- * Create a complete test scenario with all roles and relationships
- * @param {Object} options - Configuration options
- * @param {number} options.numManagers - Number of managers (default 1)
- * @param {number} options.numBuildings - Number of buildings (default 1)
- * @param {number} options.numApartments - Apartments per building (default 2)
- * @param {number} options.numTenants - Number of tenants (default 2)
- * @param {number} options.numAssociates - Number of associates (default 1)
- * @param {number} options.numIssues - Issues per tenant (default 1)
- * @returns {Promise<Object>} Complete scenario context
- */
-async function createCompleteScenario(options = {}) {
-  const {
-    numManagers = 1,
-    numBuildings = 1,
-    numApartments = 2,
-    numTenants = 2,
-    numAssociates = 1,
-    numIssues = 1
-  } = options;
-
-  // Create director
-  const director = await createDirector({ username: 'dir1', email: 'dir1@test.com' });
-
-  // Create managers
+async function _buildManagers(directorToken, numManagers) {
   const managers = [];
   for (let i = 0; i < numManagers; i++) {
-    const mgr = await createManager(director.token, {
+    const mgr = await createManager(directorToken, {
       username: `mgr${i + 1}`,
       email: `mgr${i + 1}@test.com`
     });
     managers.push(mgr);
   }
+  return managers;
+}
 
-  // Create buildings and assign managers
+async function _buildBuildings(directorToken, managers, numBuildings) {
   const buildings = [];
   for (let i = 0; i < numBuildings; i++) {
-    const bldId = await createBuilding(director.token, {
+    const bldId = await createBuilding(directorToken, {
       name: `Building ${i + 1}`,
       address: `${100 + i} Test Street`
     });
-    const mgr = managers[i % managers.length]; // Round-robin manager assignment
-    await assignManager(director.token, bldId, mgr._id);
+    const mgr = managers[i % managers.length];
+    await assignManager(directorToken, bldId, mgr._id);
     buildings.push({ _id: bldId, manager: mgr });
   }
+  return buildings;
+}
 
-  // Create apartments
+async function _buildApartments(buildings, numApartments) {
   const apartments = [];
   for (const building of buildings) {
     for (let i = 0; i < numApartments; i++) {
@@ -327,8 +307,10 @@ async function createCompleteScenario(options = {}) {
       apartments.push({ _id: aptId, buildingId: building._id, manager: building.manager });
     }
   }
+  return apartments;
+}
 
-  // Create tenants and assign to apartments
+async function _buildTenants(apartments, numTenants) {
   const tenants = [];
   for (let i = 0; i < numTenants && i < apartments.length; i++) {
     const tenant = await createTenant({
@@ -344,18 +326,22 @@ async function createCompleteScenario(options = {}) {
     });
     tenants.push({ ...tenant, apartmentId: apt._id, buildingId: apt.buildingId });
   }
+  return tenants;
+}
 
-  // Create associates
+async function _buildAssociates(directorToken, numAssociates) {
   const associates = [];
   for (let i = 0; i < numAssociates; i++) {
-    const assoc = await createAssociate(director.token, {
+    const assoc = await createAssociate(directorToken, {
       username: `assoc${i + 1}`,
       email: `assoc${i + 1}@test.com`
     });
     associates.push(assoc);
   }
+  return associates;
+}
 
-  // Create issues
+async function _buildIssues(tenants, numIssues) {
   const issues = [];
   for (const tenant of tenants) {
     for (let i = 0; i < numIssues; i++) {
@@ -367,16 +353,33 @@ async function createCompleteScenario(options = {}) {
       issues.push(issueId);
     }
   }
+  return issues;
+}
 
-  return {
-    director,
-    managers,
-    buildings,
-    apartments,
-    tenants,
-    associates,
-    issues
-  };
+/**
+ * Create a complete test scenario with all roles and relationships
+ * @param {Object} options - Configuration options
+ * @returns {Promise<Object>} Complete scenario context
+ */
+async function createCompleteScenario(options = {}) {
+  const {
+    numManagers = 1,
+    numBuildings = 1,
+    numApartments = 2,
+    numTenants = 2,
+    numAssociates = 1,
+    numIssues = 1
+  } = options;
+
+  const director = await createDirector({ username: 'dir1', email: 'dir1@test.com' });
+  const managers = await _buildManagers(director.token, numManagers);
+  const buildings = await _buildBuildings(director.token, managers, numBuildings);
+  const apartments = await _buildApartments(buildings, numApartments);
+  const tenants = await _buildTenants(apartments, numTenants);
+  const associates = await _buildAssociates(director.token, numAssociates);
+  const issues = await _buildIssues(tenants, numIssues);
+
+  return { director, managers, buildings, apartments, tenants, associates, issues };
 }
 
 // ========================================
@@ -437,41 +440,14 @@ async function updateIssueStatus(token, issueId, status) {
 // SECTION 6: Database Query Helpers
 // ========================================
 
-/**
- * Fetch issue from database
- * @param {string} issueId - Issue ID
- * @returns {Promise<Object>} Issue document
- */
-async function getIssueFromDB(issueId) {
-  return await Issue.findById(issueId);
+function _makeGetter(Model) {
+  return (id) => Model.findById(id);
 }
 
-/**
- * Fetch user from database
- * @param {string} userId - User ID
- * @returns {Promise<Object>} User document
- */
-async function getUserFromDB(userId) {
-  return await User.findById(userId);
-}
-
-/**
- * Fetch building from database
- * @param {string} buildingId - Building ID
- * @returns {Promise<Object>} Building document
- */
-async function getBuildingFromDB(buildingId) {
-  return await Building.findById(buildingId);
-}
-
-/**
- * Fetch apartment from database
- * @param {string} apartmentId - Apartment ID
- * @returns {Promise<Object>} Apartment document
- */
-async function getApartmentFromDB(apartmentId) {
-  return await Apartment.findById(apartmentId);
-}
+const getIssueFromDB = _makeGetter(Issue);
+const getUserFromDB = _makeGetter(User);
+const getBuildingFromDB = _makeGetter(Building);
+const getApartmentFromDB = _makeGetter(Apartment);
 
 module.exports = {
   // Section 1: Core Helpers (Original)

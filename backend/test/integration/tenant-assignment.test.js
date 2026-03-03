@@ -11,10 +11,9 @@ const {
   assignManager,
   createApartment,
   getUserFromDB,
-  getApartmentFromDB,
-  _signupUser
+  getApartmentFromDB
 } = require('../helpers');
-const { getData, assertSuccess, _assertError } = require('../helpers/responseHelpers');
+const { getData, assertSuccess } = require('../helpers/responseHelpers');
 const { connectTestDB, disconnectTestDB } = require('../setup');
 
 jest.setTimeout(60000);
@@ -78,14 +77,11 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
 
   describe('POST /api/tenants/:id/assign', () => {
     it('should assign tenant to apartment and update both records', async () => {
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 3
-        });
+      const res = await sendAssign(managerToken, tenantId, {
+        apartmentId,
+        buildingId,
+        numPeople: 3
+      });
 
       assertSuccess(res, 200);
       expect(res.body.message).toBe('Tenant assigned successfully');
@@ -100,25 +96,12 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should update numPeople if already assigned to same apartment', async () => {
-      // First assignment
-      await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
-      // Update numPeople
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 4
-        });
+      await sendAssign(managerToken, tenantId, { apartmentId, buildingId, numPeople: 2 });
+      const res = await sendAssign(managerToken, tenantId, {
+        apartmentId,
+        buildingId,
+        numPeople: 4
+      });
 
       assertSuccess(res, 200);
 
@@ -127,35 +110,18 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should free old apartment when reassigning to new apartment', async () => {
-      // Create second apartment
       const apartment2Res = await request(app)
         .post(`/api/buildings/${buildingId}/apartments`)
         .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          unitNumber: '102',
-          address: '123 Main St, Unit 102'
-        });
+        .send({ unitNumber: '102', address: '123 Main St, Unit 102' });
       const apartment2Id = getData(apartment2Res)._id;
 
-      // First assignment to apartment 1
-      await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
-      // Reassign to apartment 2
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId: apartment2Id,
-          buildingId,
-          numPeople: 3
-        });
+      await sendAssign(managerToken, tenantId, { apartmentId, buildingId, numPeople: 2 });
+      const res = await sendAssign(managerToken, tenantId, {
+        apartmentId: apartment2Id,
+        buildingId,
+        numPeople: 3
+      });
 
       expect(res.status).toBe(200);
 
@@ -181,25 +147,12 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
       });
       const tenant2Id = tenant2._id;
 
-      // Assign first tenant to apartment
-      await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
-      // Try to assign second tenant to same apartment
-      const res = await request(app)
-        .post(`/api/tenants/${tenant2Id}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 1
-        });
+      await sendAssign(managerToken, tenantId, { apartmentId, buildingId, numPeople: 2 });
+      const res = await sendAssign(managerToken, tenant2Id, {
+        apartmentId,
+        buildingId,
+        numPeople: 1
+      });
 
       expect(res.status).toBe(400);
       expect(res.body.message).toContain('already occupied');
@@ -241,15 +194,11 @@ describe('Phase 2.4: Assign Tenants to Apartments', () => {
     });
 
     it('should return 403 if user is not manager or director', async () => {
-      const res = await request(app)
-        .post(`/api/tenants/${tenantId}/assign`)
-        .set('Authorization', `Bearer ${tenantToken}`)
-        .send({
-          apartmentId,
-          buildingId,
-          numPeople: 2
-        });
-
+      const res = await sendAssign(tenantToken, tenantId, {
+        apartmentId,
+        buildingId,
+        numPeople: 2
+      });
       expect(res.status).toBe(403);
     });
 

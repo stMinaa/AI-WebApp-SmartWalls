@@ -23,6 +23,13 @@ describe('Application - IssueService', () => {
     service = new IssueService(mockIssueRepo, mockUserRepo);
   });
 
+  function mockFoundIssue(status, extra = {}) {
+    const issue = Issue.restore({ id: 'i1', title: 'T', description: 'd', status, ...extra });
+    mockIssueRepo.findById.mockResolvedValue(issue);
+    mockIssueRepo.save.mockResolvedValue(issue);
+    return issue;
+  }
+
   describe('reportIssue', () => {
     it('should create issue with reported status', async () => {
       mockUserRepo.findByUsername.mockResolvedValue({
@@ -134,14 +141,7 @@ describe('Application - IssueService', () => {
 
   describe('triageIssue', () => {
     it('should forward issue when manager sends forward action', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'reported'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('reported');
 
       const result = await service.triageIssue(
         'i1',
@@ -154,14 +154,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should reject issue when manager sends reject action', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'reported'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('reported');
 
       const result = await service.triageIssue(
         'i1',
@@ -173,14 +166,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should assign issue when manager sends assign action with associate', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'reported'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('reported');
       mockUserRepo.findByUsername.mockResolvedValue({
         _id: 'assoc1',
         role: 'associate',
@@ -214,14 +200,7 @@ describe('Application - IssueService', () => {
 
   describe('assignIssue', () => {
     it('should assign forwarded issue by director', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'forwarded'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('forwarded');
       mockUserRepo.findById.mockResolvedValue({
         _id: 'assoc1',
         role: 'associate',
@@ -235,14 +214,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should reject issue by director', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'forwarded'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('forwarded');
 
       const result = await service.rejectIssue('i1', { role: 'director', _id: 'd1' });
 
@@ -256,13 +228,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should reject if associate not valid', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'forwarded'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
+      mockFoundIssue('forwarded');
       mockUserRepo.findById.mockResolvedValue({
         _id: 'u1',
         role: 'tenant',
@@ -277,15 +243,7 @@ describe('Application - IssueService', () => {
 
   describe('acceptIssue', () => {
     it('should accept assigned issue with cost', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'assigned',
-        assignedTo: 'a1'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('assigned', { assignedTo: 'a1' });
 
       const result = await service.acceptIssue('i1', { role: 'associate', _id: 'a1' }, 500);
 
@@ -294,14 +252,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should reject if not assigned to this associate', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'assigned',
-        assignedTo: 'other'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
+      mockFoundIssue('assigned', { assignedTo: 'other' });
 
       await expect(
         service.acceptIssue('i1', { role: 'associate', _id: 'a1' }, 500)
@@ -317,16 +268,7 @@ describe('Application - IssueService', () => {
 
   describe('completeIssue', () => {
     it('should complete in-progress issue', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'in-progress',
-        assignedTo: 'a1',
-        cost: 500
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('in-progress', { assignedTo: 'a1', cost: 500 });
 
       const result = await service.completeIssue(
         'i1',
@@ -340,14 +282,7 @@ describe('Application - IssueService', () => {
     });
 
     it('should reject if issue not in-progress', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'assigned',
-        assignedTo: 'a1'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
+      mockFoundIssue('assigned', { assignedTo: 'a1' });
 
       await expect(service.completeIssue('i1', { role: 'associate', _id: 'a1' })).rejects.toThrow(
         ValidationError
@@ -357,15 +292,7 @@ describe('Application - IssueService', () => {
 
   describe('rejectByAssociate', () => {
     it('should reject assigned issue and return to forwarded', async () => {
-      const issue = Issue.restore({
-        id: 'i1',
-        title: 'T',
-        description: 'd',
-        status: 'assigned',
-        assignedTo: 'a1'
-      });
-      mockIssueRepo.findById.mockResolvedValue(issue);
-      mockIssueRepo.save.mockResolvedValue(issue);
+      mockFoundIssue('assigned', { assignedTo: 'a1' });
 
       const result = await service.rejectByAssociate('i1', { role: 'associate', _id: 'a1' });
 

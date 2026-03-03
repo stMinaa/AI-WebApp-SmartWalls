@@ -29,11 +29,23 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
   let managerId;
   let buildingId;
 
+  function postBulk(token, body) {
+    const r = request(app).post(`/api/buildings/${buildingId}/apartments/bulk`);
+    return (token ? r.set('Authorization', `Bearer ${token}`) : r).send(body);
+  }
+
+  function postSingle(token, body) {
+    const r = request(app).post(`/api/buildings/${buildingId}/apartments`);
+    return (token ? r.set('Authorization', `Bearer ${token}`) : r).send(body);
+  }
+
+  function getAptList(token) {
+    const r = request(app).get(`/api/buildings/${buildingId}/apartments`);
+    return token ? r.set('Authorization', `Bearer ${token}`) : r;
+  }
+
   async function createBulkAndVerify(body, expectedCount, expectedUnits) {
-    const res = await request(app)
-      .post(`/api/buildings/${buildingId}/apartments/bulk`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send(body);
+    const res = await postBulk(managerToken, body);
     assertSuccess(res, 201);
     const data = getData(res);
     expect(res.body.message).toMatch(/created/i);
@@ -97,36 +109,19 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
     });
 
     it('should reject bulk create if building already has apartments', async () => {
-      // First bulk create
-      await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ floors: 2, unitsPerFloor: 2 });
-
-      // Try second bulk create
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ floors: 1, unitsPerFloor: 1 });
-
+      await postBulk(managerToken, { floors: 2, unitsPerFloor: 2 });
+      const res = await postBulk(managerToken, { floors: 1, unitsPerFloor: 1 });
       assertError(res, 400);
       expect(res.body.message).toMatch(/already has apartments/i);
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .send({ floors: 2, unitsPerFloor: 2 });
-
+      const res = await postBulk(null, { floors: 2, unitsPerFloor: 2 });
       assertError(res, 401);
     });
 
     it('should return 403 if user is not manager or director', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments/bulk`)
-        .set('Authorization', `Bearer ${tenantToken}`)
-        .send({ floors: 2, unitsPerFloor: 2 });
-
+      const res = await postBulk(tenantToken, { floors: 2, unitsPerFloor: 2 });
       assertError(res, 403);
     });
 
@@ -136,61 +131,46 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
         .post(`/api/buildings/${fakeId}/apartments/bulk`)
         .set('Authorization', `Bearer ${managerToken}`)
         .send({ floors: 2, unitsPerFloor: 2 });
-
       assertError(res, 404);
     });
   });
 
   describe('POST /api/buildings/:id/apartments', () => {
     it('should create single apartment', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ unitNumber: 'A1', address: '123 Main St, Unit A1' });
-
+      const res = await postSingle(managerToken, {
+        unitNumber: 'A1',
+        address: '123 Main St, Unit A1'
+      });
       assertSuccess(res, 201);
       const data = getData(res);
       expect(data.unitNumber).toBe('A1');
       expect(data.building).toBe(buildingId);
       expect(data.address).toBe('123 Main St, Unit A1');
 
-      // Verify in database
       const apartment = await Apartment.findById(data._id);
       expect(apartment).toBeTruthy();
       expect(apartment.unitNumber).toBe('A1');
     });
 
     it('should reject if unitNumber missing', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ address: '123 Main St' });
-
+      const res = await postSingle(managerToken, { address: '123 Main St' });
       assertError(res, 400);
       expect(res.body.message).toMatch(/unit.?number.*required/i);
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments`)
-        .send({ unitNumber: 'A1' });
-
+      const res = await postSingle(null, { unitNumber: 'A1' });
       assertError(res, 401);
     });
 
     it('should return 403 if user is not manager or director', async () => {
-      const res = await request(app)
-        .post(`/api/buildings/${buildingId}/apartments`)
-        .set('Authorization', `Bearer ${tenantToken}`)
-        .send({ unitNumber: 'A1' });
-
+      const res = await postSingle(tenantToken, { unitNumber: 'A1' });
       assertError(res, 403);
     });
   });
 
   describe('GET /api/buildings/:id/apartments', () => {
     beforeEach(async () => {
-      // Create test apartments
       await Apartment.create([
         { building: buildingId, unitNumber: '101' },
         { building: buildingId, unitNumber: '102' },
@@ -199,10 +179,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
     });
 
     it('should return all apartments for building', async () => {
-      const res = await request(app)
-        .get(`/api/buildings/${buildingId}/apartments`)
-        .set('Authorization', `Bearer ${managerToken}`);
-
+      const res = await getAptList(managerToken);
       assertSuccess(res, 200);
       const data = getData(res);
       expect(Array.isArray(data)).toBe(true);
@@ -213,8 +190,7 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
     });
 
     it('should return 401 if not authenticated', async () => {
-      const res = await request(app).get(`/api/buildings/${buildingId}/apartments`);
-
+      const res = await getAptList(null);
       assertError(res, 401);
     });
 
@@ -223,7 +199,6 @@ describe('Phase 2.2: Manager Creates Apartments', () => {
       const res = await request(app)
         .get(`/api/buildings/${fakeId}/apartments`)
         .set('Authorization', `Bearer ${managerToken}`);
-
       assertError(res, 404);
     });
   });
