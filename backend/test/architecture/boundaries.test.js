@@ -13,156 +13,97 @@ const path = require('path');
 describe('🏛️ Hexagonal Architecture - Layer Boundaries', () => {
   describe('Domain Layer Purity', () => {
     it('should NOT import Express in domain layer', () => {
-      const domainPath = path.join(__dirname, '../../src/domain');
-
-      // Skip if domain layer not yet created
-      if (!fs.existsSync(domainPath)) {
-        console.log('⏭️  Domain layer not yet created - skipping');
-        return;
-      }
-
-      const domainFiles = findFilesInDir(domainPath, '.js');
-
-      domainFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toContain("require('express')");
-        expect(content).not.toContain("from 'express'");
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/domain'),
+        { skip: 'Domain layer not yet created' },
+        (content) => {
+          expect(content).not.toContain("require('express')");
+          expect(content).not.toContain("from 'express'");
+        }
+      );
     });
 
     it('should NOT import Mongoose in domain layer', () => {
-      const domainPath = path.join(__dirname, '../../src/domain');
-
-      if (!fs.existsSync(domainPath)) {
-        console.log('⏭️  Domain layer not yet created - skipping');
-        return;
-      }
-
-      const domainFiles = findFilesInDir(domainPath, '.js');
-
-      domainFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toContain("require('mongoose')");
-        expect(content).not.toContain("from 'mongoose'");
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/domain'),
+        { skip: 'Domain layer not yet created' },
+        (content) => {
+          expect(content).not.toContain("require('mongoose')");
+          expect(content).not.toContain("from 'mongoose'");
+        }
+      );
     });
 
     it('should NOT import infrastructure adapters in domain layer', () => {
-      const domainPath = path.join(__dirname, '../../src/domain');
-
-      if (!fs.existsSync(domainPath)) {
-        console.log('⏭️  Domain layer not yet created - skipping');
-        return;
-      }
-
-      const domainFiles = findFilesInDir(domainPath, '.js');
-
-      domainFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toMatch(/require\(['"].*adapters/);
-        expect(content).not.toMatch(/from ['"].*adapters/);
-        expect(content).not.toMatch(/require\(['"].*infrastructure/);
-        expect(content).not.toMatch(/from ['"].*infrastructure/);
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/domain'),
+        { skip: 'Domain layer not yet created' },
+        (content) => {
+          expect(content).not.toMatch(/require\(['"].*adapters/);
+          expect(content).not.toMatch(/from ['"].*adapters/);
+          expect(content).not.toMatch(/require\(['"].*infrastructure/);
+          expect(content).not.toMatch(/from ['"].*infrastructure/);
+        }
+      );
     });
   });
 
   describe('Application Layer Boundaries', () => {
     it('should NOT import HTTP adapters in use cases', () => {
-      const appPath = path.join(__dirname, '../../src/application');
-
-      if (!fs.existsSync(appPath)) {
-        console.log('⏭️  Application layer not yet created - skipping');
-        return;
-      }
-
-      const useCaseFiles = findFilesInDir(appPath, '.js');
-
-      useCaseFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toMatch(/require\(['"].*adapters\/http/);
-        expect(content).not.toMatch(/from ['"].*adapters\/http/);
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/application'),
+        { skip: 'Application layer not yet created' },
+        (content) => {
+          expect(content).not.toMatch(/require\(['"].*adapters\/http/);
+          expect(content).not.toMatch(/from ['"].*adapters\/http/);
+        }
+      );
     });
 
     it('should NOT import Mongoose directly in use cases', () => {
-      const appPath = path.join(__dirname, '../../src/application');
-
-      if (!fs.existsSync(appPath)) {
-        console.log('⏭️  Application layer not yet created - skipping');
-        return;
-      }
-
-      const useCaseFiles = findFilesInDir(appPath, '.js');
-
-      useCaseFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toContain("require('mongoose')");
-        expect(content).not.toContain("from 'mongoose'");
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/application'),
+        { skip: 'Application layer not yet created' },
+        (content) => {
+          expect(content).not.toContain("require('mongoose')");
+          expect(content).not.toContain("from 'mongoose'");
+        }
+      );
     });
 
     it('should use repositories via constructor injection', () => {
-      const appPath = path.join(__dirname, '../../src/application');
-
-      if (!fs.existsSync(appPath)) {
-        console.log('⏭️  Application layer not yet created - skipping');
-        return;
-      }
-
-      const useCaseFiles = findFilesInDir(appPath, 'UseCase.js');
-
-      useCaseFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        // If it mentions repositories, must have constructor
-        if (content.includes('Repository')) {
-          expect(content).toMatch(/constructor\s*\(/);
+      _forEachFile(
+        path.join(__dirname, '../../src/application'),
+        { ext: 'UseCase.js', skip: 'Application layer not yet created' },
+        (content) => {
+          if (content.includes('Repository')) {
+            expect(content).toMatch(/constructor\s*\(/);
+          }
         }
-      });
+      );
     });
   });
 
   describe('Controller Layer (HTTP Adapters)', () => {
     it('should NOT import Mongoose models in controllers', () => {
-      const controllersPath = path.join(__dirname, '../../src/adapters/http/controllers');
-
-      if (!fs.existsSync(controllersPath)) {
-        console.log('⏭️  Controllers not yet created - skipping');
-        return;
-      }
-
-      const controllerFiles = findFilesInDir(controllersPath, '.js');
-
-      controllerFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        expect(content).not.toMatch(/require\(['"].*models\//);
-        expect(content).not.toMatch(/from ['"].*models\//);
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/adapters/http/controllers'),
+        { skip: 'Controllers not yet created' },
+        (content) => {
+          expect(content).not.toMatch(/require\(['"].*models\//);
+          expect(content).not.toMatch(/from ['"].*models\//);
+        }
+      );
     });
 
     it('should use dependency injection for use cases', () => {
-      const controllersPath = path.join(__dirname, '../../src/adapters/http/controllers');
-
-      if (!fs.existsSync(controllersPath)) {
-        console.log('⏭️  Controllers not yet created - skipping');
-        return;
-      }
-
-      const controllerFiles = findFilesInDir(controllersPath, 'Controller.js');
-
-      controllerFiles.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        // Controllers should inject dependencies via constructor
-        expect(content).toMatch(/constructor\s*\(/);
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src/adapters/http/controllers'),
+        { ext: 'Controller.js', skip: 'Controllers not yet created' },
+        (content) => {
+          expect(content).toMatch(/constructor\s*\(/);
+        }
+      );
     });
   });
 
@@ -188,24 +129,16 @@ describe('🏛️ Hexagonal Architecture - Layer Boundaries', () => {
 
   describe('Migration Boundaries', () => {
     it('should NOT import old structure from new hexagonal code', () => {
-      const srcPath = path.join(__dirname, '../../src');
-
-      if (!fs.existsSync(srcPath)) {
-        console.log('⏭️  Hexagonal structure not yet created - skipping');
-        return;
-      }
-
-      const files = findFilesInDir(srcPath, '.js');
-
-      files.forEach((file) => {
-        const content = fs.readFileSync(file, 'utf-8');
-
-        // New code should not depend on old services/routes
-        expect(content).not.toMatch(/require\(['"].*\/services\//);
-        expect(content).not.toMatch(/require\(['"].*\/routes\//);
-        expect(content).not.toMatch(/from ['"].*\/services\//);
-        expect(content).not.toMatch(/from ['"].*\/routes\//);
-      });
+      _forEachFile(
+        path.join(__dirname, '../../src'),
+        { skip: 'Hexagonal structure not yet created' },
+        (content) => {
+          expect(content).not.toMatch(/require\(['"].*\/services\//);
+          expect(content).not.toMatch(/require\(['"].*\/routes\//);
+          expect(content).not.toMatch(/from ['"].*\/services\//);
+          expect(content).not.toMatch(/from ['"].*\/routes\//);
+        }
+      );
     });
   });
 });
@@ -250,6 +183,14 @@ describe('📏 Code Quality Metrics', () => {
 // ═══════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════
+
+function _forEachFile(dirPath, { ext = '.js', skip }, check) {
+  if (!fs.existsSync(dirPath)) {
+    console.log(`⏭️  ${skip} - skipping`);
+    return;
+  }
+  findFilesInDir(dirPath, ext).forEach((file) => check(fs.readFileSync(file, 'utf-8')));
+}
 
 function findFilesInDir(dir, extension) {
   if (!fs.existsSync(dir)) {

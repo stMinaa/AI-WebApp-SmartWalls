@@ -11,6 +11,27 @@
 const fs = require('fs');
 const path = require('path');
 
+function _findCycles(fileA, depPath, { dependencies, circular }) {
+  const fileB = depPath.replace(/^\.\.?\//, '');
+  if (!dependencies[fileB]) return;
+  dependencies[fileB].forEach((depPathB) => {
+    const fileC = depPathB.replace(/^\.\.?\//, '');
+    if (fileC.includes(fileA.replace('.js', ''))) {
+      circular.push({ from: fileA, to: fileB, back: fileC });
+    }
+  });
+}
+
+function _checkNaming(dir, isBadName, label) {
+  const files = findJsFiles(dir);
+  const badNames = files
+    .filter((file) => isBadName(path.basename(file, '.js')))
+    .map((file) => path.relative(path.join(__dirname, '../..'), file));
+  console.log(`\n📊 ${label} with incorrect naming: ${badNames.length}/${files.length}`);
+  if (badNames.length > 0) console.log(`   Files:`, badNames);
+  expect(badNames.length).toBe(0);
+}
+
 // Helper: Recursively find all .js files in a directory
 function findJsFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) {
@@ -221,19 +242,9 @@ describe('🏗️ Architectural Baseline (Current State)', () => {
       // Simple circular check: A -> B -> A
       const circular = [];
       Object.keys(dependencies).forEach((fileA) => {
-        dependencies[fileA].forEach((depPath) => {
-          // Normalize path
-          const fileB = depPath.replace(/^\.\.?\//, '');
-
-          if (dependencies[fileB]) {
-            dependencies[fileB].forEach((depPathB) => {
-              const fileC = depPathB.replace(/^\.\.?\//, '');
-              if (fileC.includes(fileA.replace('.js', ''))) {
-                circular.push({ from: fileA, to: fileB, back: fileC });
-              }
-            });
-          }
-        });
+        dependencies[fileA].forEach((depPath) =>
+          _findCycles(fileA, depPath, { dependencies, circular })
+        );
       });
 
       if (circular.length > 0) {
@@ -252,48 +263,19 @@ describe('🏗️ Architectural Baseline (Current State)', () => {
 
   describe('Naming Conventions', () => {
     it('should check service file naming', () => {
-      const servicesDir = path.join(__dirname, '../../services');
-      const serviceFiles = findJsFiles(servicesDir);
-
-      const badNames = serviceFiles
-        .filter((file) => {
-          const basename = path.basename(file, '.js');
-          return !basename.endsWith('Service') && basename !== 'index';
-        })
-        .map((file) => path.relative(path.join(__dirname, '../..'), file));
-
-      console.log(
-        `\n📊 Service files with incorrect naming: ${badNames.length}/${serviceFiles.length}`
+      _checkNaming(
+        path.join(__dirname, '../../services'),
+        (f) => !f.endsWith('Service') && f !== 'index',
+        'Service files'
       );
-      if (badNames.length > 0) {
-        console.log('   Files not ending with "Service":', badNames);
-      }
-
-      // Services should end with "Service"
-      expect(badNames.length).toBe(0);
     });
 
     it('should check model file naming', () => {
-      const modelsDir = path.join(__dirname, '../../models');
-      const modelFiles = findJsFiles(modelsDir);
-
-      const badNames = modelFiles
-        .filter((file) => {
-          const basename = path.basename(file, '.js');
-          // Models should be PascalCase
-          return basename[0] !== basename[0].toUpperCase() && basename !== 'index';
-        })
-        .map((file) => path.relative(path.join(__dirname, '../..'), file));
-
-      console.log(
-        `\n📊 Model files with incorrect naming: ${badNames.length}/${modelFiles.length}`
+      _checkNaming(
+        path.join(__dirname, '../../models'),
+        (f) => f[0] !== f[0].toUpperCase() && f !== 'index',
+        'Model files'
       );
-      if (badNames.length > 0) {
-        console.log('   Files not starting with uppercase:', badNames);
-      }
-
-      // Models should be PascalCase
-      expect(badNames.length).toBe(0);
     });
   });
 

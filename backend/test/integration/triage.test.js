@@ -93,24 +93,16 @@ describe('Issue Triage - PATCH /api/issues/:issueId/triage', () => {
     });
   });
 
-  test('should forward an issue (action=forward)', async () => {
+  test.each([
+    ['forward', 'forwarded'],
+    ['reject', 'rejected']
+  ])('should %s an issue', async (action, expectedStatus) => {
     const res = await request(app)
       .patch(`/api/issues/${issueId}/triage`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ action: 'forward' });
+      .send({ action });
     assertSuccess(res, 200);
-    const data = getData(res);
-    expect(data.status).toBe('forwarded');
-  });
-
-  test('should reject an issue (action=reject)', async () => {
-    const res = await request(app)
-      .patch(`/api/issues/${issueId}/triage`)
-      .set('Authorization', `Bearer ${managerToken}`)
-      .send({ action: 'reject' });
-    assertSuccess(res, 200);
-    const data = getData(res);
-    expect(data.status).toBe('rejected');
+    expect(getData(res).status).toBe(expectedStatus);
   });
 
   test('should assign issue to associate (action=assign)', async () => {

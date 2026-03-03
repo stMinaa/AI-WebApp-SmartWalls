@@ -19,39 +19,21 @@ describe('ApiResponse Utility', () => {
   });
 
   describe('Success responses', () => {
-    test('success() should return 200 with data', () => {
-      const data = { id: 1, name: 'Test' };
-      ApiResponse.success(mockRes, data, 'Success message');
-
-      expect(mockRes.status).toHaveBeenCalledWith(HTTP_STATUS.OK);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Success message',
-        data
-      });
+    test.each([
+      [ApiResponse.success, HTTP_STATUS.OK, 'Success message'],
+      [ApiResponse.created, HTTP_STATUS.CREATED, 'Created']
+    ])('success method returns correct response', (method, expectedStatus, message) => {
+      const data = { id: 1 };
+      method(mockRes, data, message);
+      expect(mockRes.status).toHaveBeenCalledWith(expectedStatus);
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true, message, data });
     });
 
     test('success() should handle custom status code', () => {
       ApiResponse.success(mockRes, null, 'OK', 204);
 
       expect(mockRes.status).toHaveBeenCalledWith(204);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'OK',
-        data: null
-      });
-    });
-
-    test('created() should return 201', () => {
-      const data = { id: 1 };
-      ApiResponse.created(mockRes, data, 'Created');
-
-      expect(mockRes.status).toHaveBeenCalledWith(HTTP_STATUS.CREATED);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Created',
-        data
-      });
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true, message: 'OK', data: null });
     });
   });
 
@@ -128,33 +110,18 @@ describe('ApiResponse Utility', () => {
       });
     });
 
-    test('serverError() should hide error details in production', () => {
+    test.each([
+      ['production', 'Sensitive info', null],
+      ['development', 'Debug info', 'Debug info']
+    ])('serverError() behaves correctly in %s', (env, errorMsg, expectedError) => {
       const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      process.env.NODE_ENV = env;
 
-      const error = new Error('Sensitive info');
-      ApiResponse.serverError(mockRes, 'Server error', error);
+      ApiResponse.serverError(mockRes, 'Server error', new Error(errorMsg));
 
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Server error'
-      });
-
-      process.env.NODE_ENV = originalEnv;
-    });
-
-    test('serverError() should include error details in development', () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
-
-      const error = new Error('Debug info');
-      ApiResponse.serverError(mockRes, 'Server error', error);
-
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Server error',
-        error: 'Debug info'
-      });
+      const expected = { success: false, message: 'Server error' };
+      if (expectedError) expected.error = expectedError;
+      expect(mockRes.json).toHaveBeenCalledWith(expected);
 
       process.env.NODE_ENV = originalEnv;
     });

@@ -37,6 +37,13 @@ beforeEach(async () => {
   await clearTestDB();
 });
 
+async function _patchIssue(id, endpoint, { token, body }) {
+  return request(app)
+    .patch(`/api/issues/${id}/${endpoint}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send(body);
+}
+
 describe('Routes Layer - Issues API', () => {
   let tenantToken, managerToken, directorToken;
   let tenantId, managerId, _directorId;
@@ -154,22 +161,19 @@ describe('Routes Layer - Issues API', () => {
     });
 
     it('should forward issue when user is MANAGER', async () => {
-      const res = await request(app)
-        .patch(`/api/issues/${issueId}/triage`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ action: 'forward' });
-
+      const res = await _patchIssue(issueId, 'triage', {
+        token: managerToken,
+        body: { action: 'forward' }
+      });
       expect(res.status).toBe(200);
-      // ApiResponse.success wraps in { success, message, data }
       expect(res.body.data.status).toBe('forwarded');
     });
 
     it('should return 403 when user is TENANT', async () => {
-      const res = await request(app)
-        .patch(`/api/issues/${issueId}/triage`)
-        .set('Authorization', `Bearer ${tenantToken}`)
-        .send({ action: 'forward' });
-
+      const res = await _patchIssue(issueId, 'triage', {
+        token: tenantToken,
+        body: { action: 'forward' }
+      });
       expect(res.status).toBe(403);
     });
   });
@@ -203,27 +207,19 @@ describe('Routes Layer - Issues API', () => {
     });
 
     it('should assign issue when user is DIRECTOR', async () => {
-      const res = await request(app)
-        .patch(`/api/issues/${issueId}/assign`)
-        .set('Authorization', `Bearer ${directorToken}`)
-        .send({
-          action: 'assign',
-          assignedTo: associateId
-        });
-
+      const res = await _patchIssue(issueId, 'assign', {
+        token: directorToken,
+        body: { action: 'assign', assignedTo: associateId }
+      });
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('assigned');
     });
 
     it('should return 403 when user is MANAGER', async () => {
-      const res = await request(app)
-        .patch(`/api/issues/${issueId}/assign`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({
-          action: 'assign',
-          assignedTo: associateId
-        });
-
+      const res = await _patchIssue(issueId, 'assign', {
+        token: managerToken,
+        body: { action: 'assign', assignedTo: associateId }
+      });
       expect(res.status).toBe(403);
     });
   });
