@@ -5,30 +5,23 @@
 
 const UserValidator = require('../../validators/UserValidator');
 
+const validBase = {
+  username: 'testuser',
+  email: 'test@example.com',
+  password: 'Test123!',
+  firstName: 'Test',
+  lastName: 'User',
+  role: 'tenant'
+};
+
 describe('UserValidator - Signup', () => {
-  test('valid signup data should pass', () => {
-    const data = {
-      username: 'testuser',
-      email: 'test@example.com',
-      password: 'Test123!',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'tenant'
-    };
-
-    const result = UserValidator.validateSignup(data);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toBeUndefined();
-  });
-
-  const validBase = {
-    username: 'testuser',
-    email: 'test@example.com',
-    password: 'Test123!',
-    firstName: 'Test',
-    lastName: 'User',
-    role: 'tenant'
-  };
+  test.each([[validBase], [{ ...validBase, mobile: '0641234567' }]])(
+    'valid signup data should pass',
+    (data) => {
+      const result = UserValidator.validateSignup(data);
+      expect(result.valid).toBe(true);
+    }
+  );
 
   test.each([
     ['username', 'Username is required'],
@@ -44,91 +37,21 @@ describe('UserValidator - Signup', () => {
     expect(result.errors).toContain(expectedError);
   });
 
-  test('invalid email format should fail', () => {
-    const data = {
-      username: 'testuser',
-      email: 'invalid-email',
-      password: 'Test123!',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'tenant'
-    };
-
+  test.each([
+    [{ ...validBase, email: 'invalid-email' }, 'Invalid email format'],
+    [{ ...validBase, password: '123' }, 'Password must be at least'],
+    [{ ...validBase, role: 'superadmin' }, 'Invalid role'],
+    [{ ...validBase, mobile: '123' }, 'Mobile']
+  ])('invalid field value should fail', (data, errorFragment) => {
     const result = UserValidator.validateSignup(data);
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Invalid email format');
-  });
-
-  test('short password should fail', () => {
-    const data = {
-      username: 'testuser',
-      email: 'test@example.com',
-      password: '123',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'tenant'
-    };
-
-    const result = UserValidator.validateSignup(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('Password must be at least'))).toBe(true);
-  });
-
-  test('invalid role should fail', () => {
-    const data = {
-      username: 'testuser',
-      email: 'test@example.com',
-      password: 'Test123!',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'superadmin'
-    };
-
-    const result = UserValidator.validateSignup(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('Invalid role'))).toBe(true);
-  });
-
-  test('valid signup with mobile should pass', () => {
-    const data = {
-      username: 'testuser',
-      email: 'test@example.com',
-      password: 'Test123!',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'tenant',
-      mobile: '0641234567'
-    };
-
-    const result = UserValidator.validateSignup(data);
-    expect(result.valid).toBe(true);
-  });
-
-  test('invalid mobile format should fail', () => {
-    const data = {
-      username: 'testuser',
-      email: 'test@example.com',
-      password: 'Test123!',
-      firstName: 'Test',
-      lastName: 'User',
-      role: 'tenant',
-      mobile: '123'
-    };
-
-    const result = UserValidator.validateSignup(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('Mobile'))).toBe(true);
+    expect(result.errors.some((e) => e.includes(errorFragment))).toBe(true);
   });
 });
 
 describe('UserValidator - Login', () => {
   test('valid login data should pass', () => {
-    const data = {
-      username: 'testuser',
-      password: 'Test123!'
-    };
-
-    const result = UserValidator.validateLogin(data);
+    const result = UserValidator.validateLogin({ username: 'testuser', password: 'Test123!' });
     expect(result.valid).toBe(true);
     expect(result.errors).toBeUndefined();
   });
@@ -146,52 +69,22 @@ describe('UserValidator - Login', () => {
 });
 
 describe('UserValidator - Profile Update', () => {
-  test('valid profile update should pass', () => {
-    const data = {
-      firstName: 'Updated',
-      lastName: 'Name',
-      mobile: '0641234567'
-    };
-
-    const result = UserValidator.validateProfileUpdate(data);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toBeUndefined();
-  });
-
-  test('empty data should pass (optional fields)', () => {
-    const data = {};
-
+  test.each([
+    [{ firstName: 'Updated', lastName: 'Name', mobile: '0641234567' }],
+    [{}],
+    [{ firstName: 'John' }],
+    [{ firstName: 'John', company: 'Tech Corp' }]
+  ])('valid profile update should pass', (data) => {
     const result = UserValidator.validateProfileUpdate(data);
     expect(result.valid).toBe(true);
   });
 
   test('invalid mobile format should fail', () => {
-    const data = {
+    const result = UserValidator.validateProfileUpdate({
       firstName: 'Updated',
       mobile: 'not-a-number'
-    };
-
-    const result = UserValidator.validateProfileUpdate(data);
+    });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('Mobile'))).toBe(true);
-  });
-
-  test('valid update with only firstName should pass', () => {
-    const data = {
-      firstName: 'John'
-    };
-
-    const result = UserValidator.validateProfileUpdate(data);
-    expect(result.valid).toBe(true);
-  });
-
-  test('valid update with company (for associates) should pass', () => {
-    const data = {
-      firstName: 'John',
-      company: 'Tech Corp'
-    };
-
-    const result = UserValidator.validateProfileUpdate(data);
-    expect(result.valid).toBe(true);
   });
 });

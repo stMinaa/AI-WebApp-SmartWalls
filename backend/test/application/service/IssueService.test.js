@@ -57,45 +57,19 @@ describe('Application - IssueService', () => {
       expect(mockIssueRepo.save).toHaveBeenCalled();
     });
 
-    it('should reject if user is not tenant', async () => {
-      mockUserRepo.findByUsername.mockResolvedValue({
-        _id: 'user1',
-        role: 'manager'
-      });
-
-      await expect(
-        service.reportIssue('manager1', {
-          title: 'Test',
-          description: 'desc'
-        })
-      ).rejects.toThrow(AuthorizationError);
-    });
-
-    it('should reject if tenant has no apartment', async () => {
-      mockUserRepo.findByUsername.mockResolvedValue({
-        _id: 'user1',
-        role: 'tenant',
-        apartment: null
-      });
-
-      await expect(
-        service.reportIssue('tenant1', {
-          title: 'Test',
-          description: 'desc'
-        })
-      ).rejects.toThrow(ValidationError);
-    });
-
-    it('should reject if user not found', async () => {
-      mockUserRepo.findByUsername.mockResolvedValue(null);
-
-      await expect(
-        service.reportIssue('nobody', {
-          title: 'Test',
-          description: 'desc'
-        })
-      ).rejects.toThrow('User not found');
-    });
+    test.each([
+      ['manager1', { _id: 'user1', role: 'manager' }, AuthorizationError],
+      ['tenant1', { _id: 'user1', role: 'tenant', apartment: null }, ValidationError],
+      ['nobody', null, 'User not found']
+    ])(
+      'should reject reportIssue for invalid user state',
+      async (username, mockUser, expectedError) => {
+        mockUserRepo.findByUsername.mockResolvedValue(mockUser);
+        await expect(
+          service.reportIssue(username, { title: 'Test', description: 'desc' })
+        ).rejects.toThrow(expectedError);
+      }
+    );
   });
 
   describe('listIssues', () => {
@@ -140,29 +114,14 @@ describe('Application - IssueService', () => {
   });
 
   describe('triageIssue', () => {
-    it('should forward issue when manager sends forward action', async () => {
+    test.each([
+      ['forward', 'forwarded'],
+      ['reject', 'rejected']
+    ])('should %s issue when manager sends action', async (action, expectedStatus) => {
       mockFoundIssue('reported');
-
-      const result = await service.triageIssue(
-        'i1',
-        { role: 'manager', _id: 'm1' },
-        { action: 'forward' }
-      );
-
-      expect(result.status).toBe('forwarded');
+      const result = await service.triageIssue('i1', { role: 'manager', _id: 'm1' }, { action });
+      expect(result.status).toBe(expectedStatus);
       expect(mockIssueRepo.save).toHaveBeenCalled();
-    });
-
-    it('should reject issue when manager sends reject action', async () => {
-      mockFoundIssue('reported');
-
-      const result = await service.triageIssue(
-        'i1',
-        { role: 'manager', _id: 'm1' },
-        { action: 'reject' }
-      );
-
-      expect(result.status).toBe('rejected');
     });
 
     it('should assign issue when manager sends assign action with associate', async () => {

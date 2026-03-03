@@ -199,21 +199,30 @@ async function apiDelete(endpoint, token, expectedStatus = 200) {
 // SECTION 4: Composite Setup Helpers
 // ========================================
 
+function _userDefaults(role) {
+  return {
+    username: `${role}_test`,
+    email: `${role}@test.com`,
+    password: 'Test123!',
+    firstName: role.charAt(0).toUpperCase() + role.slice(1),
+    lastName: 'Test',
+    role
+  };
+}
+
 /**
  * Create a director user (auto-approved)
  * @param {Object} userData - Optional user data override
  * @returns {Promise<{_id: string, token: string}>}
  */
 async function createDirector(userData = {}) {
-  const defaultData = {
-    username: 'director_test',
-    email: 'director@test.com',
-    password: 'Test123!',
-    firstName: 'Director',
-    lastName: 'Test',
-    role: 'director'
-  };
-  return await signupUser({ ...defaultData, ...userData });
+  return signupUser({ ..._userDefaults('director'), ...userData });
+}
+
+async function _createApproved(directorToken, role, userData) {
+  const user = await signupUser({ ..._userDefaults(role), ...userData });
+  await approveUser(directorToken, user._id);
+  return user;
 }
 
 /**
@@ -223,17 +232,7 @@ async function createDirector(userData = {}) {
  * @returns {Promise<{_id: string, token: string}>}
  */
 async function createManager(directorToken, userData = {}) {
-  const defaultData = {
-    username: 'manager_test',
-    email: 'manager@test.com',
-    password: 'Test123!',
-    firstName: 'Manager',
-    lastName: 'Test',
-    role: 'manager'
-  };
-  const manager = await signupUser({ ...defaultData, ...userData });
-  await approveUser(directorToken, manager._id);
-  return manager;
+  return _createApproved(directorToken, 'manager', userData);
 }
 
 /**
@@ -242,15 +241,7 @@ async function createManager(directorToken, userData = {}) {
  * @returns {Promise<{_id: string, token: string}>}
  */
 async function createTenant(userData = {}) {
-  const defaultData = {
-    username: 'tenant_test',
-    email: 'tenant@test.com',
-    password: 'Test123!',
-    firstName: 'Tenant',
-    lastName: 'Test',
-    role: 'tenant'
-  };
-  return await signupUser({ ...defaultData, ...userData });
+  return signupUser({ ..._userDefaults('tenant'), ...userData });
 }
 
 /**
@@ -260,29 +251,24 @@ async function createTenant(userData = {}) {
  * @returns {Promise<{_id: string, token: string}>}
  */
 async function createAssociate(directorToken, userData = {}) {
-  const defaultData = {
-    username: 'associate_test',
-    email: 'associate@test.com',
-    password: 'Test123!',
-    firstName: 'Associate',
-    lastName: 'Test',
-    role: 'associate'
-  };
-  const associate = await signupUser({ ...defaultData, ...userData });
-  await approveUser(directorToken, associate._id);
-  return associate;
+  return _createApproved(directorToken, 'associate', userData);
+}
+
+async function _buildUserList(createFn, directorToken, { num, prefix }) {
+  const users = [];
+  for (let i = 0; i < num; i++) {
+    users.push(
+      await createFn(directorToken, {
+        username: `${prefix}${i + 1}`,
+        email: `${prefix}${i + 1}@test.com`
+      })
+    );
+  }
+  return users;
 }
 
 async function _buildManagers(directorToken, numManagers) {
-  const managers = [];
-  for (let i = 0; i < numManagers; i++) {
-    const mgr = await createManager(directorToken, {
-      username: `mgr${i + 1}`,
-      email: `mgr${i + 1}@test.com`
-    });
-    managers.push(mgr);
-  }
-  return managers;
+  return _buildUserList(createManager, directorToken, { num: numManagers, prefix: 'mgr' });
 }
 
 async function _buildBuildings(directorToken, managers, numBuildings) {
@@ -330,15 +316,7 @@ async function _buildTenants(apartments, numTenants) {
 }
 
 async function _buildAssociates(directorToken, numAssociates) {
-  const associates = [];
-  for (let i = 0; i < numAssociates; i++) {
-    const assoc = await createAssociate(directorToken, {
-      username: `assoc${i + 1}`,
-      email: `assoc${i + 1}@test.com`
-    });
-    associates.push(assoc);
-  }
-  return associates;
+  return _buildUserList(createAssociate, directorToken, { num: numAssociates, prefix: 'assoc' });
 }
 
 async function _buildIssues(tenants, numIssues) {
