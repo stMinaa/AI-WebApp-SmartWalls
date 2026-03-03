@@ -26,6 +26,12 @@ function checkRequired(data, fields) {
   return errors;
 }
 
+function _getMobileErrors(mobile) {
+  if (!mobile) return [];
+  const check = validateMobile(mobile, false);
+  return check.valid ? [] : [check.message];
+}
+
 function checkFormats(data) {
   const errors = [];
   const checks = [
@@ -37,11 +43,7 @@ function checkFormats(data) {
   for (const check of checks) {
     if (!check.valid) errors.push(check.message);
   }
-  if (data.mobile) {
-    const mobileCheck = validateMobile(data.mobile, false);
-    if (!mobileCheck.valid) errors.push(mobileCheck.message);
-  }
-  return errors;
+  return errors.concat(_getMobileErrors(data.mobile));
 }
 
 function validateSignup(data) {

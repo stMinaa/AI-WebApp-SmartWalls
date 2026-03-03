@@ -15,41 +15,43 @@ function Test-Endpoint {
     param(
         [string]$Name,
         [string]$Url,
-        [string]$Method = "GET",
-        [object]$Body = $null,
-        [hashtable]$Headers = @{},
-        [int]$ExpectedStatus = 200
+        [hashtable]$Opts = @{}
     )
-    
+
+    $method = if ($Opts.Method) { $Opts.Method } else { 'GET' }
+    $body = $Opts.Body
+    $headers = if ($Opts.Headers) { $Opts.Headers } else { @{} }
+    $expectedStatus = if ($Opts.ExpectedStatus) { $Opts.ExpectedStatus } else { 200 }
+
     Write-Host "Testing: $Name" -ForegroundColor Yellow
-    Write-Host "  URL: $Method $Url" -ForegroundColor Gray
-    
+    Write-Host "  URL: $method $Url" -ForegroundColor Gray
+
     try {
         $params = @{
             Uri = $Url
-            Method = $Method
-            Headers = $Headers
+            Method = $method
+            Headers = $headers
         }
-        
-        if ($Body -ne $null) {
-            $params.Body = ($Body | ConvertTo-Json)
+
+        if ($body -ne $null) {
+            $params.Body = ($body | ConvertTo-Json)
             $params.ContentType = "application/json"
         }
-        
+
         $response = Invoke-RestMethod @params -ErrorAction Stop
-        Write-Host "  ✓ PASS - Status: $ExpectedStatus" -ForegroundColor Green
+        Write-Host "  ✓ PASS - Status: $expectedStatus" -ForegroundColor Green
         Write-Host ""
         $script:testsPassed++
         return $response
     }
     catch {
         $statusCode = $_.Exception.Response.StatusCode.value__
-        if ($statusCode -eq $ExpectedStatus) {
-            Write-Host "  ✓ PASS - Got expected status: $ExpectedStatus" -ForegroundColor Green
+        if ($statusCode -eq $expectedStatus) {
+            Write-Host "  ✓ PASS - Got expected status: $expectedStatus" -ForegroundColor Green
             $script:testsPassed++
         } else {
             Write-Host "  ✗ FAIL - $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "    Expected: $ExpectedStatus, Got: $statusCode" -ForegroundColor Red
+            Write-Host "    Expected: $expectedStatus, Got: $statusCode" -ForegroundColor Red
             $script:testsFailed++
         }
         Write-Host ""
@@ -86,39 +88,35 @@ $registerBody = @{
     role = "tenant"
 }
 
-$registerResponse = Test-Endpoint -Name "Register User" -Url "$baseUrl/api/auth/register" -Method "POST" -Body $registerBody -ExpectedStatus 201
+$registerResponse = Test-Endpoint -Name "Register User" -Url "$baseUrl/api/auth/register" -Opts @{ Method = "POST"; Body = $registerBody; ExpectedStatus = 201 }
 
 if ($registerResponse -eq $null) {
     Write-Host "⚠️  Registration failed. Skipping login tests." -ForegroundColor Yellow
 } else {
     $token = $registerResponse.data.token
-    
+
     # Test Login
     $loginBody = @{
         username = $testUsername
         password = "test123456"
     }
-    
-    $loginResponse = Test-Endpoint -Name "Login User" -Url "$baseUrl/api/auth/login" -Method "POST" -Body $loginBody -ExpectedStatus 200
-    
+
+    $loginResponse = Test-Endpoint -Name "Login User" -Url "$baseUrl/api/auth/login" -Opts @{ Method = "POST"; Body = $loginBody }
+
     if ($loginResponse -ne $null) {
         $token = $loginResponse.data.token
-        
-        # Test Get Profile
-        $authHeaders = @{
-            Authorization = "Bearer $token"
-        }
-        
-        Test-Endpoint -Name "Get User Profile" -Url "$baseUrl/api/auth/me" -Headers $authHeaders
-        
+        $authHeaders = @{ Authorization = "Bearer $token" }
+
+        Test-Endpoint -Name "Get User Profile" -Url "$baseUrl/api/auth/me" -Opts @{ Headers = $authHeaders }
+
         # Test Update Profile
         $updateBody = @{
             firstName = "Updated"
             lastName = "Name"
             mobile = "1234567890"
         }
-        
-        Test-Endpoint -Name "Update Profile" -Url "$baseUrl/api/auth/me" -Method "PATCH" -Body $updateBody -Headers $authHeaders
+
+        Test-Endpoint -Name "Update Profile" -Url "$baseUrl/api/auth/me" -Opts @{ Method = "PATCH"; Body = $updateBody; Headers = $authHeaders }
     }
 }
 
@@ -136,10 +134,10 @@ $invalidLoginBody = @{
     password = "wrong"
 }
 
-Test-Endpoint -Name "Invalid Login (Should fail)" -Url "$baseUrl/api/auth/login" -Method "POST" -Body $invalidLoginBody -ExpectedStatus 401
+Test-Endpoint -Name "Invalid Login (Should fail)" -Url "$baseUrl/api/auth/login" -Opts @{ Method = "POST"; Body = $invalidLoginBody; ExpectedStatus = 401 }
 
 # Test missing auth token
-Test-Endpoint -Name "Access without token (Should fail)" -Url "$baseUrl/api/auth/me" -ExpectedStatus 401
+Test-Endpoint -Name "Access without token (Should fail)" -Url "$baseUrl/api/auth/me" -Opts @{ ExpectedStatus = 401 }
 
 # Summary
 Write-Host "============================================" -ForegroundColor Cyan
