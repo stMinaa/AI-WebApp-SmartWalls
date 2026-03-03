@@ -51,6 +51,9 @@ profiles/
 setup-codescene.ps1
 install-cs-tool.ps1
 
+# Claude lokalne postavke
+.claude/settings.local.json
+
 # MongoDB
 *.lock
 
