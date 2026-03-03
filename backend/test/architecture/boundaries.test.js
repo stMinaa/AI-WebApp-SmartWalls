@@ -13,61 +13,49 @@ const path = require('path');
 describe('🏛️ Hexagonal Architecture - Layer Boundaries', () => {
   describe('Domain Layer Purity', () => {
     it('should NOT import Express in domain layer', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/domain'),
-        { skip: 'Domain layer not yet created' },
-        (content) => {
-          expect(content).not.toContain("require('express')");
-          expect(content).not.toContain("from 'express'");
-        }
+        ["require('express')", "from 'express'"],
+        'Domain layer not yet created'
       );
     });
 
     it('should NOT import Mongoose in domain layer', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/domain'),
-        { skip: 'Domain layer not yet created' },
-        (content) => {
-          expect(content).not.toContain("require('mongoose')");
-          expect(content).not.toContain("from 'mongoose'");
-        }
+        ["require('mongoose')", "from 'mongoose'"],
+        'Domain layer not yet created'
       );
     });
 
     it('should NOT import infrastructure adapters in domain layer', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/domain'),
-        { skip: 'Domain layer not yet created' },
-        (content) => {
-          expect(content).not.toMatch(/require\(['"].*adapters/);
-          expect(content).not.toMatch(/from ['"].*adapters/);
-          expect(content).not.toMatch(/require\(['"].*infrastructure/);
-          expect(content).not.toMatch(/from ['"].*infrastructure/);
-        }
+        [
+          /require\(['"].*adapters/,
+          /from ['"].*adapters/,
+          /require\(['"].*infrastructure/,
+          /from ['"].*infrastructure/
+        ],
+        'Domain layer not yet created'
       );
     });
   });
 
   describe('Application Layer Boundaries', () => {
     it('should NOT import HTTP adapters in use cases', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/application'),
-        { skip: 'Application layer not yet created' },
-        (content) => {
-          expect(content).not.toMatch(/require\(['"].*adapters\/http/);
-          expect(content).not.toMatch(/from ['"].*adapters\/http/);
-        }
+        [/require\(['"].*adapters\/http/, /from ['"].*adapters\/http/],
+        'Application layer not yet created'
       );
     });
 
     it('should NOT import Mongoose directly in use cases', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/application'),
-        { skip: 'Application layer not yet created' },
-        (content) => {
-          expect(content).not.toContain("require('mongoose')");
-          expect(content).not.toContain("from 'mongoose'");
-        }
+        ["require('mongoose')", "from 'mongoose'"],
+        'Application layer not yet created'
       );
     });
 
@@ -86,13 +74,10 @@ describe('🏛️ Hexagonal Architecture - Layer Boundaries', () => {
 
   describe('Controller Layer (HTTP Adapters)', () => {
     it('should NOT import Mongoose models in controllers', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src/adapters/http/controllers'),
-        { skip: 'Controllers not yet created' },
-        (content) => {
-          expect(content).not.toMatch(/require\(['"].*models\//);
-          expect(content).not.toMatch(/from ['"].*models\//);
-        }
+        [/require\(['"].*models\//, /from ['"].*models\//],
+        'Controllers not yet created'
       );
     });
 
@@ -129,15 +114,15 @@ describe('🏛️ Hexagonal Architecture - Layer Boundaries', () => {
 
   describe('Migration Boundaries', () => {
     it('should NOT import old structure from new hexagonal code', () => {
-      _forEachFile(
+      _assertNoneMatch(
         path.join(__dirname, '../../src'),
-        { skip: 'Hexagonal structure not yet created' },
-        (content) => {
-          expect(content).not.toMatch(/require\(['"].*\/services\//);
-          expect(content).not.toMatch(/require\(['"].*\/routes\//);
-          expect(content).not.toMatch(/from ['"].*\/services\//);
-          expect(content).not.toMatch(/from ['"].*\/routes\//);
-        }
+        [
+          /require\(['"].*\/services\//,
+          /require\(['"].*\/routes\//,
+          /from ['"].*\/services\//,
+          /from ['"].*\/routes\//
+        ],
+        'Hexagonal structure not yet created'
       );
     });
   });
@@ -190,6 +175,12 @@ function _forEachFile(dirPath, { ext = '.js', skip }, check) {
     return;
   }
   findFilesInDir(dirPath, ext).forEach((file) => check(fs.readFileSync(file, 'utf-8')));
+}
+
+function _assertNoneMatch(dirPath, patterns, skip) {
+  _forEachFile(dirPath, { skip }, (content) => {
+    patterns.forEach((p) => expect(content).not.toMatch(p));
+  });
 }
 
 function findFilesInDir(dir, extension) {
