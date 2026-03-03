@@ -19,9 +19,23 @@ function validateCreate(data) {
   const addressCheck = validateRequired(data.address, 'Address');
   if (!addressCheck.valid) errors.push(addressCheck.message);
 
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
+}
+
+function _validateApartment(apt, index) {
+  const errors = [];
+  const aptNum = index + 1;
+
+  const numberCheck = validateRequired(apt.number, `Apartment #${aptNum}: Number`);
+  if (!numberCheck.valid) errors.push(`Apartment #${aptNum}: number is required`);
+
+  if (apt.floor === undefined || apt.floor === null) {
+    errors.push(`Apartment #${aptNum}: floor is required`);
+  } else if (typeof apt.floor !== 'number') {
+    errors.push(`Apartment #${aptNum}: floor must be a number`);
+  }
+
+  return errors;
 }
 
 /**
@@ -30,45 +44,14 @@ function validateCreate(data) {
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
 function validateBulkApartments(data) {
-  const errors = [];
-  
-  // Check if apartments array exists
-  if (!data.apartments) {
-    errors.push('Apartments array is required');
-    return { valid: false, errors };
-  }
-  
-  // Check if apartments is an array
-  if (!Array.isArray(data.apartments)) {
-    errors.push('Apartments must be an array');
-    return { valid: false, errors };
-  }
-  
-  // Check if array is not empty
-  if (data.apartments.length === 0) {
-    errors.push('At least one apartment is required');
-    return { valid: false, errors };
-  }
-  
-  // Validate each apartment
-  data.apartments.forEach((apt, index) => {
-    const aptNum = index + 1;
-    
-    const numberCheck = validateRequired(apt.number, `Apartment #${aptNum}: Number`);
-    if (!numberCheck.valid) {
-      errors.push(`Apartment #${aptNum}: number is required`);
-    }
-    
-    if (apt.floor === undefined || apt.floor === null) {
-      errors.push(`Apartment #${aptNum}: floor is required`);
-    } else if (typeof apt.floor !== 'number') {
-      errors.push(`Apartment #${aptNum}: floor must be a number`);
-    }
-  });
-  
-  return errors.length === 0 
-    ? { valid: true } 
-    : { valid: false, errors };
+  if (!data.apartments) return { valid: false, errors: ['Apartments array is required'] };
+  if (!Array.isArray(data.apartments))
+    return { valid: false, errors: ['Apartments must be an array'] };
+  if (data.apartments.length === 0)
+    return { valid: false, errors: ['At least one apartment is required'] };
+
+  const errors = data.apartments.flatMap((apt, index) => _validateApartment(apt, index));
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
 }
 
 module.exports = {

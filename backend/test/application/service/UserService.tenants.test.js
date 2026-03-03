@@ -63,13 +63,18 @@ describe('TenantService - Tenant Operations', () => {
   });
 
   describe('assignTenant', () => {
-    it('assigns tenant to apartment', async () => {
+    function _setupAssign(tenantOverrides = {}) {
       repo.findByUsername.mockResolvedValue(makeUser({ role: 'manager' }));
-      const tenant = makeUser({ _id: 't1', role: 'tenant' });
+      const tenant = makeUser({ _id: 't1', role: 'tenant', ...tenantOverrides });
       repo.findById.mockResolvedValue(tenant);
       const apartment = { _id: 'apt1', tenant: null, save: jest.fn() };
       repo.findApartmentById.mockResolvedValue(apartment);
       repo.save.mockResolvedValue(tenant);
+      return { tenant, apartment };
+    }
+
+    it('assigns tenant to apartment', async () => {
+      const { tenant, apartment } = _setupAssign();
 
       await service.assignTenant('manager', 't1', {
         apartmentId: 'apt1',
@@ -103,14 +108,8 @@ describe('TenantService - Tenant Operations', () => {
     });
 
     it('frees old apartment when reassigning', async () => {
-      repo.findByUsername.mockResolvedValue(makeUser({ role: 'manager' }));
-      const oldAptId = 'old-apt';
-      const tenant = makeUser({ _id: 't1', role: 'tenant', apartment: oldAptId });
-      repo.findById.mockResolvedValue(tenant);
-      const apartment = { _id: 'apt1', tenant: null, save: jest.fn() };
-      repo.findApartmentById.mockResolvedValue(apartment);
       repo.updateApartmentTenant.mockResolvedValue({});
-      repo.save.mockResolvedValue(tenant);
+      _setupAssign({ apartment: 'old-apt' });
 
       await service.assignTenant('manager', 't1', {
         apartmentId: 'apt1',
@@ -118,7 +117,7 @@ describe('TenantService - Tenant Operations', () => {
         numPeople: 2
       });
 
-      expect(repo.updateApartmentTenant).toHaveBeenCalledWith(oldAptId, null, 0);
+      expect(repo.updateApartmentTenant).toHaveBeenCalledWith('old-apt', null, 0);
     });
   });
 

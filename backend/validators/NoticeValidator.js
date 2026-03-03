@@ -27,6 +27,10 @@ function validateCreate(data) {
  * @param {Object} data - Poll data (title, content, options)
  * @returns {Object} { valid: boolean, errors?: string[] }
  */
+function _isEmptyOption(opt) {
+  return !opt || (typeof opt === 'string' && !opt.trim());
+}
+
 function validatePollOptions(options) {
   if (!options) return ['Options are required'];
   if (!Array.isArray(options)) return ['Options must be an array'];
@@ -34,7 +38,7 @@ function validatePollOptions(options) {
 
   const errors = [];
   options.forEach((option, index) => {
-    if (!option || (typeof option === 'string' && !option.trim())) {
+    if (_isEmptyOption(option)) {
       errors.push(`Option #${index + 1} cannot be empty`);
     }
   });

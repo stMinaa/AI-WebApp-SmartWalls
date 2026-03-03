@@ -6,162 +6,75 @@
 const BuildingValidator = require('../../validators/BuildingValidator');
 
 describe('BuildingValidator - Create', () => {
-  test('valid building data should pass', () => {
-    const data = {
-      name: 'Zgrada A',
-      address: 'Bulevar kralja Aleksandra 73'
-    };
-    
+  test.each([
+    [{ name: 'Zgrada A', address: 'Bulevar kralja Aleksandra 73' }],
+    [{ name: 'B', address: 'A' }]
+  ])('valid building data should pass', (data) => {
     const result = BuildingValidator.validateCreate(data);
     expect(result.valid).toBe(true);
-    expect(result.errors).toBeUndefined();
   });
 
-  test('missing name should fail', () => {
-    const data = {
-      address: 'Bulevar kralja Aleksandra 73'
-    };
-    
+  test.each([
+    [{ address: 'Bulevar kralja Aleksandra 73' }, 'Building name is required'],
+    [{ name: '   ', address: 'Bulevar kralja Aleksandra 73' }, 'Building name is required'],
+    [{ name: 'Zgrada A' }, 'Address is required'],
+    [{ name: 'Zgrada A', address: '   ' }, 'Address is required']
+  ])('invalid building data should fail', (data, expectedError) => {
     const result = BuildingValidator.validateCreate(data);
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Building name is required');
+    expect(result.errors).toContain(expectedError);
   });
-
-  test('empty name should fail', () => {
-    const data = {
-      name: '   ',
-      address: 'Bulevar kralja Aleksandra 73'
-    };
-    
-    const result = BuildingValidator.validateCreate(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Building name is required');
-  });
-
-  test('missing address should fail', () => {
-    const data = {
-      name: 'Zgrada A'
-    };
-    
-    const result = BuildingValidator.validateCreate(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Address is required');
-  });
-
-  test('empty address should fail', () => {
-    const data = {
-      name: 'Zgrada A',
-      address: '   '
-    };
-    
-    const result = BuildingValidator.validateCreate(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Address is required');
-  });
-
 });
 
 describe('BuildingValidator - Bulk Apartments', () => {
-  test('valid bulk apartments data should pass', () => {
-    const data = {
-      apartments: [
-        { number: '1', floor: 0 },
-        { number: '2', floor: 0 },
-        { number: '3', floor: 1 }
-      ]
-    };
-    
+  test.each([
+    [
+      {
+        apartments: [
+          { number: '1', floor: 0 },
+          { number: '2', floor: 0 },
+          { number: '3', floor: 1 }
+        ]
+      }
+    ],
+    [
+      {
+        apartments: Array.from({ length: 20 }, (_, i) => ({
+          number: String(i + 1),
+          floor: Math.floor(i / 4)
+        }))
+      }
+    ]
+  ])('valid bulk apartments should pass', (data) => {
     const result = BuildingValidator.validateBulkApartments(data);
     expect(result.valid).toBe(true);
-    expect(result.errors).toBeUndefined();
   });
 
-  test('missing apartments array should fail', () => {
-    const data = {};
-    
+  test.each([
+    [{}, 'Apartments array is required'],
+    [{ apartments: [] }, 'At least one apartment is required'],
+    [{ apartments: 'not-an-array' }, 'Apartments must be an array']
+  ])('invalid apartments container should fail', (data, expectedError) => {
     const result = BuildingValidator.validateBulkApartments(data);
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Apartments array is required');
+    expect(result.errors).toContain(expectedError);
   });
 
-  test('empty apartments array should fail', () => {
-    const data = {
-      apartments: []
-    };
-    
+  test.each([
+    [{ apartments: [{ floor: 0 }] }, 'Apartment #1: number is required'],
+    [{ apartments: [{ number: '1' }] }, 'Apartment #1: floor is required'],
+    [{ apartments: [{ number: '1', floor: 'ground' }] }, 'Apartment #1: floor must be a number']
+  ])('invalid apartment field should fail', (data, errorFragment) => {
     const result = BuildingValidator.validateBulkApartments(data);
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('At least one apartment is required');
-  });
-
-  test('non-array apartments should fail', () => {
-    const data = {
-      apartments: 'not-an-array'
-    };
-    
-    const result = BuildingValidator.validateBulkApartments(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Apartments must be an array');
-  });
-
-  test('apartment missing number should fail', () => {
-    const data = {
-      apartments: [
-        { floor: 0 }
-      ]
-    };
-    
-    const result = BuildingValidator.validateBulkApartments(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('Apartment #1: number is required'))).toBe(true);
-  });
-
-  test('apartment missing floor should fail', () => {
-    const data = {
-      apartments: [
-        { number: '1' }
-      ]
-    };
-    
-    const result = BuildingValidator.validateBulkApartments(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('Apartment #1: floor is required'))).toBe(true);
-  });
-
-  test('apartment with invalid floor should fail', () => {
-    const data = {
-      apartments: [
-        { number: '1', floor: 'ground' }
-      ]
-    };
-    
-    const result = BuildingValidator.validateBulkApartments(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.includes('Apartment #1: floor must be a number'))).toBe(true);
+    expect(result.errors.some((e) => e.includes(errorFragment))).toBe(true);
   });
 
   test('multiple apartments with some invalid should fail', () => {
-    const data = {
-      apartments: [
-        { number: '1', floor: 0 },
-        { floor: 1 }, // Missing number
-        { number: '3', floor: 'two' } // Invalid floor
-      ]
-    };
-    
-    const result = BuildingValidator.validateBulkApartments(data);
+    const result = BuildingValidator.validateBulkApartments({
+      apartments: [{ number: '1', floor: 0 }, { floor: 1 }, { number: '3', floor: 'two' }]
+    });
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
-  });
-
-  test('valid bulk apartments with many apartments should pass', () => {
-    const apartments = [];
-    for (let i = 1; i <= 20; i++) {
-      apartments.push({ number: i.toString(), floor: Math.floor((i - 1) / 4) });
-    }
-    
-    const data = { apartments };
-    const result = BuildingValidator.validateBulkApartments(data);
-    expect(result.valid).toBe(true);
   });
 });

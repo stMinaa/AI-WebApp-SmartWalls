@@ -64,46 +64,22 @@ describe('AuthApplicationService', () => {
       await expect(service.signup(signupData)).rejects.toThrow('Username or email already exists');
     });
 
-    it('sets director status to active', async () => {
+    test.each([
+      ['director', 'active', { ...signupData, role: 'director', username: 'director1' }],
+      ['tenant', 'pending', signupData]
+    ])('sets %s status to %s on signup', async (role, expectedStatus, data) => {
       mockAuthRepo.existsByUsernameOrEmail.mockResolvedValue(null);
       mockAuthService.hashPassword.mockResolvedValue('hashedpass');
-      const savedUser = {
-        _id: { toString: () => 'user123' },
-        username: 'director1',
-        email: 'dir@test.com',
-        firstName: 'Dir',
-        lastName: 'Ector',
-        role: 'director',
-        status: 'active'
-      };
-      mockAuthRepo.createUser.mockResolvedValue(savedUser);
+      mockAuthRepo.createUser.mockResolvedValue({
+        _id: { toString: () => 'u1' },
+        ...data,
+        status: expectedStatus
+      });
       mockAuthService.generateToken.mockReturnValue('token123');
 
-      await service.signup({ ...signupData, role: 'director', username: 'director1' });
+      await service.signup(data);
 
-      const createCall = mockAuthRepo.createUser.mock.calls[0][0];
-      expect(createCall.status).toBe('active');
-    });
-
-    it('sets non-director status to pending', async () => {
-      mockAuthRepo.existsByUsernameOrEmail.mockResolvedValue(null);
-      mockAuthService.hashPassword.mockResolvedValue('hashedpass');
-      const savedUser = {
-        _id: { toString: () => 'user123' },
-        username: 'newuser',
-        email: 'new@test.com',
-        firstName: 'New',
-        lastName: 'User',
-        role: 'tenant',
-        status: 'pending'
-      };
-      mockAuthRepo.createUser.mockResolvedValue(savedUser);
-      mockAuthService.generateToken.mockReturnValue('token123');
-
-      await service.signup(signupData);
-
-      const createCall = mockAuthRepo.createUser.mock.calls[0][0];
-      expect(createCall.status).toBe('pending');
+      expect(mockAuthRepo.createUser.mock.calls[0][0].status).toBe(expectedStatus);
     });
   });
 
@@ -188,32 +164,18 @@ describe('AuthApplicationService', () => {
       expect(result).toEqual(updatedUser);
     });
 
-    it('ignores company field for tenants', async () => {
-      const user = {
-        username: 'tenant1',
-        role: 'tenant',
-        save: jest.fn()
-      };
+    test.each([
+      ['tenant', 'ShouldNotSet', undefined],
+      ['manager', 'MyCompany', 'MyCompany']
+    ])('company field handling for %s role', async (role, company, expectedCompany) => {
+      const username = `${role}1`;
+      const user = { username, role, save: jest.fn() };
       mockAuthRepo.findByUsername.mockResolvedValue(user);
       mockAuthRepo.findByUsernameExcludePassword.mockResolvedValue(user);
 
-      await service.updateProfile('tenant1', { company: 'ShouldNotSet' });
+      await service.updateProfile(username, { company });
 
-      expect(user.company).toBeUndefined();
-    });
-
-    it('allows company field for non-tenants', async () => {
-      const user = {
-        username: 'manager1',
-        role: 'manager',
-        save: jest.fn()
-      };
-      mockAuthRepo.findByUsername.mockResolvedValue(user);
-      mockAuthRepo.findByUsernameExcludePassword.mockResolvedValue(user);
-
-      await service.updateProfile('manager1', { company: 'MyCompany' });
-
-      expect(user.company).toBe('MyCompany');
+      expect(user.company).toBe(expectedCompany);
     });
 
     it('throws when user not found', async () => {

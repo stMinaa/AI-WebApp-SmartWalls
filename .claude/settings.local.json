@@ -60,7 +60,8 @@
       "Bash(powershell.exe:*)",
       "Bash(curl:*)",
       "Bash(npm run:*)",
-      "Bash(gh run:*)"
+      "Bash(gh run:*)",
+      "Bash(do echo:*)"
     ]
   }
 }
